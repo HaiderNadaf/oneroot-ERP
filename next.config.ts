@@ -4,6 +4,11 @@ const nextConfig: NextConfig = {
   /* config options here */
   experimental: {
     agentFeedback: true,
+    // ERP pages fetch their data in the browser after sign-in, so only validate segments
+    // that explicitly opt in with `export const instant` (stops dev-overlay errors on every page)
+    instantInsights: {
+      validationLevel: "manual-warning",
+    },
   },
   cacheComponents: true,
   partialPrefetching: true,

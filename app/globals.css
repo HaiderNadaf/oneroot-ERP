@@ -53,6 +53,11 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
+/* Thermal receipts render only while printing in receipt mode (see lib/print.ts) */
+.thermal-area {
+  display: none;
+}
+
 /* Printing invoices and reports: hide app chrome */
 @media print {
   .no-print {
@@ -69,5 +74,16 @@ input[type="number"] {
   }
   @page {
     margin: 10mm;
+  }
+  /* Receipt / label printing: only the portal under <body> is printed (see components/PrintPortal.tsx) */
+  body[data-print="thermal"] > *:not(.thermal-host),
+  body[data-print="labels"] > *:not(.label-host) {
+    display: none !important;
+  }
+  body[data-print="thermal"] .thermal-area {
+    display: block !important;
+  }
+  body[data-print="labels"] .label-sheet {
+    display: grid !important;
   }
 }

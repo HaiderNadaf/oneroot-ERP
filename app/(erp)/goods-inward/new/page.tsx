@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, CheckCircle2, Info as InfoIcon, PackageCheck, Store } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Info as InfoIcon, PackageCheck, ScanLine, Store } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -27,6 +27,7 @@ import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
 import { date, inr, n, qty, round2, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useScanner } from "@/lib/scanner";
 import type { Grn, PoItem, PurchaseOrder } from "@/lib/types";
 
 interface Line {
@@ -139,7 +140,19 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   );
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [scanned, setScanned] = useState<string | null>(null);
   const { currentId, branches, locked, setBranch } = useBranch();
+
+  // A barcode scan jumps to that PO line, marks the pending quantity as passed and focuses the batch box
+  useScanner((code) => {
+    const q = code.toLowerCase();
+    const hit = items.find((i) => pendingOf(i) > 0 && (i.product.barcode?.toLowerCase() === q || i.product.sku.toLowerCase() === q));
+    if (!hit) return toast.error(`No open line on ${po.poNo} matches barcode ${code}`);
+    setScanned(hit.id);
+    setLines((ls) => (num(ls[hit.id].passed) > 0 ? ls : { ...ls, [hit.id]: { ...ls[hit.id], passed: String(pendingOf(hit)) } }));
+    document.getElementById(`grn-line-${hit.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => document.getElementById(`grn-batch-${hit.id}`)?.focus(), 250);
+  });
   // Goods are received into the branch the PO delivers to; with another branch selected the API refuses
   const poBranchId = po.branchId ?? po.branch?.id ?? null;
   const wrongBranch = !!poBranchId && currentId !== "all" && currentId !== poBranchId;
@@ -277,6 +290,9 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
           Count every item and split it: <b>Passed</b> goes into sellable stock · <b>Rejected</b> is returned and a debit note is drafted to
           the vendor · <b>Damaged</b> is written off · <b>Expired</b> is kept out of stock. Anything not counted stays open on the PO for a
           later delivery.
+          <span className="mt-1 flex items-center gap-1 text-xs text-sky-700">
+            <ScanLine className="size-3.5" /> Scan a pack&apos;s barcode to jump to its line and fill the batch details.
+          </span>
         </p>
       </div>
 
@@ -307,7 +323,8 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
           };
           const over = !!c.errors.total;
           return (
-            <Card key={item.id} className={cx(over && "border-red-300")}>
+            <div key={item.id} id={`grn-line-${item.id}`}>
+            <Card className={cx(over && "border-red-300", scanned === item.id && "ring-2 ring-brand-500")}>
               <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-semibold text-slate-900">{p.name}</p>
@@ -363,6 +380,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
               <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-3">
                 <Field label="Batch no." required={p.trackBatch && (num(l.passed) > 0 || num(l.expired) > 0)}>
                   <Input
+                    id={`grn-batch-${item.id}`}
                     className={cx(show("batchNo") && "border-red-400")}
                     value={l.batchNo}
                     onChange={(e) => update(item.id, { batchNo: e.target.value })}
@@ -392,6 +410,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                 </Field>
               </div>
             </Card>
+            </div>
           );
         })}
       </div>

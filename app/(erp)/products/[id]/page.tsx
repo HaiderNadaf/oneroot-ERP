@@ -1,10 +1,12 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, Pencil, Power, SlidersHorizontal, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Pencil, Power, SlidersHorizontal, Tag, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
+import { Barcode } from "@/components/Barcode";
 import { BranchCode } from "@/components/BranchNotice";
+import { LabelPrintModal } from "@/components/LabelPrintModal";
 import { ProductForm } from "@/components/ProductForm";
 import { StockAdjustModal } from "@/components/StockAdjustModal";
 import { ExpiryBadge, MovementBadge, MovementRef, SignedQty } from "@/components/StockBits";
@@ -43,6 +45,7 @@ export default function ProductDetailPage() {
   const confirm = useConfirm();
   const [editOpen, setEditOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [labelsOpen, setLabelsOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
 
@@ -127,7 +130,11 @@ export default function ProductDetailPage() {
         }
         subtitle={[p.sku, p.brand, p.category?.name].filter(Boolean).join(" · ")}
         actions={
-          can("MANAGER") && (
+          <>
+            <Button variant="secondary" icon={<Tag className="size-4" />} onClick={() => setLabelsOpen(true)}>
+              Labels
+            </Button>
+            {can("MANAGER") && (
             <>
               {p.isActive ? (
                 <Button variant="secondary" icon={<Trash2 className="size-4" />} onClick={remove} loading={busy}>
@@ -145,7 +152,8 @@ export default function ProductDetailPage() {
                 Adjust stock
               </Button>
             </>
-          )
+            )}
+          </>
         }
       />
 
@@ -160,7 +168,14 @@ export default function ProductDetailPage() {
             <Info label="Unit">{p.unit}</Info>
             <Info label="HSN code">{p.hsnCode}</Info>
             <Info label="GST rate">{`${gst}%`}</Info>
-            <Info label="Barcode">{p.barcode}</Info>
+            <Info label="Barcode">
+              {p.barcode ? (
+                <span className="block">
+                  <span className="font-mono">{p.barcode}</span>
+                  <Barcode value={p.barcode} height={28} moduleWidth={1.2} className="mt-1 block max-w-[220px]" fluid />
+                </span>
+              ) : null}
+            </Info>
             <Info label="Batch tracking">{p.trackBatch ? "Batches & expiry tracked" : "Not tracked"}</Info>
           </dl>
           {p.description && <p className="mt-4 border-t border-slate-100 pt-3 text-sm text-slate-600">{p.description}</p>}
@@ -376,6 +391,25 @@ export default function ProductDetailPage() {
         }}
       />
       <StockAdjustModal open={adjustOpen} onClose={() => setAdjustOpen(false)} onSaved={refresh} product={p} />
+      <LabelPrintModal
+        open={labelsOpen}
+        onClose={() => {
+          setLabelsOpen(false);
+          void reload();
+        }}
+        items={(batches.length ? batches : [null]).map((b) => ({
+          productId: p.id,
+          name: p.name,
+          sku: p.sku,
+          barcode: p.barcode,
+          packSize: p.packSize,
+          mrp: b?.mrp ?? p.mrp,
+          salePrice: p.salePrice,
+          batchNo: b?.batchNo,
+          expiryDate: b?.expiryDate,
+          count: b ? Math.min(Math.ceil(n(b.quantity)), 100) : 1,
+        }))}
+      />
     </>
   );
 }

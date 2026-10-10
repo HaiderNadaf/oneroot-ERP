@@ -4,7 +4,9 @@ import { ArrowLeft, Ban, IndianRupee, Plus, Printer, Undo2 } from "lucide-react"
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { PrintPortal } from "@/components/PrintPortal";
 import { SaleInvoice } from "@/components/SaleInvoice";
+import { ThermalReceipt, receiptFromSale } from "@/components/ThermalReceipt";
 import {
   Badge,
   Button,
@@ -26,6 +28,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { date, dateTime, inr, n, qty, round2, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { defaultPrintMode, printAs, printReceipt, receiptWidth } from "@/lib/print";
 import type { PaymentMode, Sale, StoreSettings } from "@/lib/types";
 
 const RECEIPT_MODES: PaymentMode[] = ["CASH", "UPI", "CARD", "BANK", "CHEQUE"];
@@ -43,13 +46,17 @@ export default function SaleDetailPage() {
   const [cancelling, setCancelling] = useState(false);
   const printed = useRef(false);
 
+  // Thermal receipt or A4 invoice, per the store setting (either can be chosen from the buttons)
+  const mode = defaultPrintMode(settings);
+  const print = (m: "a4" | "thermal" = mode) => (m === "thermal" ? printReceipt(receiptWidth(settings)) : printAs("a4"));
+
   // Auto-print once when arriving from the POS (?print=1)
   const wantPrint = params.get("print") === "1";
   useEffect(() => {
     if (!wantPrint || printed.current || !sale || !settings) return;
     printed.current = true;
     window.history.replaceState(null, "", `/sales/${id}`);
-    const t = setTimeout(() => window.print(), 300);
+    const t = setTimeout(() => printAs("a4"), 300);
     return () => clearTimeout(t);
   }, [wantPrint, sale, settings, id]);
 
@@ -104,8 +111,11 @@ export default function SaleDetailPage() {
                 Invoices
               </Button>
             </Link>
-            <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => window.print()}>
-              Print
+            <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => print()}>
+              {mode === "thermal" ? "Print receipt" : "Print invoice"}
+            </Button>
+            <Button variant="ghost" onClick={() => print(mode === "thermal" ? "a4" : "thermal")}>
+              {mode === "thermal" ? "A4 invoice" : "Receipt"}
             </Button>
             {!cancelled && sale.customerId && balance > 0 && (
               <Button variant="secondary" icon={<IndianRupee className="size-4" />} onClick={() => setPayOpen(true)}>
@@ -223,6 +233,10 @@ export default function SaleDetailPage() {
           </Card>
         </div>
       </div>
+
+      <PrintPortal className="thermal-host">
+        <ThermalReceipt data={receiptFromSale(sale)} settings={settings} width={receiptWidth(settings)} />
+      </PrintPortal>
 
       {sale.customerId && (
         <RecordPaymentModal

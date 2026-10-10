@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
+import { isNetworkError, persistGet, persistSet, shouldPersist } from "./offline";
 
 type Query = Record<string, string | number | boolean | undefined | null>;
 
@@ -32,10 +33,20 @@ export function cachedGet<T>(path: string, query?: Query): Promise<T> {
   const key = cacheKey(path, query);
   let pending = inFlight.get(key) as Promise<T> | undefined;
   if (!pending) {
-    pending = api.get<T>(path, query).then((data) => {
-      remember(key, data);
-      return data;
-    });
+    pending = api
+      .get<T>(path, query)
+      .then((data) => {
+        remember(key, data);
+        if (shouldPersist(key)) persistSet(key, data);
+        return data;
+      })
+      .catch((e) => {
+        // Offline: fall back to the copy saved on this device, if there is one
+        const saved = isNetworkError(e) && shouldPersist(key) ? persistGet<T>(key) : null;
+        if (saved === null) throw e;
+        remember(key, saved);
+        return saved;
+      });
     inFlight.set(key, pending);
     const done = () => inFlight.delete(key);
     pending.then(done, done);

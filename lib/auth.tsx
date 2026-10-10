@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, getToken, setToken } from "./api";
 import { clearApiCache } from "./hooks";
+import { isNetworkError, persistClear, persistGet, persistSet } from "./offline";
 import type { Role } from "./types";
 
 export interface SessionUser {
@@ -31,8 +32,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Restore the session from a saved token, if any
     const restore = getToken() ? api.get<SessionUser>("/auth/me") : Promise.resolve(null);
     restore
-      .then(setUser)
-      .catch(() => setToken(null))
+      .then((u) => {
+        setUser(u);
+        if (u) persistSet("/auth/me", u);
+      })
+      .catch((e) => {
+        // No network: keep the last known session so the POS can keep billing offline
+        const saved = isNetworkError(e) ? persistGet<SessionUser>("/auth/me") : null;
+        if (saved) setUser(saved);
+        else setToken(null);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -40,11 +49,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await api.post<{ token: string; user: SessionUser }>("/auth/login", { email, password });
     clearApiCache();
     setToken(res.token);
+    persistSet("/auth/me", res.user);
     setUser(res.user);
   }, []);
 
   const logout = useCallback(() => {
     setToken(null);
+    persistClear();
     setUser(null);
     window.location.href = "/login";
   }, []);

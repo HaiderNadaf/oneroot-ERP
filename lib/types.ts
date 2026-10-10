@@ -125,6 +125,14 @@ export interface StoreSettings {
   receiptPrefix: string;
   invoiceFooter?: string | null;
   expiryAlertDays: number;
+  /** Default bill layout */
+  receiptFormat: "A4" | "THERMAL_80" | "THERMAL_58";
+  reminderTemplate?: string | null;
+  reminderGraceDays: number;
+  autoReminders: boolean;
+  blockOverdueCredit: boolean;
+  /** WhatsApp Cloud API keys are present on the server */
+  whatsappConfigured?: boolean;
 }
 
 export interface Category {
@@ -213,11 +221,51 @@ export interface Customer {
   landAcres?: Dec | null;
   crops?: string | null;
   creditLimit: Dec;
+  /** Credit period in days; 0 = due immediately */
+  creditDays: number;
+  /** Credit sales blocked until a manager lifts it */
+  creditHold: boolean;
   openingBalance: Dec;
   balance: Dec;
   notes?: string | null;
   isActive: boolean;
   createdAt: string;
+  /** Detail only */
+  overdue?: Overdue;
+  lastReminder?: CustomerReminder | null;
+}
+
+export interface Overdue {
+  amount: number;
+  days: number;
+  oldestDue?: string | null;
+}
+
+export type ReminderChannel = "WHATSAPP" | "SMS" | "CALL" | "VISIT" | "NOTE";
+
+export interface CustomerReminder {
+  id: string;
+  customerId: string;
+  channel: ReminderChannel;
+  amount: Dec;
+  message?: string | null;
+  automatic: boolean;
+  userId?: string | null;
+  sentAt: string;
+}
+
+export interface OverdueRow {
+  id: string;
+  name: string;
+  phone: string | null;
+  village: string | null;
+  balance: number;
+  creditLimit: number;
+  creditDays: number;
+  creditHold: boolean;
+  overdue: Overdue;
+  lastReminder: { sentAt: string; channel: ReminderChannel; automatic: boolean } | null;
+  message: string;
 }
 
 export interface Vendor {
@@ -319,6 +367,7 @@ export interface Sale {
   paymentStatus: PaymentStatus;
   status: DocStatus;
   isInterState: boolean;
+  offlineId?: string | null;
   notes?: string | null;
   items?: SaleItem[];
   payments?: Payment[];
@@ -398,7 +447,7 @@ export interface PoItem {
   damagedQty: Dec;
   expiredQty: Dec;
   pendingQty?: number;
-  product: { name: string; sku: string; unit: string; hsnCode?: string | null; trackBatch: boolean; packSize?: string | null };
+  product: { name: string; sku: string; unit: string; hsnCode?: string | null; trackBatch: boolean; packSize?: string | null; barcode?: string | null };
 }
 
 export interface PoHistory {
@@ -491,7 +540,7 @@ export interface GrnItem {
   expiryDate?: string | null;
   batchId?: string | null;
   rate: Dec; // PO rate excl. GST
-  product: { name: string; sku: string; unit: string; hsnCode?: string | null };
+  product: { name: string; sku: string; unit: string; hsnCode?: string | null; barcode?: string | null; mrp?: Dec; salePrice?: Dec; packSize?: string | null };
   poItem: { rate: Dec; gstRate: Dec; quantity: Dec };
 }
 
@@ -654,6 +703,134 @@ export interface AuditLog {
   createdAt: string;
   user?: { name: string; email: string } | null;
 }
+
+// ───────────────────────── Accounting ─────────────────────────
+
+export type AccountType = "ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE";
+
+export interface Account {
+  id: string;
+  code: string;
+  name: string;
+  type: AccountType;
+  group: string;
+  key?: string | null;
+  expenseCategoryId?: string | null;
+  openingBalance: number;
+  isActive: boolean;
+  isSystem?: boolean;
+  /** From GET /accounting/accounts: totals to date and the debit-positive balance */
+  debit?: number;
+  credit?: number;
+  balance?: number;
+}
+
+export interface JournalLine {
+  id: string;
+  accountId: string;
+  account: { id?: string; code: string; name: string };
+  debit: number;
+  credit: number;
+  partyType?: "CUSTOMER" | "VENDOR" | null;
+  partyId?: string | null;
+  party?: string | null;
+  description?: string | null;
+}
+
+export interface JournalEntry {
+  id: string;
+  entryNo: string;
+  date: string;
+  narration?: string | null;
+  refType: string;
+  refId?: string | null;
+  refNo?: string | null;
+  reversesId?: string | null;
+  isManual: boolean;
+  branchId?: string | null;
+  branch?: { code: string; name: string } | null;
+  createdAt: string;
+  amount?: number;
+  lines: JournalLine[];
+  reversedBy?: { id: string; entryNo: string } | null;
+}
+
+export interface LedgerRow {
+  id: string;
+  entryId: string;
+  entryNo: string;
+  date: string;
+  refType: string;
+  refNo?: string | null;
+  refId?: string | null;
+  narration?: string | null;
+  description?: string | null;
+  party?: string | null;
+  debit: number;
+  credit: number;
+  balance: number;
+}
+
+export interface AccountLedger {
+  account: Account;
+  party: { type: "CUSTOMER" | "VENDOR"; id: string } | null;
+  from: string;
+  to: string;
+  opening: number;
+  entries: LedgerRow[];
+  totalDebit: number;
+  totalCredit: number;
+  closing: number;
+}
+
+export interface TrialBalance {
+  from: string;
+  to: string;
+  rows: { id: string; code: string; name: string; type: AccountType; group: string; opening: number; debit: number; credit: number; closing: number }[];
+  totals: { openingDr: number; openingCr: number; debit: number; credit: number; closingDr: number; closingCr: number };
+}
+
+export interface LedgerProfitLoss {
+  from: string;
+  to: string;
+  rows: { id: string; code: string; name: string; type: AccountType; group: string; amount: number }[];
+  sales: number;
+  directExpenses: number;
+  grossProfit: number;
+  otherIncome: number;
+  indirectExpenses: number;
+  totalIncome: number;
+  totalExpenses: number;
+  netProfit: number;
+}
+
+export interface BalanceSheet {
+  asOf: string;
+  fyStart: string;
+  assets: { id: string; code: string; name: string; group: string; balance: number }[];
+  liabilities: { id: string; code: string; name: string; group: string; balance: number }[];
+  equity: { id: string; code: string; name: string; group: string; balance: number }[];
+  retainedEarnings: number;
+  currentProfit: number;
+  totalAssets: number;
+  totalLiabilities: number;
+  totalEquity: number;
+  difference: number;
+}
+
+export const REF_TYPE_LABEL: Record<string, string> = {
+  SALE: "Sale",
+  SALE_RETURN: "Sales return",
+  PURCHASE: "Purchase",
+  GRN: "Goods received",
+  PAYMENT: "Payment / receipt",
+  EXPENSE: "Expense",
+  DEBIT_NOTE: "Debit / credit note",
+  ADJUSTMENT: "Stock adjustment",
+  OPENING: "Opening balance",
+  MANUAL: "Manual voucher",
+  REVERSAL: "Reversal",
+};
 
 export const PRODUCT_TYPES: ProductType[] = ["SEED", "FERTILIZER", "PESTICIDE", "EQUIPMENT", "OTHER"];
 export const PAYMENT_MODES: PaymentMode[] = ["CASH", "UPI", "CARD", "BANK", "CHEQUE", "CREDIT"];

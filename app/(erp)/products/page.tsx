@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CategoryManager } from "@/components/CategoryManager";
 import { ColumnPicker, useColumns, type ColumnDef } from "@/components/ColumnPicker";
+import { GenerateBarcodesButton } from "@/components/GenerateBarcodesButton";
 import { ProductForm } from "@/components/ProductForm";
 import {
   Badge,
@@ -230,6 +231,7 @@ export default function ProductsPage() {
             </Button>
             {can("MANAGER") && (
               <>
+                <GenerateBarcodesButton />
                 <Button variant="secondary" icon={<Tags className="size-4" />} onClick={() => setCatsOpen(true)}>
                   Categories
                 </Button>

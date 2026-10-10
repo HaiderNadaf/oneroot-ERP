@@ -4,6 +4,8 @@ import {
   BadgeCheck,
   BarChart3,
   Bell,
+  BellRing,
+  BookOpen,
   Boxes,
   FileMinus,
   PackageCheck,
@@ -64,6 +66,7 @@ export const NAV: { section: string; items: NavItem[] }[] = [
       { href: "/sales", label: "Invoices", icon: <Receipt /> },
       { href: "/sales/returns", label: "Sales Returns", icon: <Undo2 /> },
       { href: "/customers", label: "Customers", icon: <Users /> },
+      { href: "/customers/reminders", label: "Due Reminders", icon: <BellRing /> },
     ],
   },
   {
@@ -111,6 +114,12 @@ export const NAV: { section: string; items: NavItem[] }[] = [
         href: "/expenses",
         label: "Expenses",
         icon: <Wallet />,
+        roles: ["MANAGER", "ACCOUNTANT"],
+      },
+      {
+        href: "/accounts",
+        label: "Accounts",
+        icon: <BookOpen />,
         roles: ["MANAGER", "ACCOUNTANT"],
       },
       {
@@ -262,6 +271,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [loading, user, router]);
+
+  // Offline shell for the POS (production builds only; dev chunks change on every edit)
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  }, []);
 
   if (loading || !user) return <Spinner className="min-h-screen" />;
 

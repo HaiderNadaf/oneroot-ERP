@@ -26,6 +26,8 @@ function toForm(c?: Customer | null): FormState {
     landAcres: c?.landAcres !== null && c?.landAcres !== undefined ? String(n(c.landAcres)) : "",
     crops: c?.crops ?? "",
     creditLimit: c ? String(n(c.creditLimit)) : "",
+    creditDays: c ? String(c.creditDays ?? 0) : "",
+    creditHold: c?.creditHold ?? false,
     openingBalance: c ? String(n(c.openingBalance)) : "",
     notes: c?.notes ?? "",
     isActive: c?.isActive ?? true,
@@ -82,6 +84,8 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
     const numOr = (k: string) => (str(k) === "" ? blank : Number(str(k)));
     body.landAcres = numOr("landAcres");
     body.creditLimit = str("creditLimit") === "" ? (editing ? 0 : undefined) : Number(str("creditLimit"));
+    body.creditDays = str("creditDays") === "" ? (editing ? 0 : undefined) : Math.round(Number(str("creditDays")));
+    if (!quick) body.creditHold = !!f.creditHold;
     body.openingBalance = str("openingBalance") === "" ? (editing ? 0 : undefined) : Number(str("openingBalance"));
     if (editing) body.isActive = f.isActive;
     try {
@@ -166,9 +170,15 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
             <Field label="Credit limit (₹)" hint="0 = no limit">
               <Input type="number" step="0.01" min="0" value={str("creditLimit")} onChange={(e) => set("creditLimit", e.target.value)} />
             </Field>
+            <Field label="Credit days" hint="Credit bills fall due after this many days">
+              <Input type="number" step="1" min="0" max="365" value={str("creditDays")} onChange={(e) => set("creditDays", e.target.value)} />
+            </Field>
             <Field label="Opening balance (₹)" hint="Old dues before using this software">
               <Input type="number" step="0.01" value={str("openingBalance")} onChange={(e) => set("openingBalance", e.target.value)} />
             </Field>
+            <div className="flex items-end pb-2 sm:col-span-3">
+              <Checkbox label="Credit on hold — no credit sales until cleared" checked={!!f.creditHold} onChange={(v) => set("creditHold", v)} />
+            </div>
             <Field label="Notes" className="sm:col-span-3">
               <Textarea rows={2} value={str("notes")} onChange={(e) => set("notes", e.target.value)} />
             </Field>

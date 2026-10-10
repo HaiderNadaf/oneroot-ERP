@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Download, IndianRupee, MessageCircle, Pencil, Printer, ShoppingCart } from "lucide-react";
+import { ArrowLeft, Download, IndianRupee, MessageCircle, Pencil, PhoneCall, Printer, ShoppingCart } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -33,7 +33,7 @@ import {
 import { api } from "@/lib/api";
 import { date, downloadCsv, inr, n, qty, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import type { Customer, Dec, Ledger, Paged, Payment, PaymentMode, PaymentStatus, Sale, StoreSettings } from "@/lib/types";
+import type { Customer, CustomerReminder, Dec, Ledger, Paged, Payment, PaymentMode, PaymentStatus, ReminderChannel, Sale, StoreSettings } from "@/lib/types";
 
 interface CustomerDetail extends Customer {
   stats: { totalPurchases: Dec; invoiceCount: number; lastPurchase: string | null };
@@ -48,8 +48,9 @@ interface CustomerDetail extends Customer {
   }[];
 }
 
-type Tab = "ledger" | "invoices" | "payments";
+type Tab = "ledger" | "invoices" | "payments" | "reminders";
 const RECEIPT_MODES: PaymentMode[] = ["CASH", "UPI", "CARD", "BANK", "CHEQUE"];
+const CHANNEL_LABEL: Record<ReminderChannel, string> = { WHATSAPP: "WhatsApp", SMS: "SMS", CALL: "Phone call", VISIT: "Visit", NOTE: "Note" };
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -73,12 +74,19 @@ export default function CustomerDetailPage() {
 
   function sendReminder() {
     const store = settings?.storeName ?? "our store";
-    const msg =
-      `Namaste ${c!.name} ji,\n\n` +
-      `This is a gentle reminder from ${store} that ${inr(balance)} is pending on your account as of ${date(new Date())}.\n` +
-      `Kindly clear the dues at your earliest convenience. If you have already paid, please ignore this message.\n\n` +
-      `Thank you for your continued trust.\n— ${store}${settings?.phone ? ` (${settings.phone})` : ""}`;
+    const days = c!.overdue?.days ?? 0;
+    const msg = (settings?.reminderTemplate?.trim() ||
+      "Namaste {name} ji, a gentle reminder from {store}: ₹{amount} is pending on your account ({days} days past due). Kindly clear it at your earliest convenience. If you have already paid, please ignore this message. Thank you! — {store} {phone}")
+      .replace(/\{name\}/g, c!.name)
+      .replace(/\{amount\}/g, Math.round(balance).toLocaleString("en-IN"))
+      .replace(/\{overdue\}/g, Math.round(c!.overdue?.amount ?? 0).toLocaleString("en-IN"))
+      .replace(/\{days\}/g, String(days))
+      .replace(/\{store\}/g, store)
+      .replace(/\{phone\}/g, settings?.phone ?? "")
+      .replace(/\{date\}/g, date(new Date()));
     window.open(`https://wa.me/91${c!.phone}?text=${encodeURIComponent(msg)}`, "_blank", "noopener,noreferrer");
+    // Keep the follow-up history complete
+    api.post(`/reminders/customers/${c!.id}`, { channel: "WHATSAPP", message: msg, amount: balance }).then(refresh).catch(() => {});
   }
 
   return (
@@ -88,6 +96,7 @@ export default function CustomerDetailPage() {
           <span className="flex flex-wrap items-center gap-2">
             {c.name}
             {!c.isActive && <Badge>Inactive</Badge>}
+            {c.creditHold && <Badge tone="red">Credit on hold</Badge>}
           </span>
         }
         subtitle={[c.phone, c.village, c.crops].filter(Boolean).join(" · ") || "Customer"}
@@ -120,14 +129,24 @@ export default function CustomerDetailPage() {
         <StatCard
           label="Balance due"
           value={<span className={balance > 0 ? "text-red-600" : undefined}>{balance < 0 ? `${inr(-balance)} adv` : inr(balance)}</span>}
-          sub={limit > 0 && balance > limit ? <span className="font-medium text-red-600">Over credit limit</span> : balance < 0 ? "Advance with store" : undefined}
+          sub={
+            c.overdue && c.overdue.amount > 0 ? (
+              <span className="font-medium text-red-600">
+                {inr(c.overdue.amount)} overdue · {c.overdue.days} days
+              </span>
+            ) : limit > 0 && balance > limit ? (
+              <span className="font-medium text-red-600">Over credit limit</span>
+            ) : balance < 0 ? (
+              "Advance with store"
+            ) : undefined
+          }
           tone={balance > 0 ? "red" : "green"}
           icon={<IndianRupee />}
         />
         <StatCard
           label="Credit limit"
           value={limit > 0 ? inr(limit) : "No limit"}
-          sub={limit > 0 ? `${inr(Math.max(0, limit - balance))} available` : undefined}
+          sub={[limit > 0 ? `${inr(Math.max(0, limit - balance))} available` : null, c.creditDays > 0 ? `${c.creditDays} days credit` : null].filter(Boolean).join(" · ") || undefined}
         />
         <StatCard label="Total purchases" value={inr(c.stats.totalPurchases)} />
         <StatCard label="Invoices" value={c.stats.invoiceCount} />
@@ -160,12 +179,14 @@ export default function CustomerDetailPage() {
           { value: "ledger", label: "Ledger" },
           { value: "invoices", label: `Invoices (${c.stats.invoiceCount})` },
           { value: "payments", label: "Payments" },
+          { value: "reminders", label: c.lastReminder ? `Reminders (last ${date(c.lastReminder.sentAt)})` : "Reminders" },
         ]}
       />
 
       {tab === "ledger" && <LedgerTab key={version} customer={c} settings={settings} />}
       {tab === "invoices" && <InvoicesTab key={version} customerId={c.id} />}
       {tab === "payments" && <PaymentsTab key={version} customerId={c.id} />}
+      {tab === "reminders" && <RemindersTab key={version} customer={c} onLogged={refresh} />}
 
       <CustomerForm
         open={editOpen}
@@ -432,6 +453,88 @@ function PaymentsTab({ customerId }: { customerId: string }) {
       </Table>
       {data && <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />}
     </Card>
+  );
+}
+
+// ───────────────────────── Reminders ─────────────────────────
+
+function RemindersTab({ customer, onLogged }: { customer: Customer; onLogged: () => void }) {
+  const toast = useToast();
+  const { data, error, loading, reload } = useApi<CustomerReminder[]>(`/reminders/customers/${customer.id}`);
+  const [channel, setChannel] = useState<ReminderChannel>("CALL");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function log(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.post(`/reminders/customers/${customer.id}`, { channel, message: note.trim() || undefined, amount: n(customer.balance) });
+      setNote("");
+      toast.success("Follow-up logged");
+      void reload();
+      onLogged();
+    } catch (err) {
+      toast.error(errMsg(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (error) return <ErrorBox message={error} onRetry={reload} />;
+  return (
+    <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+      <Card bodyClassName="p-0">
+        <Table>
+          <thead>
+            <tr>
+              <Th>When</Th>
+              <Th>How</Th>
+              <Th right>Balance then</Th>
+              <Th>Message / note</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && !data ? (
+              <LoadingRow colSpan={4} />
+            ) : !data?.length ? (
+              <EmptyRow colSpan={4}>No reminders or follow-ups logged yet</EmptyRow>
+            ) : (
+              data.map((r) => (
+                <tr key={r.id} className="hover:bg-slate-50">
+                  <Td className="whitespace-nowrap">{date(r.sentAt)}</Td>
+                  <Td>
+                    <Badge tone={r.channel === "WHATSAPP" ? "green" : "slate"}>{CHANNEL_LABEL[r.channel]}</Badge>
+                    {r.automatic && <span className="ml-1 text-[11px] text-slate-400">auto</span>}
+                  </Td>
+                  <Td right>{inr(r.amount)}</Td>
+                  <Td className="max-w-md text-xs text-slate-600">{r.message || "—"}</Td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </Table>
+      </Card>
+      <Card title="Log a follow-up">
+        <form onSubmit={log} className="space-y-3">
+          <Field label="How">
+            <Select value={channel} onChange={(e) => setChannel(e.target.value as ReminderChannel)}>
+              {(Object.keys(CHANNEL_LABEL) as ReminderChannel[]).map((k) => (
+                <option key={k} value={k}>
+                  {CHANNEL_LABEL[k]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Note" hint="e.g. Promised to pay after harvest">
+            <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
+          </Field>
+          <Button type="submit" icon={<PhoneCall className="size-4" />} loading={saving} className="w-full">
+            Save follow-up
+          </Button>
+        </form>
+      </Card>
+    </div>
   );
 }
 

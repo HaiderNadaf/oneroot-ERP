@@ -62,9 +62,14 @@ export function setBranchId(id: string | null) {
   }
 }
 
-async function send(method: string, path: string, body?: unknown) {
+interface SendOptions {
+  /** Override the top-bar branch (queued offline bills belong to the branch they were made in) */
+  branchId?: string | null;
+}
+
+async function send(method: string, path: string, body?: unknown, opts?: SendOptions) {
   const token = getToken();
-  const branch = getBranch();
+  const branch = opts?.branchId ?? getBranch();
   return fetch(API_URL + path, {
     method,
     headers: {
@@ -76,20 +81,20 @@ async function send(method: string, path: string, body?: unknown) {
   });
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, opts?: SendOptions): Promise<T> {
   let res: Response;
   try {
-    res = await send(method, path, body);
+    res = await send(method, path, body, opts);
     // A dropped database connection shows up as a 5xx: retry reads once (never writes)
     if (method === "GET" && res.status >= 500) {
       await new Promise((r) => setTimeout(r, 400));
-      res = await send(method, path, body);
+      res = await send(method, path, body, opts);
     }
   } catch (e) {
     if (method !== "GET") throw new ApiError(0, "Network error — check your connection and try again");
     await new Promise((r) => setTimeout(r, 400));
     try {
-      res = await send(method, path, body);
+      res = await send(method, path, body, opts);
     } catch {
       throw new ApiError(0, e instanceof Error ? `Network error: ${e.message}` : "Network error");
     }
@@ -110,7 +115,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   get: <T>(path: string, query?: Query) => request<T>("GET", path + qs(query)),
-  post: <T>(path: string, body?: unknown) => request<T>("POST", path, body ?? {}),
+  post: <T>(path: string, body?: unknown, opts?: SendOptions) => request<T>("POST", path, body ?? {}, opts),
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, body ?? {}),
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body ?? {}),
   del: <T>(path: string) => request<T>("DELETE", path),

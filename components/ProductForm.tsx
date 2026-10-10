@@ -206,8 +206,29 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
             className="font-mono"
           />
         </Field>
-        <Field label="Barcode">
-          <Input value={str("barcode")} onChange={(e) => set("barcode", e.target.value)} />
+        <Field label="Barcode" hint={editing && !str("barcode") ? "Blank — click Generate for an in-store EAN-13" : "From the pack, or generated in-store"}>
+          <div className="flex gap-2">
+            <Input value={str("barcode")} onChange={(e) => set("barcode", e.target.value)} className="font-mono" />
+            {editing && !str("barcode") && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-9 shrink-0"
+                onClick={async () => {
+                  try {
+                    const p = await api.post<Product>(`/products/${product!.id}/barcode`);
+                    set("barcode", p.barcode ?? "");
+                    toast.success(`Barcode ${p.barcode} assigned`);
+                  } catch (e) {
+                    toast.error(errMsg(e));
+                  }
+                }}
+              >
+                Generate
+              </Button>
+            )}
+          </div>
         </Field>
         <Field label="Unit" required>
           <Select value={str("unit")} onChange={(e) => set("unit", e.target.value)}>

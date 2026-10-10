@@ -2,31 +2,41 @@
 
 import {
   AlertTriangle,
+  Camera,
   Check,
   ChevronDown,
+  CloudOff,
   Minus,
   Plus,
   Printer,
   ReceiptText,
+  RefreshCw,
   ScanLine,
   ShoppingCart,
   Trash2,
   UserPlus,
+  WifiOff,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNeedBranch } from "@/components/BranchNotice";
+import { CameraScanner } from "@/components/CameraScanner";
 import { CustomerForm } from "@/components/CustomerForm";
 import { CustomerPicker } from "@/components/pickers";
-import { Button, Checkbox, Input, Modal, Select, Spinner, Textarea, cx, errMsg, useToast } from "@/components/ui";
+import { PrintPortal } from "@/components/PrintPortal";
+import { ThermalReceipt, receiptFromSale, type ReceiptData } from "@/components/ThermalReceipt";
+import { Button, Checkbox, Input, Modal, Select, Spinner, Textarea, cx, errMsg, useConfirm, useToast } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
-import { date, daysUntil, inr, inr0, n, qty, round2 } from "@/lib/format";
+import { date, dateTime, daysUntil, inr, inr0, n, qty, round2 } from "@/lib/format";
 import { placeOfSupply } from "@/lib/gst";
 import { useApi } from "@/lib/hooks";
+import { isNetworkError, newOfflineId, queueAdd, queueList, queueRemove, syncQueue, useOnline, useQueue } from "@/lib/offline";
+import { defaultPrintMode, printReceipt, receiptWidth } from "@/lib/print";
+import { useScanner } from "@/lib/scanner";
 import type { Batch, Category, Customer, Paged, PaymentMode, Product, Sale, StoreSettings } from "@/lib/types";
 
 /** Product list row with the POS extras from `withExpiry=true` */
@@ -41,6 +51,13 @@ interface Line {
   quantity: string;
   rate: string;
   discountPct: string;
+}
+
+interface Done {
+  sale: Sale | null;
+  receipt: ReceiptData;
+  /** Saved on this device, waiting to sync */
+  queued: boolean;
 }
 
 const MODES: { mode: PaymentMode; label: string }[] = [
@@ -61,14 +78,18 @@ export default function PosPage() {
   const router = useRouter();
   const params = useSearchParams();
   const toast = useToast();
+  const confirm = useConfirm();
   const { can } = useAuth();
   const { current } = useBranch();
   const needBranch = useNeedBranch("bill from it");
   const searchRef = useRef<HTMLInputElement>(null);
   const billRef = useRef<HTMLElement>(null);
   const keySeq = useRef(0);
+  const online = useOnline();
+  const queue = useQueue();
 
-  // Catalogue for the grid: every active product with this branch's sellable stock and next expiry
+  // Catalogue for the grid: every active product with this branch's sellable stock and next expiry.
+  // A copy is kept on the device so billing keeps working without internet.
   const catalogue = useApi<Paged<PosProduct>>(needBranch.blocked ? null : "/products", {
     status: "active",
     withExpiry: "true",
@@ -81,6 +102,8 @@ export default function PosPage() {
   const [category, setCategory] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  /** Customer detail with overdue + credit-hold flags */
+  const [credit, setCredit] = useState<Customer | null>(null);
   const [phone, setPhone] = useState("");
   const [walkinName, setWalkinName] = useState("");
   const [quickAdd, setQuickAdd] = useState(false);
@@ -94,10 +117,27 @@ export default function PosPage() {
   const [editing, setEditing] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [overLimit, setOverLimit] = useState<string | null>(null);
-  const [done, setDone] = useState<Sale | null>(null);
+  const [done, setDone] = useState<Done | null>(null);
+  const [camOpen, setCamOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [printData, setPrintData] = useState<ReceiptData | null>(null);
 
   const alertDays = store?.expiryAlertDays ?? 60;
   const products = useMemo(() => catalogue.data?.items ?? [], [catalogue.data]);
+
+  const pickCustomer = useCallback(
+    (c: Customer | null) => {
+      setCustomer(c);
+      setCredit(null);
+      setInterState(c ? placeOfSupply(c, store).interState === true : false);
+      setReceived(null);
+      if (c?.phone) setPhone(c.phone);
+      if (!c && mode === "CREDIT") setMode("CASH");
+      // Credit position (overdue dues, hold) comes from the detail endpoint
+      if (c) api.get<Customer>(`/customers/${c.id}`).then(setCredit).catch(() => {});
+    },
+    [store, mode],
+  );
 
   // Preselect a customer from ?customerId=
   const presetId = params.get("customerId");
@@ -107,21 +147,11 @@ export default function PosPage() {
       .get<Customer>(`/customers/${presetId}`)
       .then((c) => {
         setCustomer(c);
+        setCredit(c);
         setPhone(c.phone ?? "");
       })
       .catch((e) => toast.error(errMsg(e)));
   }, [presetId, toast]);
-
-  const pickCustomer = useCallback(
-    (c: Customer | null) => {
-      setCustomer(c);
-      setInterState(c ? placeOfSupply(c, store).interState === true : false);
-      setReceived(null);
-      if (c?.phone) setPhone(c.phone);
-      if (!c && mode === "CREDIT") setMode("CASH");
-    },
-    [store, mode],
-  );
 
   // Typing a 10-digit mobile number looks the farmer up
   async function changePhone(v: string) {
@@ -140,6 +170,28 @@ export default function PosPage() {
       /* lookup is a convenience; billing still works as walk-in */
     }
   }
+
+  // ── Offline queue: sync whenever we come back online, and every minute as a safety net ──
+  const toastRef = useRef(toast);
+  const reloadRef = useRef(catalogue.reload);
+  useEffect(() => {
+    toastRef.current = toast;
+    reloadRef.current = catalogue.reload;
+  });
+  const syncNow = useCallback(async () => {
+    if (!queueList().length) return;
+    const r = await syncQueue();
+    if (r.synced) {
+      toastRef.current.success(`${r.synced} offline bill${r.synced > 1 ? "s" : ""} synced to the server`);
+      void reloadRef.current();
+    }
+    if (r.failed) toastRef.current.error(`${r.failed} queued bill${r.failed > 1 ? "s were" : " was"} rejected — open Pending sync to fix`);
+  }, []);
+  useEffect(() => {
+    if (online) void syncNow();
+    const t = setInterval(() => navigator.onLine && void syncNow(), 60_000);
+    return () => clearInterval(t);
+  }, [online, syncNow]);
 
   // ── Grid filtering ──
   const usedCategories = useMemo(() => {
@@ -176,12 +228,26 @@ export default function PosPage() {
     }
     const key = ++keySeq.current;
     setLines((ls) => [...ls, { key, product: p, batches: null, batchId: "", quantity: "1", rate: String(n(p.salePrice)), discountPct: "" }]);
-    // Batches for this branch, for the optional batch choice
+    // Batches for this branch, for the optional batch choice (not available offline — auto FEFO still applies)
     api
       .get<Product>(`/products/${p.id}`)
       .then((full) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, batches: full.batches ?? [] } : l))))
       .catch(() => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, batches: [] } : l))));
   }
+
+  /** Barcode from a USB/Bluetooth scanner or the camera */
+  function scanCode(code: string) {
+    const q = code.trim().toLowerCase();
+    if (!q) return;
+    const hit = products.find((p) => p.barcode?.toLowerCase() === q || p.sku.toLowerCase() === q);
+    if (!hit) {
+      toast.error(`No product with barcode ${code} — add it to the product first`);
+      return;
+    }
+    addProduct(hit);
+    setSearch("");
+  }
+  useScanner(scanCode, !done && !camOpen && !quickAdd);
 
   function step(key: number, delta: number) {
     setLines((ls) =>
@@ -206,7 +272,7 @@ export default function PosPage() {
     e.preventDefault();
     const q = search.trim();
     if (!q) return;
-    // Barcode scanners type the code and press Enter
+    // Typed by hand: an exact code or a single match adds the product
     const exact = products.find((p) => p.barcode === q || p.sku.toLowerCase() === q.toLowerCase());
     const pick = exact ?? (visible.length === 1 ? visible[0] : null);
     if (pick) {
@@ -230,6 +296,7 @@ export default function PosPage() {
     return {
       itemsTotal: round2(itemsTotal),
       discount: round2(discount),
+      factor,
       tax: round2(tax),
       taxable: round2(net - tax),
       roundOff: round2(total - net),
@@ -245,6 +312,8 @@ export default function PosPage() {
   const due = round2(summary.total - paidAmount);
   const projectedBalance = customer ? round2(n(customer.balance) + due) : 0;
   const overCredit = !!customer && n(customer.creditLimit) > 0 && due > 0 && projectedBalance > n(customer.creditLimit);
+  const creditHold = (credit ?? customer)?.creditHold ?? false;
+  const overdue = credit?.overdue;
 
   function chooseMode(m: PaymentMode) {
     setMode(m);
@@ -262,8 +331,69 @@ export default function PosPage() {
     }
     if (summary.total <= 0) return "Bill total must be more than zero";
     if (!customer && due > 0) return "Credit needs a registered customer — pick or add the farmer first";
+    if (due > 0 && creditHold) return `Credit is on hold for ${customer?.name} — collect the dues first or ask a manager to lift the hold`;
     if (phone && phone.length !== 10) return "Enter a valid 10-digit mobile number";
     return null;
+  }
+
+  /** Receipt built from the cart, for bills made offline (the server numbers them later) */
+  function buildReceipt(ref: string): ReceiptData {
+    return {
+      invoiceNo: ref,
+      date: new Date().toISOString(),
+      customerName: customer?.name ?? (walkinName.trim() || null),
+      customerPhone: customer?.phone ?? (phone || null),
+      lines: lines.map((l) => ({
+        name: l.product.name,
+        qty: n(l.quantity),
+        unit: l.product.unit,
+        rate: n(l.rate),
+        amount: round2(lineGross(l) * summary.factor),
+        gstRate: n(l.product.gstRate),
+      })),
+      taxable: summary.taxable,
+      discount: summary.discount,
+      tax: summary.tax,
+      isInterState: interState,
+      roundOff: summary.roundOff,
+      total: summary.total,
+      paid: paidAmount,
+      paymentMode: mode,
+      notes: notes.trim() || null,
+      provisional: true,
+    };
+  }
+
+  function queueSale(body: Record<string, unknown>) {
+    if (!current) return toast.error("Pick a branch in the top bar to bill from");
+    if (overCredit) return toast.error("Over the credit limit — a manager can override this only when online");
+    const id = newOfflineId();
+    const receipt = buildReceipt(`OFFLINE-${id.slice(-6).toUpperCase()}`);
+    queueAdd({
+      id,
+      createdAt: new Date().toISOString(),
+      branchId: current.id,
+      payload: body,
+      summary: { total: summary.total, items: lines.length, customerName: receipt.customerName ?? null, phone: receipt.customerPhone ?? null },
+      receipt,
+      error: null,
+      attempts: 0,
+    });
+    // Keep the on-screen stock honest until the bill syncs
+    catalogue.setData((d) =>
+      d
+        ? {
+            ...d,
+            items: d.items.map((p) => {
+              const q = lines.filter((l) => l.product.id === p.id).reduce((s, l) => s + n(l.quantity), 0);
+              return q ? { ...p, sellable: sellableOf(p) - q, stock: n(p.stock) - q } : p;
+            }),
+          }
+        : d,
+    );
+    setOverLimit(null);
+    setDone({ sale: null, receipt, queued: true });
+    toast.success("No connection — bill saved on this device; it will sync automatically");
   }
 
   async function submit(allowOverCreditLimit = false) {
@@ -272,31 +402,37 @@ export default function PosPage() {
       toast.error(problem);
       return;
     }
+    const body = {
+      customerId: customer?.id,
+      customerName: customer ? undefined : walkinName.trim() || undefined,
+      customerPhone: customer ? undefined : phone || undefined,
+      items: lines.map((l) => ({
+        productId: l.product.id,
+        batchId: l.batchId || undefined,
+        quantity: n(l.quantity),
+        rate: n(l.rate),
+        discountPct: n(l.discountPct) || undefined,
+      })),
+      discount: summary.discount || undefined,
+      paidAmount,
+      paymentMode: mode,
+      paymentReference: reference.trim() || undefined,
+      isInterState: interState,
+      allowOverCreditLimit: allowOverCreditLimit || undefined,
+      notes: notes.trim() || undefined,
+    };
+    if (!online) return queueSale(body);
     setSaving(true);
     try {
-      const sale = await api.post<Sale>("/sales", {
-        customerId: customer?.id,
-        customerName: customer ? undefined : walkinName.trim() || undefined,
-        customerPhone: customer ? undefined : phone || undefined,
-        items: lines.map((l) => ({
-          productId: l.product.id,
-          batchId: l.batchId || undefined,
-          quantity: n(l.quantity),
-          rate: n(l.rate),
-          discountPct: n(l.discountPct) || undefined,
-        })),
-        discount: summary.discount || undefined,
-        paidAmount,
-        paymentMode: mode,
-        paymentReference: reference.trim() || undefined,
-        isInterState: interState,
-        allowOverCreditLimit: allowOverCreditLimit || undefined,
-        notes: notes.trim() || undefined,
-      });
+      const sale = await api.post<Sale>("/sales", body);
       setOverLimit(null);
-      setDone(sale);
+      setDone({ sale, receipt: receiptFromSale(sale), queued: false });
       void catalogue.reload();
     } catch (e) {
+      if (isNetworkError(e)) {
+        queueSale(body);
+        return;
+      }
       const msg = errMsg(e);
       if (e instanceof ApiError && /credit limit/i.test(msg) && can("MANAGER") && !allowOverCreditLimit) setOverLimit(msg);
       else toast.error(msg);
@@ -315,10 +451,23 @@ export default function PosPage() {
     setWalkinName("");
     setPhone("");
     setCustomer(null);
+    setCredit(null);
     setMode("CASH");
     setInterState(false);
     setEditing(null);
     setTimeout(() => searchRef.current?.focus(), 0);
+  }
+
+  /** Thermal receipt from the page, or the A4 invoice page */
+  function printBill(which?: "receipt" | "a4") {
+    if (!done) return;
+    const w = which ?? (done.queued || defaultPrintMode(store) === "thermal" ? "receipt" : "a4");
+    if (w === "a4" && done.sale) {
+      router.push(`/sales/${done.sale.id}?print=1`);
+      return;
+    }
+    setPrintData(done.receipt);
+    setTimeout(() => printReceipt(receiptWidth(store)), 150);
   }
 
   // Keyboard: F2 → search, Ctrl/⌘+Enter or F9 → complete sale
@@ -342,8 +491,8 @@ export default function PosPage() {
 
   const waText = done
     ? encodeURIComponent(
-        `Thank you for shopping at ${store?.storeName ?? "our store"}! Bill ${done.invoiceNo} for ${inr(done.totalAmount)}` +
-          (n(done.totalAmount) > n(done.paidAmount) ? ` (balance due ${inr(n(done.totalAmount) - n(done.paidAmount))})` : "") +
+        `Thank you for shopping at ${store?.storeName ?? "our store"}! Bill ${done.receipt.invoiceNo} for ${inr(done.receipt.total)}` +
+          (done.receipt.total > done.receipt.paid ? ` (balance due ${inr(done.receipt.total - done.receipt.paid)})` : "") +
           ".",
       )
     : "";
@@ -363,7 +512,7 @@ export default function PosPage() {
           <h1 className="text-[26px] font-bold tracking-tight text-[#1d2a1f]">POS · {current?.name ?? "All branches"}</h1>
           <p className="text-[13px] text-[#5f6e60]">
             {needBranch.blocked ? "Choose a branch in the top bar to bill from it. " : ""}
-            The earliest-expiring batch is picked automatically; expired stock can&apos;t be billed.
+            Scan a barcode or tap a product. The earliest-expiring batch is picked automatically; expired stock can&apos;t be billed.
             <span className="hidden lg:inline">
               {" "}
               <kbd className="rounded border border-slate-300 bg-white px-1 text-[11px]">F2</kbd> search ·{" "}
@@ -371,11 +520,23 @@ export default function PosPage() {
             </span>
           </p>
         </div>
-        <Link href="/sales">
-          <Button variant="secondary" icon={<ReceiptText className="size-4" />}>
-            Invoices
-          </Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {!online && (
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100 px-2.5 py-1.5 text-xs font-semibold text-amber-800">
+              <WifiOff className="size-3.5" /> Offline — bills are saved on this device
+            </span>
+          )}
+          {queue.length > 0 && (
+            <Button variant="secondary" icon={<CloudOff className="size-4" />} onClick={() => setQueueOpen(true)}>
+              Pending sync · {queue.length}
+            </Button>
+          )}
+          <Link href="/sales">
+            <Button variant="secondary" icon={<ReceiptText className="size-4" />}>
+              Invoices
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {needBranch.notice && <div className="mb-4">{needBranch.notice}</div>}
@@ -383,23 +544,34 @@ export default function PosPage() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
         {/* ── Products ── */}
         <div className="flex min-w-0 flex-col gap-3">
-          <div className="relative">
-            <ScanLine className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-            <input
-              ref={searchRef}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={onSearchKey}
-              autoFocus
-              placeholder="Scan barcode or search product"
-              aria-label="Scan barcode or search product"
-              className="h-11 w-full rounded-[10px] border border-[#e1e6d8] bg-white pl-9 pr-9 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-            />
-            {search && (
-              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700" aria-label="Clear search">
-                <X className="size-4" />
-              </button>
-            )}
+          <div className="flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <ScanLine className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <input
+                ref={searchRef}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={onSearchKey}
+                autoFocus
+                placeholder="Scan barcode or search product"
+                aria-label="Scan barcode or search product"
+                className="h-11 w-full rounded-[10px] border border-[#e1e6d8] bg-white pl-9 pr-9 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+              />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700" aria-label="Clear search">
+                  <X className="size-4" />
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCamOpen(true)}
+              className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-[10px] border border-[#e1e6d8] bg-white px-3 text-sm font-medium text-[#1d2a1f] hover:border-brand-500"
+              title="Scan with the camera"
+            >
+              <Camera className="size-4" />
+              <span className="hidden sm:inline">Camera</span>
+            </button>
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-1">
@@ -420,6 +592,11 @@ export default function PosPage() {
 
           {needBranch.blocked ? null : catalogue.loading && !catalogue.data ? (
             <Spinner />
+          ) : catalogue.error && !catalogue.data ? (
+            <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-10 text-center text-sm text-amber-800">
+              <b className="block">Could not load the catalogue</b>
+              {online ? catalogue.error : "You are offline and this device has no saved copy yet. Open the POS once while online."}
+            </div>
           ) : visible.length === 0 ? (
             <div className="rounded-xl border border-dashed border-[#d5dccb] bg-white px-4 py-16 text-center text-sm text-slate-500">
               <b className="block text-slate-700">No products found</b>
@@ -540,6 +717,18 @@ export default function PosPage() {
                 {" · "}
                 <span className={n(customer.balance) > 0 ? "font-semibold text-[#c2412d]" : ""}>due {inr(customer.balance)}</span>
                 {n(customer.creditLimit) > 0 && ` · limit ${inr0(customer.creditLimit)}`}
+                {customer.creditDays > 0 && ` · ${customer.creditDays} days credit`}
+              </p>
+            )}
+            {customer && creditHold && (
+              <p className="flex items-start gap-1 rounded-lg bg-[#fbe4df] px-2.5 py-1.5 text-xs font-semibold text-[#c2412d]">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> Credit is on hold for this customer — cash, UPI or card only.
+              </p>
+            )}
+            {customer && !creditHold && overdue && overdue.amount > 0 && (
+              <p className="flex items-start gap-1 text-xs font-medium text-[#c2412d]">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                {inr(overdue.amount)} overdue by {overdue.days} days — collect it with this bill.
               </p>
             )}
             {overCredit && (
@@ -702,13 +891,13 @@ export default function PosPage() {
 
             <div className="grid grid-cols-3 gap-2">
               {MODES.map((m) => {
-                const disabled = m.mode === "CREDIT" && !customer;
+                const disabled = m.mode === "CREDIT" && (!customer || creditHold);
                 return (
                   <button
                     key={m.mode}
                     type="button"
                     disabled={disabled}
-                    title={disabled ? "Credit needs a registered customer" : undefined}
+                    title={disabled ? (creditHold ? "Credit is on hold" : "Credit needs a registered customer") : undefined}
                     onClick={() => chooseMode(m.mode)}
                     className={cx(
                       "h-11 rounded-lg border text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40",
@@ -779,10 +968,11 @@ export default function PosPage() {
               className="h-12 w-full text-[15px]"
               loading={saving}
               disabled={!lines.length || needBranch.blocked}
-              icon={<Check className="size-4" />}
+              icon={online ? <Check className="size-4" /> : <CloudOff className="size-4" />}
               onClick={() => void submit()}
             >
-              Complete sale{lines.length ? ` · ${inr(summary.total)}` : ""}
+              {online ? "Complete sale" : "Save bill offline"}
+              {lines.length ? ` · ${inr(summary.total)}` : ""}
             </Button>
             {lines.length > 0 && (
               <button onClick={newSale} className="w-full text-center text-sm font-medium text-[#5f6e60] hover:text-[#1d2a1f]">
@@ -815,6 +1005,15 @@ export default function PosPage() {
         }}
       />
 
+      <CameraScanner
+        open={camOpen}
+        onClose={() => setCamOpen(false)}
+        onScan={(code) => {
+          setCamOpen(false);
+          scanCode(code);
+        }}
+      />
+
       <Modal
         open={!!overLimit}
         onClose={() => setOverLimit(null)}
@@ -838,44 +1037,119 @@ export default function PosPage() {
       <Modal
         open={!!done}
         onClose={newSale}
-        title="Sale complete"
+        title={done?.queued ? "Bill saved offline" : "Sale complete"}
         size="sm"
         footer={
           <>
-            {waPhone && waPhone.length === 10 && (
+            {waPhone && waPhone.length === 10 && !done?.queued && (
               <a
                 href={`https://wa.me/91${waPhone}?text=${waText}`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex h-9 items-center rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
-                Send on WhatsApp
+                WhatsApp
               </a>
             )}
-            <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => done && router.push(`/sales/${done.id}?print=1`)}>
-              Print bill
+            <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => printBill()}>
+              {done?.queued || defaultPrintMode(store) === "thermal" ? "Print receipt" : "Print invoice"}
             </Button>
+            {done?.sale && (
+              <Button variant="ghost" onClick={() => printBill(defaultPrintMode(store) === "thermal" ? "a4" : "receipt")}>
+                {defaultPrintMode(store) === "thermal" ? "A4 invoice" : "Receipt"}
+              </Button>
+            )}
             <Button onClick={newSale}>New sale</Button>
           </>
         }
       >
         {done && (
-          <div className="flex items-start gap-3 rounded-lg bg-[#e3f1e3] p-3 text-sm text-[#1d2a1f]">
-            <Check className="mt-0.5 size-5 shrink-0 text-brand-700" />
+          <div className={cx("flex items-start gap-3 rounded-lg p-3 text-sm text-[#1d2a1f]", done.queued ? "bg-[#fbefd9]" : "bg-[#e3f1e3]")}>
+            {done.queued ? <CloudOff className="mt-0.5 size-5 shrink-0 text-[#8a5a0f]" /> : <Check className="mt-0.5 size-5 shrink-0 text-brand-700" />}
             <p>
-              <b>{done.invoiceNo}</b> · {inr(done.totalAmount)} by {done.paymentMode.toLowerCase()}
-              {n(done.totalAmount) > n(done.paidAmount) && (
+              <b>{done.receipt.invoiceNo}</b> · {inr(done.receipt.total)} by {done.receipt.paymentMode.toLowerCase()}
+              {done.receipt.total > done.receipt.paid && (
                 <>
                   <br />
-                  <span className="text-[#b7791f]">{inr(n(done.totalAmount) - n(done.paidAmount))} added to dues</span>
+                  <span className="text-[#b7791f]">{inr(done.receipt.total - done.receipt.paid)} added to dues</span>
                 </>
               )}
               <br />
-              <span className="text-xs text-[#5f6e60]">Batch numbers and expiry dates are printed on the bill.</span>
+              <span className="text-xs text-[#5f6e60]">
+                {done.queued
+                  ? "Saved on this device. It will be sent to the server and get its invoice number as soon as the connection is back."
+                  : "Batch numbers and expiry dates are printed on the bill."}
+              </span>
             </p>
           </div>
         )}
       </Modal>
+
+      <Modal
+        open={queueOpen}
+        onClose={() => setQueueOpen(false)}
+        title={`Pending sync · ${queue.length} bill${queue.length === 1 ? "" : "s"}`}
+        size="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setQueueOpen(false)}>
+              Close
+            </Button>
+            <Button icon={<RefreshCw className="size-4" />} onClick={() => void syncNow()} disabled={!online}>
+              Sync now
+            </Button>
+          </>
+        }
+      >
+        {queue.length === 0 ? (
+          <p className="text-sm text-slate-500">Everything is synced.</p>
+        ) : (
+          <ul className="divide-y divide-slate-100 text-sm">
+            {queue.map((q) => (
+              <li key={q.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                <div className="min-w-0">
+                  <p className="font-medium text-slate-800">
+                    {q.summary.customerName ?? "Walk-in"} · {inr(q.summary.total)} · {q.summary.items} item{q.summary.items === 1 ? "" : "s"}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {dateTime(q.createdAt)} · ref {(q.receipt as ReceiptData).invoiceNo}
+                  </p>
+                  {q.error && <p className="mt-0.5 text-xs font-medium text-red-600">Rejected: {q.error}</p>}
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={<Printer className="size-4" />}
+                    onClick={() => {
+                      setPrintData(q.receipt as ReceiptData);
+                      setTimeout(() => printReceipt(receiptWidth(store)), 150);
+                    }}
+                  >
+                    Receipt
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon={<Trash2 className="size-4" />}
+                    onClick={async () => {
+                      if (await confirm("Remove this offline bill? It will never reach the server — only do this if it was billed again or by mistake.", { danger: true, confirmLabel: "Remove" })) {
+                        queueRemove(q.id);
+                        void catalogue.reload();
+                      }
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {!online && queue.length > 0 && <p className="mt-3 text-xs text-amber-700">You are offline — bills sync automatically when the connection returns.</p>}
+      </Modal>
+
+      <PrintPortal className="thermal-host">{printData && <ThermalReceipt data={printData} settings={store} width={receiptWidth(store)} />}</PrintPortal>
     </div>
   );
 }

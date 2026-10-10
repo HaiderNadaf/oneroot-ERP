@@ -1,9 +1,9 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, getBranch, setBranchId } from "./api";
+import { getBranch, setBranchId } from "./api";
 import { useAuth } from "./auth";
-import { clearApiCache } from "./hooks";
+import { cachedGet, clearApiCache } from "./hooks";
 
 export interface BranchLite {
   id: string;
@@ -47,8 +47,8 @@ export function BranchProvider({ children, fallback }: { children: ReactNode; fa
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
-    api
-      .get<{ locked: boolean; homeBranchId: string | null; branches: BranchLite[] }>("/branches/mine")
+    // cachedGet keeps a copy on the device, so the branch is known even when offline
+    cachedGet<{ locked: boolean; homeBranchId: string | null; branches: BranchLite[] }>("/branches/mine")
       .then((r) => {
         if (cancelled) return;
         const stored = getBranch();

@@ -1,9 +1,11 @@
 "use client";
 
-import { ArrowLeft, FileText, Printer } from "lucide-react";
+import { ArrowLeft, FileText, Printer, Tag } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import { RequireRole } from "@/components/AppShell";
+import { LabelPrintModal } from "@/components/LabelPrintModal";
 import { Badge, Button, Card, ErrorBox, PageHeader, Spinner, StatusBadge, Table, Td, Th, cx } from "@/components/ui";
 import { date, dateTime, inr, n, qty, round2 } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
@@ -24,6 +26,7 @@ function GrnView() {
   const router = useRouter();
   const { data: g, error, loading, reload } = useApi<GrnDetail>(`/grns/${id}`);
   const { data: store } = useApi<StoreSettings>("/settings");
+  const [labelsOpen, setLabelsOpen] = useState(false);
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
   if (loading && !g) return <Spinner />;
@@ -56,6 +59,11 @@ function GrnView() {
             <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => window.print()}>
               Print
             </Button>
+            {totals.passed > 0 && (
+              <Button variant="secondary" icon={<Tag className="size-4" />} onClick={() => setLabelsOpen(true)}>
+                Batch labels
+              </Button>
+            )}
             {!invoiced && totals.passed > 0 && (
               <Button icon={<FileText className="size-4" />} onClick={() => router.push(`/goods-inward/${g.id}/invoice`)}>
                 Book purchase invoice
@@ -212,6 +220,25 @@ function GrnView() {
           )}
         </Card>
       </div>
+
+      <LabelPrintModal
+        open={labelsOpen}
+        onClose={() => setLabelsOpen(false)}
+        items={items
+          .filter((it) => n(it.passedQty) > 0)
+          .map((it) => ({
+            productId: it.productId,
+            name: it.product.name,
+            sku: it.product.sku,
+            barcode: it.product.barcode,
+            packSize: it.product.packSize,
+            mrp: it.product.mrp,
+            salePrice: it.product.salePrice,
+            batchNo: it.batchNo,
+            expiryDate: it.expiryDate,
+            count: Math.min(Math.ceil(n(it.passedQty)), 200),
+          }))}
+      />
     </>
   );
 }

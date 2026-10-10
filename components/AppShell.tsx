@@ -4,6 +4,8 @@ import {
   BadgeCheck,
   BarChart3,
   Bell,
+  BellRing,
+  BookOpen,
   Boxes,
   FileMinus,
   PackageCheck,
@@ -166,6 +168,12 @@ export const NAV: NavGroup[] = [
         href: "/expenses",
         label: "Expenses",
         icon: <Wallet />,
+        roles: ["MANAGER", "ACCOUNTANT"],
+      },
+      {
+        href: "/accounts",
+        label: "Accounts",
+        icon: <BookOpen />,
         roles: ["MANAGER", "ACCOUNTANT"],
       },
       {
@@ -513,43 +521,7 @@ export function AppShell({
     }
   }, [loading, user, router]);
 
-  // Prevent background scrolling while the drawer is open.
-  useEffect(() => {
-    if (!drawer) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [drawer]);
-
-  // Mount the drawer before starting the opening animation.
-  useEffect(() => {
-    if (drawer) {
-      setDrawerMounted(true);
-    }
-  }, [drawer]);
-
-  function openDrawer() {
-    setDrawerMounted(true);
-
-    // Start the transition after the drawer has mounted.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setDrawer(true);
-      });
-    });
-  }
-
-  function closeDrawer() {
-    setDrawer(false);
-  }
-
-  if (loading || !user) {
-    return <Spinner className="min-h-screen" />;
-  }
+  if (loading || !user) return <Spinner className="min-h-screen" />;
 
   return (
     <BranchProvider

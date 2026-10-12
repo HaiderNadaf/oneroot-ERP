@@ -18,7 +18,7 @@ import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
 import { date, daysUntil, inr, inr0, inrCompact, qty } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import type { CashReconciliation, PaymentMode, PaymentStatus } from "@/lib/types";
+import { modeLabel, type CashReconciliation, type PaymentMode, type PaymentStatus } from "@/lib/types";
 
 type Period = "today" | "month" | "fy";
 
@@ -59,10 +59,12 @@ interface Dashboard {
     cashGaps: number;
     openShifts: number;
     approvalRequests: number;
+    openVans?: number;
   };
   cash?: CashReconciliation;
   trend: { month: string; sales: number; purchases: number }[];
   byCategory: { category: string; amount: number }[];
+  split?: { channels: { channel: "COUNTER" | "VAN"; total: number; bills: number }[]; modes: { mode: PaymentMode; amount: number }[]; credit: number };
   expiring: {
     id: string;
     batchNo: string;
@@ -569,6 +571,7 @@ export default function DashboardPage() {
         <AlertTile n={data.alerts.inwardDue} label="POs waiting for goods inward" tone="warn" href="/goods-inward" />
         <AlertTile n={data.alerts.lowStock} label="Items below reorder level" tone="info" href="/inventory?tab=low" />
         <AlertTile n={data.alerts.grnsToInvoice} label="GRNs waiting for invoice" tone="info" href="/goods-inward" />
+        <AlertTile n={data.alerts.openVans ?? 0} label="Vans on the road" tone="info" href="/van" />
       </section>
 
       {finance && data.cash && (data.cash.toDeposit > 0 || data.cash.openShifts > 0 || data.cash.unexplained > 0) && (
@@ -642,6 +645,9 @@ export default function DashboardPage() {
             </ul>
           )}
         </Panel>
+
+        {/* Where sales were made and how they were paid */}
+        {data.split && <SplitPanel split={data.split} label={data.periodLabel} />}
 
         {/* Expiry watch */}
         <Panel
@@ -976,5 +982,67 @@ export default function DashboardPage() {
         ))}
       </section>
     </div>
+  );
+}
+
+const CHANNEL_LABEL = { COUNTER: "Counter", VAN: "Van trips" } as const;
+const MODE_COLORS = ["#2f7d3a", "#c9932a", "#3b82c4", "#8b5cf6", "#0d9488", "#e07a5f", "#94a3b8", "#64748b"];
+
+/** Sales by channel (counter / van) and money in by payment mode, with what went on credit */
+function SplitPanel({ split, label }: { split: NonNullable<Dashboard["split"]>; label: string }) {
+  const totalSales = split.channels.reduce((s, c) => s + c.total, 0);
+  const modes = [...split.modes.filter((m) => m.amount > 0), ...(split.credit > 0 ? [{ mode: "CREDIT" as PaymentMode, amount: split.credit }] : [])];
+  const totalModes = modes.reduce((s, m) => s + m.amount, 0);
+  return (
+    <Panel title="Sales by channel & payment mode" sub={label} className="lg:col-span-12" bodyClassName="grid grid-cols-1 gap-6 p-4 md:grid-cols-2">
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#5f6e60]">Channel</p>
+        {totalSales === 0 ? (
+          <p className="py-4 text-sm text-slate-400">No sales in this period</p>
+        ) : (
+          <ul className="space-y-2.5">
+            {split.channels.map((c) => (
+              <li key={c.channel} className="grid grid-cols-[6rem_1fr_auto] items-center gap-2.5 text-[13px]">
+                <span className="text-[#1d2a1f]">{CHANNEL_LABEL[c.channel] ?? c.channel}</span>
+                <span className="h-2 rounded-full bg-[#eef1e8]">
+                  <span className="block h-2 rounded-full" style={{ width: `${(c.total / totalSales) * 100}%`, background: c.channel === "VAN" ? "#3b82c4" : GREEN }} />
+                </span>
+                <span className="num text-right">
+                  <b className="text-[#1d2a1f]">{inrCompact(c.total)}</b>
+                  <span className="ml-1 text-xs text-[#5f6e60]">
+                    {Math.round((c.total / totalSales) * 100)}% · {c.bills} bill{c.bills === 1 ? "" : "s"}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#5f6e60]">Payment mode</p>
+        {totalModes === 0 ? (
+          <p className="py-4 text-sm text-slate-400">No money in yet</p>
+        ) : (
+          <>
+            <div className="mb-3 flex h-3 overflow-hidden rounded-full bg-[#eef1e8]">
+              {modes.map((m, i) => (
+                <span key={m.mode} title={`${modeLabel(m.mode)} ${inrCompact(m.amount)}`} style={{ width: `${(m.amount / totalModes) * 100}%`, background: m.mode === "CREDIT" ? "#d97706" : MODE_COLORS[i % MODE_COLORS.length] }} />
+              ))}
+            </div>
+            <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[13px]">
+              {modes.map((m, i) => (
+                <li key={m.mode} className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5 text-[#1d2a1f]">
+                    <span className="size-2.5 rounded-sm" style={{ background: m.mode === "CREDIT" ? "#d97706" : MODE_COLORS[i % MODE_COLORS.length] }} />
+                    {m.mode === "CREDIT" ? "On credit (unpaid)" : modeLabel(m.mode)}
+                  </span>
+                  <span className="num font-semibold text-[#1d2a1f]">{inrCompact(m.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    </Panel>
   );
 }

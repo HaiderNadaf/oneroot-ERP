@@ -88,6 +88,7 @@ export const NAV: NavGroup[] = [
       { href: "/customers", label: "Customers", icon: <Users />, perms: ["customers.view"] },
       { href: "/customers/reminders", label: "Due Reminders", icon: <BellRing />, perms: ["customers.view"] },
       { href: "/approvals", label: "Approvals", icon: <BadgeCheck />, badge: "approvals" },
+      { href: "/van", label: "Van Trips", icon: <Truck />, perms: ["sales.van"] },
     ],
   },
   {

@@ -45,7 +45,7 @@ import { isNetworkError, newOfflineId, queueAdd, queueList, queueRemove, syncQue
 import { priceLines, type PricedLine } from "@/lib/pricing";
 import { defaultPrintMode, printReceipt, receiptWidth } from "@/lib/print";
 import { useScanner } from "@/lib/scanner";
-import { MONEY_MODES, modeLabel, type Batch, type Category, type Customer, type HeldBill, type Paged, type PaymentMode, type Product, type RoleLimit, type Sale, type Scheme, type Shift, type StoreSettings } from "@/lib/types";
+import { MONEY_MODES, modeLabel, type Batch, type Category, type Customer, type HeldBill, type Paged, type PaymentMode, type Product, type RoleLimit, type Sale, type Scheme, type Shift, type StoreSettings, type VanTripDetail } from "@/lib/types";
 
 /** Product list row with the POS extras from `withExpiry=true` */
 type PosProduct = Product & { sellable?: number; nextExpiry?: string | null };
@@ -183,7 +183,17 @@ export default function PosPage() {
   const [printData, setPrintData] = useState<ReceiptData | null>(null);
 
   const alertDays = store?.expiryAlertDays ?? 60;
-  const products = useMemo(() => catalogue.data?.items ?? [], [catalogue.data]);
+  // Van mode (?vanTripId=…): the grid shows only what is on the van, with the van's quantities
+  const vanTripId = params.get("vanTripId");
+  const vanQ = useApi<VanTripDetail>(vanTripId ? `/van-trips/${vanTripId}` : null);
+  const van = vanQ.data && vanQ.data.status === "OPEN" ? vanQ.data : null;
+  const products = useMemo(() => {
+    const all = catalogue.data?.items ?? [];
+    if (!vanTripId) return all;
+    if (!van) return [];
+    const onVan = new Map(van.items.map((i) => [i.productId, i.onVan]));
+    return all.filter((p) => onVan.has(p.id)).map((p) => ({ ...p, sellable: onVan.get(p.id) ?? 0, stock: onVan.get(p.id) ?? 0 }));
+  }, [catalogue.data, vanTripId, van]);
 
   const pickCustomer = useCallback(
     (c: Customer | null) => {
@@ -398,7 +408,7 @@ export default function PosPage() {
   const subsidisedLines = lines.filter((l) => l.product.isSubsidised);
   const needsGovt = subsidisedLines.length > 0;
   const govtMissing = needsGovt && !govtReceipt.trim();
-  const shiftMissing = !!store?.requireOpenShift && online && shiftQ.data === null && !shiftQ.loading;
+  const shiftMissing = !vanTripId && !!store?.requireOpenShift && online && shiftQ.data === null && !shiftQ.loading;
 
   async function doOpenShift(e: React.FormEvent) {
     e.preventDefault();
@@ -557,6 +567,7 @@ export default function PosPage() {
       govtReceiptNo: needsGovt ? govtReceipt.trim() : undefined,
       aadhaarVerified: needsGovt ? aadhaar : undefined,
       approvalId,
+      vanTripId: vanTripId ?? undefined,
     };
     if (!online) {
       if (aboveLimit && !approvalId) return toast.error(`A discount above ${n(limits?.maxDiscountPct)}% needs a manager's approval, which needs internet`);
@@ -569,6 +580,7 @@ export default function PosPage() {
       setNeed(null);
       setDone({ sale, receipt: receiptFromSale(sale), queued: false });
       void catalogue.reload();
+      if (vanTripId) void vanQ.reload();
     } catch (e) {
       if (isNetworkError(e)) {
         queueSale(body);
@@ -806,6 +818,26 @@ export default function PosPage() {
       </div>
 
       {needBranch.notice && <div className="mb-4">{needBranch.notice}</div>}
+      {vanTripId && (
+        <div className={cx("mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-sm", van ? "bg-sky-50 text-sky-900" : "bg-amber-50 text-amber-900")}>
+          {van ? (
+            <span>
+              <b>Van trip {van.tripNo}</b>
+              {van.route ? ` · ${van.route}` : ""} · billing from the van&apos;s load ({van.items.reduce((s, i) => s + (i.onVan > 0 ? 1 : 0), 0)} products left) · {van.summary.bills} bills, {inr(van.summary.salesTotal)} so far
+            </span>
+          ) : (
+            <span>{vanQ.loading ? "Loading the van trip…" : "This van trip is closed or not available."}</span>
+          )}
+          <span className="flex gap-3">
+            <Link href={`/van/${vanTripId}`} className="font-semibold underline">
+              Trip
+            </Link>
+            <Link href="/sales/new" className="font-semibold underline">
+              Back to the counter
+            </Link>
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
         {/* ── Products ── */}

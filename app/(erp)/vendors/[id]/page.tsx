@@ -57,7 +57,7 @@ export default function VendorDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { can } = useAuth();
-  const canBuy = can("MANAGER", "ACCOUNTANT");
+  const canBuy = can("purchases.manage");
   const [tab, setTab] = useState<Tab>("ledger");
   const [editOpen, setEditOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);

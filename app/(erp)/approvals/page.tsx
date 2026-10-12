@@ -15,7 +15,7 @@ const amountOf = (r: ApprovalRequest) => (r.kind === "DISCOUNT" ? `${Number(r.am
 export default function ApprovalsPage() {
   const toast = useToast();
   const { can } = useAuth();
-  const manager = can("MANAGER");
+  const manager = can("approvals.decide");
   const [status, setStatus] = useState(manager ? "PENDING" : "");
   const [mine, setMine] = useState(!manager);
   const [page, setPage] = useState(1);

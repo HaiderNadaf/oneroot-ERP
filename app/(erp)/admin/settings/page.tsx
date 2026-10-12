@@ -2,7 +2,7 @@
 
 import { Save } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { Button, Card, Checkbox, ErrorBox, Field, Input, PageHeader, Select, Spinner, Textarea, errMsg, useToast } from "@/components/ui";
 import { GstinField, StateSelect } from "@/components/GstinField";
 import { api } from "@/lib/api";
@@ -59,9 +59,9 @@ function fyLabel(d = new Date()) {
 
 export default function SettingsPage() {
   return (
-    <RequireRole roles={["ADMIN"]}>
+    <RequirePerm perms={["admin.settings"]}>
       <Settings />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

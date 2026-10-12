@@ -1,12 +1,14 @@
 "use client";
 
-import { Save } from "lucide-react";
+import { Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { RequireRole } from "@/components/AppShell";
-import { Button, Card, Checkbox, ErrorBox, Input, PageHeader, Spinner, StatusBadge, Table, Td, Th, errMsg, useToast } from "@/components/ui";
+import { RequirePerm } from "@/components/AppShell";
+import { RoleTemplateForm } from "@/components/RoleTemplateForm";
+import { Badge, Button, Card, Checkbox, EmptyRow, ErrorBox, Input, PageHeader, Spinner, StatusBadge, Table, Td, Th, errMsg, useConfirm, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
-import { useApi } from "@/lib/hooks";
-import type { Role, RoleLimit } from "@/lib/types";
+import { clearApiCache, useApi } from "@/lib/hooks";
+import { PERMISSIONS } from "@/lib/permissions";
+import type { Role, RoleLimit, RoleTemplate } from "@/lib/types";
 
 type Draft = { maxDiscountPct: string; returnLimit: string; adjustmentLimit: string; seeCostPrice: boolean };
 const toDraft = (l: RoleLimit): Draft => ({
@@ -15,12 +17,14 @@ const toDraft = (l: RoleLimit): Draft => ({
   adjustmentLimit: l.adjustmentLimit === null ? "" : String(l.adjustmentLimit),
   seeCostPrice: l.seeCostPrice,
 });
+const roleName = (r: Role) => r.charAt(0) + r.slice(1).toLowerCase();
 
 export default function RolesPage() {
   return (
-    <RequireRole roles={["ADMIN"]}>
+    <RequirePerm perms={["admin.roles"]}>
       <Roles />
-    </RequireRole>
+      <CustomRoles />
+    </RequirePerm>
   );
 }
 
@@ -43,7 +47,7 @@ function Roles() {
         adjustmentLimit: d.adjustmentLimit === "" ? null : Number(d.adjustmentLimit),
         seeCostPrice: d.seeCostPrice,
       });
-      toast.success(`${l.role.charAt(0) + l.role.slice(1).toLowerCase()} limits saved`);
+      toast.success(`${roleName(l.role)} limits saved`);
       setDrafts((x) => Object.fromEntries(Object.entries(x).filter(([k]) => k !== l.role)));
       void reload();
     } catch (e) {
@@ -58,7 +62,7 @@ function Roles() {
 
   return (
     <>
-      <PageHeader title="Roles & authority limits" subtitle="Each role gets a ceiling. Anything above it needs a manager's PIN at the counter or an approval from the inbox. Blank = no limit." />
+      <PageHeader title="Roles & authority limits" subtitle="Each built-in role gets a ceiling. Anything above it needs a manager's PIN at the counter or an approval from the inbox. Blank = no limit. Your own roles below inherit the ceilings of the role they are based on." />
       <Card bodyClassName="p-0">
         <Table>
           <thead>
@@ -101,9 +105,118 @@ function Roles() {
         </Table>
         <div className="space-y-1 px-4 py-3 text-xs text-slate-500">
           <p>Cash or UPI refunds always need approval for a role that has a return limit (only credit notes are within a cashier&apos;s own authority).</p>
-          <p>Managers and the owner need an approval PIN to sign off at the counter — set it in Users. Every override is logged with who asked, who approved and when.</p>
+          <p>Approvers need an approval PIN to sign off at the counter — set it in Users. Every override is logged with who asked, who approved and when.</p>
         </div>
       </Card>
     </>
+  );
+}
+
+/** The store's own roles: a named set of permission ticks, reusable across users */
+function CustomRoles() {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const { data, error, loading, reload } = useApi<RoleTemplate[]>("/roles/custom");
+  const [form, setForm] = useState<{ open: boolean; template: RoleTemplate | null }>({ open: false, template: null });
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  async function remove(t: RoleTemplate) {
+    if (!(await confirm(`Delete the role "${t.name}"? Nobody has it, so nothing else changes.`, { confirmLabel: "Delete", danger: true }))) return;
+    setRemoving(t.id);
+    try {
+      await api.del(`/roles/custom/${t.id}`);
+      clearApiCache("/roles/custom");
+      toast.success(`Role "${t.name}" deleted`);
+      void reload();
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setRemoving(null);
+    }
+  }
+
+  return (
+    <Card
+      title="Your roles"
+      className="mt-4"
+      bodyClassName="p-0"
+      actions={
+        <Button size="sm" icon={<Plus className="size-4" />} onClick={() => setForm({ open: true, template: null })}>
+          New role
+        </Button>
+      }
+    >
+      {error ? (
+        <div className="p-4">
+          <ErrorBox message={error} onRetry={reload} />
+        </div>
+      ) : (
+        <Table>
+          <thead>
+            <tr>
+              <Th>Role</Th>
+              <Th>Based on</Th>
+              <Th>Permissions</Th>
+              <Th right>Users</Th>
+              <Th />
+            </tr>
+          </thead>
+          <tbody>
+            {loading && !data ? (
+              <tr>
+                <Td colSpan={5}>
+                  <Spinner />
+                </Td>
+              </tr>
+            ) : !data?.length ? (
+              <EmptyRow colSpan={5}>No custom roles yet — make one to reuse a set of ticks for several staff (e.g. Store supervisor, Billing clerk)</EmptyRow>
+            ) : (
+              data.map((t) => (
+                <tr key={t.id} className="hover:bg-slate-50">
+                  <Td>
+                    <span className="font-medium text-slate-900">{t.name}</span>
+                    {t.description && <p className="text-xs text-slate-500">{t.description}</p>}
+                  </Td>
+                  <Td>
+                    <StatusBadge status={t.baseRole} />
+                  </Td>
+                  <Td>
+                    <span className="num text-sm">
+                      {t.permissions.length} of {PERMISSIONS.length}
+                    </span>
+                    <p className="max-w-md truncate text-xs text-slate-500" title={t.permissions.map((k) => PERMISSIONS.find((p) => p.key === k)?.label ?? k).join(" · ")}>
+                      {t.permissions
+                        .slice(0, 4)
+                        .map((k) => PERMISSIONS.find((p) => p.key === k)?.label.split(" (")[0] ?? k)
+                        .join(" · ")}
+                      {t.permissions.length > 4 ? " …" : ""}
+                    </p>
+                  </Td>
+                  <Td right>{t.userCount ? <Badge tone="blue">{t.userCount}</Badge> : <span className="text-xs text-slate-400">none</span>}</Td>
+                  <Td right>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" icon={<Pencil className="size-4" />} onClick={() => setForm({ open: true, template: t })}>
+                        Edit
+                      </Button>
+                      <Button variant="ghost" size="sm" icon={<Trash2 className="size-4" />} loading={removing === t.id} disabled={t.userCount > 0} onClick={() => remove(t)} aria-label="Delete role" />
+                    </div>
+                  </Td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </Table>
+      )}
+      {form.open && (
+        <RoleTemplateForm
+          template={form.template}
+          onClose={() => setForm({ open: false, template: null })}
+          onSaved={() => {
+            setForm({ open: false, template: null });
+            void reload();
+          }}
+        />
+      )}
+    </Card>
   );
 }

@@ -3,15 +3,15 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { PoForm } from "@/components/PoForm";
 import { PageHeader } from "@/components/ui";
 
 export default function NewPurchaseOrderPage() {
   return (
-    <RequireRole roles={["MANAGER", "ACCOUNTANT"]}>
+    <RequirePerm perms={["purchases.manage"]}>
       <NewPurchaseOrder />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

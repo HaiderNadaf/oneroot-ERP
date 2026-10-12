@@ -2,7 +2,7 @@
 
 import { Download, Plus, Tags, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { RecordedIn } from "@/components/BranchNotice";
 import { CategoryManager } from "@/components/CategoryManager";
 import {
@@ -37,9 +37,9 @@ const modeLabel = (m: PaymentMode) => m.charAt(0) + m.slice(1).toLowerCase();
 
 export default function ExpensesPage() {
   return (
-    <RequireRole roles={["MANAGER", "ACCOUNTANT"]}>
+    <RequirePerm perms={["expenses"]}>
       <Expenses />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

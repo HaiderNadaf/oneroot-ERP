@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowUp, Info as InfoIcon, Plus, Save, Trash2, Undo2 } from "lucide-react";
 import { useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { Button, Card, ErrorBox, Input, PageHeader, Select, Spinner, Table, Td, Th, errMsg, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { inr0 } from "@/lib/format";
@@ -25,9 +25,9 @@ let seq = 0;
 
 export default function ApprovalRulesPage() {
   return (
-    <RequireRole roles={["ADMIN"]}>
+    <RequirePerm perms={["admin.approval_rules"]}>
       <ApprovalRules />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

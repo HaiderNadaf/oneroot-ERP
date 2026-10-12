@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, FileText } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { useCounts } from "@/components/Notifications";
 import { CASH_MODES, modeLabel } from "@/components/PartyPaymentForm";
 import {
@@ -54,9 +54,9 @@ function addDays(day: string, days: number) {
 
 export default function BookInvoicePage() {
   return (
-    <RequireRole roles={["MANAGER", "ACCOUNTANT"]}>
+    <RequirePerm perms={["purchases.view"]}>
       <BookInvoice />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

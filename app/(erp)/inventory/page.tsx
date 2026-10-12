@@ -69,7 +69,7 @@ export default function InventoryPage() {
   }
   const [version, setVersion] = useState(0);
 
-  const canValue = can("MANAGER", "ACCOUNTANT");
+  const canValue = can("reports.view");
   const stockReport = useApi<StockReport>(canValue ? "/reports/stock" : null, { v: version });
   const lowStock = useApi<LowStockRow[]>("/inventory/low-stock", { v: version });
   const inStock = useApi<Paged<Batch>>(canValue ? null : "/inventory/batches", { pageSize: 1, v: version });
@@ -84,7 +84,7 @@ export default function InventoryPage() {
         title="Stock & Batches"
         subtitle="Batch-wise stock, expiry tracking and every stock movement"
         actions={
-          can("MANAGER") && (
+          can("inventory.adjust") && (
             <Button icon={<SlidersHorizontal className="size-4" />} onClick={() => setAdjust({ product: null })}>
               Adjust stock
             </Button>
@@ -323,7 +323,7 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
                     <Td right>{inr(b.costPrice)}</Td>
                     <Td right>{inr(n(b.quantity) * n(b.costPrice))}</Td>
                     <Td right>
-                      {isExpired && n(b.quantity) > 0 && can("MANAGER") && (
+                      {isExpired && n(b.quantity) > 0 && can("inventory.adjust") && (
                         <Button variant="secondary" size="sm" className="text-red-700" onClick={() => onWriteOff(b)}>
                           Write off
                         </Button>
@@ -358,7 +358,7 @@ function LowStockTab({
       title="Products at or below reorder level"
       bodyClassName="p-0"
       actions={
-        can("MANAGER", "ACCOUNTANT") && (
+        can("purchases.manage") && (
           <Link href="/purchase-orders/new">
             <Button size="sm" icon={<ClipboardList className="size-4" />}>
               Create PO
@@ -549,7 +549,7 @@ function TransfersTab({ version, onNew }: { version: number; onNew: () => void }
       title="Stock sent between branches"
       bodyClassName="p-0"
       actions={
-        can("MANAGER") && (
+        can("inventory.transfer") && (
           <Button size="sm" icon={<ArrowLeftRight className="size-4" />} onClick={onNew}>
             New transfer
           </Button>
@@ -576,7 +576,7 @@ function TransfersTab({ version, onNew }: { version: number; onNew: () => void }
               <LoadingRow colSpan={5} />
             ) : !data?.items.length ? (
               <EmptyRow colSpan={5}>
-                No stock transfers yet{can("MANAGER") ? " — use New transfer to send stock to another branch" : ""}
+                No stock transfers yet{can("inventory.transfer") ? " — use New transfer to send stock to another branch" : ""}
               </EmptyRow>
             ) : (
               data.items.map((t) => {

@@ -3,7 +3,7 @@
 import { ArrowLeftRight, Info as InfoIcon, Plus, Store } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { BranchCode } from "@/components/BranchNotice";
 import { GstinField, StateSelect } from "@/components/GstinField";
 import {
@@ -35,9 +35,9 @@ import type { Branch } from "@/lib/types";
 
 export default function BranchesPage() {
   return (
-    <RequireRole roles={["ADMIN"]}>
+    <RequirePerm perms={["admin.branches"]}>
       <Branches />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

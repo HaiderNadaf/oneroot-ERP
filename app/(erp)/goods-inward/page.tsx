@@ -4,7 +4,7 @@ import { AlertTriangle, FileText, PackageCheck, Truck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { BranchCode } from "@/components/BranchNotice";
 import {
   Badge,
@@ -31,16 +31,16 @@ type Filter = "all" | "false" | "true";
 
 export default function GoodsInwardPage() {
   return (
-    <RequireRole roles={["MANAGER", "ACCOUNTANT"]}>
+    <RequirePerm perms={["purchases.view"]}>
       <GoodsInward />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 
 function GoodsInward() {
   const router = useRouter();
   const { can } = useAuth();
-  const canReceive = can("MANAGER");
+  const canReceive = can("purchases.receive");
   // With "All branches" selected, tag each PO / GRN with the branch it belongs to
   const { currentId, branches } = useBranch();
   const showBranch = currentId === "all";

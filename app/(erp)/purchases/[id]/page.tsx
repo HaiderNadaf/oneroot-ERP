@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowLeft, Banknote, Ban, Printer } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { NotesPanel, postedNotesTotal } from "@/components/NotesPanel";
 import { PartyPaymentForm, modeLabel, type FixedParty } from "@/components/PartyPaymentForm";
 import {
@@ -31,9 +31,9 @@ import type { Purchase, StoreSettings } from "@/lib/types";
 
 export default function PurchaseDetailPage() {
   return (
-    <RequireRole roles={["MANAGER", "ACCOUNTANT"]}>
+    <RequirePerm perms={["purchases.view"]}>
       <PurchaseDetail />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 
@@ -122,7 +122,7 @@ function PurchaseDetail() {
                 Record payment
               </Button>
             )}
-            {!cancelled && can("MANAGER") && (
+            {!cancelled && can("purchases.cancel") && (
               <Button variant="danger" icon={<Ban className="size-4" />} onClick={cancelPurchase} loading={cancelling}>
                 {p.grnId ? "Cancel invoice" : "Cancel purchase"}
               </Button>

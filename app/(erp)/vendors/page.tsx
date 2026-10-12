@@ -40,7 +40,7 @@ export default function VendorsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const q = useDebounced(search);
-  const canEdit = can("MANAGER", "ACCOUNTANT");
+  const canEdit = can("vendors.manage");
 
   const filters = { search: q, withDues: withDues ? "true" : undefined, status };
   const { data, error, loading, reload } = useApi<Paged<Vendor>>("/vendors", { ...filters, page, pageSize: 25 });

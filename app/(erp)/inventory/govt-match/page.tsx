@@ -3,7 +3,7 @@
 import { CheckCircle2, Save, ScanLine } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { useNeedBranch } from "@/components/BranchNotice";
 import { Badge, Button, Card, EmptyRow, ErrorBox, Field, Input, PageHeader, Spinner, Table, Td, Textarea, Th, cx, errMsg, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -13,9 +13,9 @@ import type { GovtMatch, GovtMatchRow } from "@/lib/types";
 
 export default function GovtMatchPage() {
   return (
-    <RequireRole roles={["MANAGER", "ACCOUNTANT"]}>
+    <RequirePerm perms={["inventory.govt"]}>
       <GovtMatchView />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

@@ -35,7 +35,7 @@ export function NotesPanel({
   const { can } = useAuth();
   const [formType, setFormType] = useState<NoteType | null>(null);
   const list = notes ?? [];
-  const canRaise = allowNew && can("MANAGER", "ACCOUNTANT");
+  const canRaise = allowNew && can("purchases.manage");
   const posted = postedNotesTotal(list);
   const drafts = list.filter((d) => d.status === "DRAFT").length;
 

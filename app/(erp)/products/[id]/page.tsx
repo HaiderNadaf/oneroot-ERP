@@ -134,7 +134,7 @@ export default function ProductDetailPage() {
             <Button variant="secondary" icon={<Tag className="size-4" />} onClick={() => setLabelsOpen(true)}>
               Labels
             </Button>
-            {can("MANAGER") && (
+            {can("products.manage") && (
             <>
               {p.isActive ? (
                 <Button variant="secondary" icon={<Trash2 className="size-4" />} onClick={remove} loading={busy}>

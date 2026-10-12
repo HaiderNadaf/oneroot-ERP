@@ -264,7 +264,7 @@ function UserMenu() {
         <span className="flex size-9 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-700">{initials}</span>
         <span className="hidden text-left leading-tight md:block">
           <span className="block text-[13px] font-semibold text-slate-800">{user.name}</span>
-          <span className="block text-[11.5px] capitalize text-slate-500">{user.role.toLowerCase()}</span>
+          <span className={cx("block text-[11.5px] text-slate-500", !user.roleTemplate && "capitalize")}>{user.roleTemplate?.name ?? user.role.toLowerCase()}</span>
         </span>
         <ChevronDown className="hidden size-4 text-slate-400 md:block" />
       </button>

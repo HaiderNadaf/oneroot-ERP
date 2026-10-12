@@ -2,7 +2,7 @@
 
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { ProductPicker } from "@/components/pickers";
 import { Badge, Button, Card, Checkbox, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, Select, Table, Tabs, Td, Textarea, Th, cx, errMsg, useConfirm, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -17,9 +17,9 @@ const dayOf = (iso: string) => today(new Date(iso));
 
 export default function SchemesPage() {
   return (
-    <RequireRole roles={["MANAGER"]}>
+    <RequirePerm perms={["admin.schemes"]}>
       <Pricing />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

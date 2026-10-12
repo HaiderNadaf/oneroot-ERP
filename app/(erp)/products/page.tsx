@@ -60,7 +60,7 @@ export default function ProductsPage() {
   const { can } = useAuth();
   // Cost price visibility follows the role's authority limits (Admin → Roles & Limits)
   const { data: limits } = useApi<{ seeCostPrice: boolean }>("/roles/mine");
-  const showCost = limits ? limits.seeCostPrice : can("MANAGER", "ACCOUNTANT");
+  const showCost = limits ? limits.seeCostPrice : can("purchases.view");
   const { current, branches, locked } = useBranch();
   // Stock figures are for the selected branch; name it when the store has several
   const branchCode = current && (branches.length > 1 || locked) ? current.code : null;
@@ -231,7 +231,7 @@ export default function ProductsPage() {
             <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv}>
               Export
             </Button>
-            {can("MANAGER") && (
+            {can("products.manage") && (
               <>
                 <GenerateBarcodesButton />
                 <Button variant="secondary" icon={<Tags className="size-4" />} onClick={() => setCatsOpen(true)}>
@@ -337,7 +337,7 @@ export default function ProductsPage() {
                   ) : (
                     <>
                       No products yet.{" "}
-                      {can("MANAGER") && (
+                      {can("products.manage") && (
                         <button className="font-medium text-brand-700 underline" onClick={openNew}>
                           Add your first product
                         </button>
@@ -362,7 +362,7 @@ export default function ProductsPage() {
                         >
                           <Eye className="size-4" /> View
                         </Link>
-                        {can("MANAGER") && (
+                        {can("products.manage") && (
                           <button
                             type="button"
                             onClick={() => {

@@ -54,7 +54,7 @@ export default function PaymentsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const canDelete = can("MANAGER", "ACCOUNTANT");
+  const canDelete = can("payments.delete");
 
   const filters = { direction, from, to, mode };
   const { data, error, loading, reload } = useApi<Paged<Payment>>("/payments", { ...filters, page, pageSize: 25 });

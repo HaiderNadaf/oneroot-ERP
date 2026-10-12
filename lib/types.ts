@@ -98,6 +98,9 @@ export interface User {
   role: Role;
   /** Ticks from lib/permissions.ts; a role only sets the starting ticks (administrators need none) */
   permissions: string[];
+  /** Custom role (named set of ticks) the user was given, if any */
+  roleTemplateId?: string | null;
+  roleTemplate?: { id: string; name: string } | null;
   isActive: boolean;
   lastLoginAt?: string | null;
   createdAt: string;
@@ -106,6 +109,17 @@ export interface User {
   branch?: BranchRef | null;
   /** Approval PIN is set (managers / owner) */
   hasPin?: boolean;
+}
+
+/** A custom role: a named set of ticks built on a built-in role (which supplies the authority limits) */
+export interface RoleTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  baseRole: Role;
+  permissions: string[];
+  userCount: number;
+  createdAt?: string;
 }
 
 // ───────────────────────── Authority limits & approvals ─────────────────────────

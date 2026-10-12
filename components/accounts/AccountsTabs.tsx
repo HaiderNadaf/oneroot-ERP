@@ -46,7 +46,7 @@ const drcr = (v: number) => (Math.abs(v) < 0.005 ? "—" : v > 0 ? `${inr(v)} Dr
 export function ChartTab() {
   const toast = useToast();
   const confirm = useConfirm();
-  const { can } = useAuth();
+  const { isAdmin } = useAuth();
   const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState<Account | null | "new">(null);
   const [rebuilding, setRebuilding] = useState(false);
@@ -86,7 +86,7 @@ export function ChartTab() {
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Checkbox label="Show inactive" checked={showInactive} onChange={setShowInactive} />
         <div className="flex-1" />
-        {can("ADMIN") && (
+        {isAdmin && (
           <Button variant="secondary" icon={<RefreshCw className="size-4" />} loading={rebuilding} onClick={rebuild}>
             Rebuild from documents
           </Button>

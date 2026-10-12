@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { GstReportView, ProfitLossReport } from "@/components/reports/FinancialReports";
 import { DayBookReport, OutstandingReport, StockValuationReport } from "@/components/reports/LedgerReports";
 import { ProductSalesReport, PurchaseRegisterReport, SalesRegisterReport } from "@/components/reports/RegisterReports";
@@ -24,9 +24,9 @@ type Tab = (typeof TABS)[number]["value"];
 
 export default function ReportsPage() {
   return (
-    <RequireRole roles={["MANAGER", "ACCOUNTANT"]}>
+    <RequirePerm perms={["reports.view"]}>
       <Reports />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

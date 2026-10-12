@@ -2,6 +2,7 @@
 
 import { date, dateTime, inr, n, qty } from "@/lib/format";
 import type { Sale, StoreSettings } from "@/lib/types";
+import { modeLabel } from "@/lib/types";
 
 export interface ReceiptLine {
   name: string;
@@ -28,6 +29,8 @@ export interface ReceiptData {
   total: number;
   paid: number;
   paymentMode: string;
+  /** Split payments (cash + UPI, credit note + cash…) */
+  payments?: { mode: string; amount: number; reference?: string | null }[];
   notes?: string | null;
   /** Government fertiliser POS receipt (subsidised lines) */
   govtReceiptNo?: string | null;
@@ -59,7 +62,8 @@ export function receiptFromSale(sale: Sale): ReceiptData {
     roundOff: n(sale.roundOff),
     total: n(sale.totalAmount),
     paid: n(sale.paidAmount),
-    paymentMode: sale.paymentMode,
+    paymentMode: modeLabel(sale.paymentMode),
+    payments: (sale.payments ?? []).map((p) => ({ mode: modeLabel(p.mode), amount: n(p.amount), reference: p.reference })),
     notes: sale.notes,
     govtReceiptNo: sale.govtReceiptNo ?? null,
     cancelled: sale.status === "CANCELLED",
@@ -147,7 +151,16 @@ export function ThermalReceipt({ data, settings, width = 80 }: { data: ReceiptDa
       {d.roundOff !== 0 && <Row l="Round off" r={inr(d.roundOff)} />}
       <div className="my-1 border-t border-black" />
       <Row l="TOTAL" r={inr(d.total)} bold big />
-      <Row l={`Paid (${d.paymentMode})`} r={inr(d.paid)} />
+      {d.payments && d.payments.length > 1 ? (
+        <>
+          <Row l="Paid" r={inr(d.paid)} />
+          {d.payments.map((p, i) => (
+            <Row key={i} l={`  ${p.mode}${p.reference ? ` ${p.reference}` : ""}`} r={inr(p.amount)} />
+          ))}
+        </>
+      ) : (
+        <Row l={`Paid (${d.payments?.[0]?.mode ?? d.paymentMode})`} r={inr(d.paid)} />
+      )}
       {due > 0 && <Row l="Balance due" r={inr(due)} bold />}
       {byRate.size > 0 && (
         <>

@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 import { n } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { GST_RATES, PRODUCT_TYPES, TYPE_LABEL, UNITS, type Category, type Product, type ProductType } from "@/lib/types";
+import { validateAttributes, type Attributes } from "@/lib/attributes";
+import { AttributeFields } from "./AttributeFields";
 import { useBranch } from "@/lib/branch";
 import { BranchNotice } from "./BranchNotice";
 import { Button, Checkbox, Field, Input, Modal, Select, Textarea, errMsg, useToast } from "./ui";
@@ -40,11 +42,14 @@ function toForm(p?: Product | null): FormState {
     reorderLevel: p ? String(n(p.reorderLevel)) : "",
     trackBatch: p?.trackBatch ?? true,
     isSubsidised: p?.isSubsidised ?? false,
+    trackSerial: p?.trackSerial ?? false,
+    location: p?.location ?? "",
     isActive: p?.isActive ?? true,
     description: p?.description ?? "",
     openQty: "",
     openBatch: "",
     openExpiry: "",
+    openSerials: "",
   };
 }
 
@@ -64,6 +69,7 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
   const toast = useToast();
   const { data: categories } = useApi<Category[]>("/categories");
   const [f, setF] = useState<FormState>(() => toForm(product));
+  const [attrs, setAttrs] = useState<Attributes>(() => ({ ...(product?.attributes ?? {}) }));
   const [saving, setSaving] = useState(false);
   const editing = !!product;
   // Preview of the SKU a new product gets: the category's code, else the type's
@@ -92,6 +98,12 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (openingBlocked) return toast.error("Pick a branch in the top bar to record the opening stock in");
+    const attrProblem = validateAttributes(chosenCategory?.fields, attrs)[0];
+    if (attrProblem) return toast.error(attrProblem);
+    const openSerials = str("openSerials").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+    if (!editing && f.trackSerial && Number(str("openQty")) > 0 && openSerials.length && openSerials.length !== Number(str("openQty"))) {
+      return toast.error(`Enter ${str("openQty")} serial numbers for the opening stock (${openSerials.length} given), or leave them to register later`);
+    }
     setSaving(true);
     const numOrUndef = (k: string) => (str(k) === "" ? undefined : Number(str(k)));
     const body: Record<string, unknown> = {
@@ -113,6 +125,9 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
       reorderLevel: numOrUndef("reorderLevel"),
       trackBatch: f.trackBatch,
       isSubsidised: !!f.isSubsidised,
+      trackSerial: !!f.trackSerial,
+      location: str("location").trim() || (editing ? "" : undefined),
+      attributes: attrs,
       isActive: f.isActive,
       description: str("description") || undefined,
     };
@@ -121,6 +136,7 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
         quantity: Number(str("openQty")),
         batchNo: str("openBatch") || undefined,
         expiryDate: str("openExpiry") || undefined,
+        serialNos: f.trackSerial && openSerials.length ? openSerials : undefined,
       };
     }
     try {
@@ -188,6 +204,9 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
         </Field>
         <Field label="Pack size" hint="e.g. 50 kg bag, 250 ml">
           <Input value={str("packSize")} onChange={(e) => set("packSize", e.target.value)} />
+        </Field>
+        <Field label="Location in store" hint="Rack / bin / shelf, e.g. Rack A3">
+          <Input value={str("location")} onChange={(e) => set("location", e.target.value)} />
         </Field>
         <Field
           label="SKU"
@@ -263,11 +282,20 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
         <Field label="MRP">
           <Input type="number" step="0.01" min="0" value={str("mrp")} onChange={(e) => set("mrp", e.target.value)} />
         </Field>
+        {chosenCategory?.fields && chosenCategory.fields.length > 0 && (
+          <fieldset className="rounded-lg border border-brand-200 bg-brand-50/40 p-3 sm:col-span-3">
+            <legend className="px-1 text-xs font-medium text-brand-800">{chosenCategory.name} details</legend>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <AttributeFields fields={chosenCategory.fields} value={attrs} onChange={setAttrs} />
+            </div>
+          </fieldset>
+        )}
         <Field label="Notes" className="sm:col-span-3">
           <Textarea rows={2} value={str("description")} onChange={(e) => set("description", e.target.value)} />
         </Field>
         <div className="flex flex-wrap gap-5 sm:col-span-3">
           <Checkbox label="Track batches & expiry" checked={!!f.trackBatch} onChange={(v) => set("trackBatch", v)} />
+          <Checkbox label="Track serial numbers (each unit, e.g. sprayers and pumps)" checked={!!f.trackSerial} onChange={(v) => set("trackSerial", v)} />
           <Checkbox label="Govt-subsidised fertiliser (bills need the govt POS receipt no.)" checked={!!f.isSubsidised} onChange={(v) => set("isSubsidised", v)} />
           {editing && <Checkbox label="Active" checked={!!f.isActive} onChange={(v) => set("isActive", v)} />}
         </div>
@@ -291,6 +319,11 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
                     <Input type="date" value={str("openExpiry")} onChange={(e) => set("openExpiry", e.target.value)} />
                   </Field>
                 </>
+              )}
+              {f.trackSerial && (
+                <Field label="Serial numbers" className="sm:col-span-3" hint="One per unit, one per line — or register them later on the product page">
+                  <Textarea rows={3} value={str("openSerials")} onChange={(e) => set("openSerials", e.target.value)} className="font-mono" />
+                </Field>
               )}
             </div>
           </fieldset>

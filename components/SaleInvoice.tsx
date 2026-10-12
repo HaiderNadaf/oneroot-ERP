@@ -130,6 +130,7 @@ export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSet
                     {[i.product?.technicalName, i.product?.packSize].filter(Boolean).join(" · ")}
                   </p>
                 )}
+                {i.serials && i.serials.length > 0 && <p className="font-mono text-[11px] text-slate-500">S/N {i.serials.map((s) => s.serialNo).join(", ")}</p>}
                 {i.isFree ? (
                   <p className="text-[11px] text-slate-500">Free under scheme{i.scheme ? ` · ${i.scheme.name}` : ""}</p>
                 ) : (

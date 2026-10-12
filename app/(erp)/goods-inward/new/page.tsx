@@ -38,6 +38,8 @@ interface Line {
   batchNo: string;
   mfgDate: string;
   expiryDate: string;
+  location: string;
+  serialNos: string;
 }
 
 const QTY_FIELDS = [
@@ -134,7 +136,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
     Object.fromEntries(
       items.map((i) => [
         i.id,
-        { passed: String(pendingOf(i)), rejected: "", damaged: "", expired: "", batchNo: "", mfgDate: "", expiryDate: "" },
+        { passed: String(pendingOf(i)), rejected: "", damaged: "", expired: "", batchNo: "", mfgDate: "", expiryDate: "", location: "", serialNos: "" },
       ]),
     ),
   );
@@ -206,6 +208,8 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
             damagedQty: num(l.damaged),
             expiredQty: num(l.expired),
             batchNo: l.batchNo.trim() || undefined,
+            location: l.location.trim() || undefined,
+            serialNos: l.serialNos.trim() ? l.serialNos.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean) : undefined,
             mfgDate: l.mfgDate || undefined,
             expiryDate: l.expiryDate || undefined,
           };
@@ -408,6 +412,14 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                   />
                   <FieldError msg={show("expiryDate")} />
                 </Field>
+                <Field label="Location" hint={p.location ? `Usually ${p.location}` : "Rack / bin (optional)"}>
+                  <Input value={l.location} onChange={(e) => update(item.id, { location: e.target.value })} placeholder={p.location ?? ""} />
+                </Field>
+                {p.trackSerial && (
+                  <Field label="Serial numbers of the passed units" className="sm:col-span-2" hint="One per line, scan them one after another">
+                    <Textarea rows={2} value={l.serialNos} onChange={(e) => update(item.id, { serialNos: e.target.value })} className="font-mono" />
+                  </Field>
+                )}
               </div>
             </Card>
             </div>

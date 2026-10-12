@@ -1,10 +1,11 @@
 "use client";
 
-import { Check, Pencil, Trash2, X } from "lucide-react";
+import { Check, ListPlus, Pencil, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import type { Category } from "@/lib/types";
+import { CategoryFieldsEditor } from "./CategoryFieldsEditor";
 import { Button, Input, Modal, errMsg, useConfirm, useToast } from "./ui";
 
 const cleanCode = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
@@ -32,6 +33,7 @@ export function CategoryManager({
   const [busy, setBusy] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editCode, setEditCode] = useState("");
+  const [fieldsFor, setFieldsFor] = useState<Category | null>(null);
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -139,12 +141,31 @@ export function CategoryManager({
               {c.name}
               {c._count && <span className="ml-2 text-xs text-slate-400">{c._count.products} products</span>}
             </span>
+            {isProduct && (
+              <button
+                onClick={() => setFieldsFor(c)}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                title="Extra fields every product in this category carries (variety, registration no., NPK grade…)"
+              >
+                <ListPlus className="size-3.5" /> Fields{c.fields?.length ? ` · ${c.fields.length}` : ""}
+              </button>
+            )}
             <button onClick={() => remove(c)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Delete ${c.name}`}>
               <Trash2 className="size-4" />
             </button>
           </li>
         ))}
       </ul>
+      {fieldsFor && (
+        <CategoryFieldsEditor
+          category={fieldsFor}
+          onClose={() => setFieldsFor(null)}
+          onSaved={() => {
+            setFieldsFor(null);
+            void reload();
+          }}
+        />
+      )}
     </Modal>
   );
 }

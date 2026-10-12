@@ -88,7 +88,7 @@ export default function PurchaseOrderDetailPage() {
   const history = po.history ?? [];
   const pending = po.status === "PENDING_APPROVAL";
   const receivable = po.status === "APPROVED" || po.status === "PARTIALLY_RECEIVED";
-  const isBuyer = can("MANAGER", "ACCOUNTANT");
+  const isBuyer = can("purchases.manage");
   const igst = isInterState(v, store);
   const pos = placeOfSupply(v, store);
   const tax = n(po.taxAmount);
@@ -136,12 +136,12 @@ export default function PurchaseOrderDetailPage() {
                 {editLabel}
               </Button>
             )}
-            {po.canEdit && can("MANAGER") && (
+            {po.canEdit && can("purchases.cancel") && (
               <Button variant="secondary" icon={<Ban className="size-4" />} onClick={cancelPo} loading={cancelling}>
                 Cancel PO
               </Button>
             )}
-            {receivable && can("MANAGER") && (
+            {receivable && can("purchases.receive") && (
               <Button icon={<PackageCheck className="size-4" />} onClick={() => router.push(`/goods-inward/new?po=${po.id}`)}>
                 Receive goods
               </Button>

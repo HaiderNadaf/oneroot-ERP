@@ -37,7 +37,7 @@ export default function ApprovalsPage() {
             <Button variant="secondary" icon={<RefreshCw className="size-4" />} onClick={() => void reload()} loading={loading && !!data}>
               Refresh
             </Button>
-            {can("ADMIN") && (
+            {can("admin.approval_rules") && (
               <Button variant="secondary" icon={<Settings2 className="size-4" />} onClick={() => router.push("/admin/approval-rules")}>
                 Approval rules
               </Button>

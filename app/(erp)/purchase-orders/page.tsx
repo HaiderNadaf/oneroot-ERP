@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ApprovalChain } from "@/components/ApprovalChain";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { BranchCode } from "@/components/BranchNotice";
 import { Badge, Button, Card, EmptyRow, ErrorBox, LoadingRow, PageHeader, Pagination, StatusBadge, Table, Tabs, Td, Th, cx } from "@/components/ui";
 import { date, inr, n } from "@/lib/format";
@@ -35,9 +35,9 @@ interface PoList extends Paged<PurchaseOrder> {
 
 export default function PurchaseOrdersPage() {
   return (
-    <RequireRole roles={["MANAGER", "ACCOUNTANT"]}>
+    <RequirePerm perms={["purchases.view"]}>
       <PurchaseOrders />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 
@@ -195,7 +195,7 @@ function PurchaseOrders() {
                       </Td>
                       <Td right>
                         <div className="flex items-center justify-end gap-1">
-                          {receivable && can("MANAGER") && (
+                          {receivable && can("purchases.receive") && (
                             <Button
                               size="sm"
                               variant="secondary"

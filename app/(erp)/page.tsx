@@ -446,7 +446,7 @@ export default function DashboardPage() {
   if (!data) return null;
 
   const k = data.kpis;
-  const finance = can("MANAGER", "ACCOUNTANT");
+  const finance = can("reports.view");
   const periodWord = period === "today" ? "14 days" : "12 months";
   const sparkOf = (key: "sales" | "purchases" | "collected") => data.spark.map((s) => s[key]);
   const trend = data.trend.map((m) => ({
@@ -959,7 +959,7 @@ export default function DashboardPage() {
             ["/products", <Leaf key="i" />, data.counts.products, "Active products"],
             ["/inventory", <Layers key="i" />, data.counts.batches, "Batches in stock"],
             ["/purchase-orders", <Boxes key="i" />, data.counts.openPos, "Open purchase orders"],
-            [can("ADMIN") ? "/admin/users" : "/account", <UserCog key="i" />, data.counts.users, "Active users"],
+            [can("admin.users") ? "/admin/users" : "/account", <UserCog key="i" />, data.counts.users, "Active users"],
           ] as const
         ).map(([href, icon, value, label]) => (
           <Link

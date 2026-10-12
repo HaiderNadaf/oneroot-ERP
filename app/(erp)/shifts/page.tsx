@@ -46,7 +46,7 @@ export default function ShiftsPage() {
   const [closeFor, setCloseFor] = useState<Shift | null>(null);
   const [depositFor, setDepositFor] = useState<Shift | null | "any">(null);
   const current = useApi<Shift | null>(needBranch.blocked ? null : "/shifts/current");
-  const recon = useApi<CashReconciliation>(can("MANAGER", "ACCOUNTANT") && !needBranch.blocked ? "/shifts/reconciliation" : null);
+  const recon = useApi<CashReconciliation>(can("cash.manage") && !needBranch.blocked ? "/shifts/reconciliation" : null);
   const { data: settings } = useApi<StoreSettings>("/settings");
 
   const refresh = () => {
@@ -74,7 +74,7 @@ export default function ShiftsPage() {
                 Open shift
               </Button>
             )}
-            {can("MANAGER", "ACCOUNTANT") && (
+            {can("cash.manage") && (
               <Button variant="secondary" icon={<Landmark className="size-4" />} onClick={() => setDepositFor("any")} disabled={needBranch.blocked}>
                 Bank deposit
               </Button>
@@ -94,7 +94,7 @@ export default function ShiftsPage() {
             <Mini label="Cash refunds" value={inr(b.cashRefunds)} />
             <Mini label="Expected in drawer" value={inr(b.expected)} strong />
           </div>
-          {!settings?.requireOpenShift && can("ADMIN") && (
+          {!settings?.requireOpenShift && can("admin.settings") && (
             <p className="mt-3 text-xs text-slate-500">Billing is allowed without a shift right now. Switch on &quot;No billing without an open shift&quot; in Store settings to enforce it.</p>
           )}
         </Card>
@@ -229,12 +229,12 @@ function ShiftsTab({ onDeposit, onClose }: { onDeposit: (s: Shift) => void; onCl
                     ) : null}
                   </Td>
                   <Td right>
-                    {!closed && (s.openedById === user?.id || can("MANAGER")) && (
+                    {!closed && (s.openedById === user?.id || can("cash.manage")) && (
                       <Button size="sm" variant="secondary" onClick={() => onClose(s)}>
                         Close
                       </Button>
                     )}
-                    {closed && n(s.depositGap) > 0 && can("MANAGER", "ACCOUNTANT") && (
+                    {closed && n(s.depositGap) > 0 && can("cash.manage") && (
                       <Button size="sm" variant="secondary" icon={<Landmark className="size-4" />} onClick={() => onDeposit(s)}>
                         Deposit
                       </Button>
@@ -256,7 +256,7 @@ function ShiftsTab({ onDeposit, onClose }: { onDeposit: (s: Shift) => void; onCl
 function DepositsTab({ onChanged }: { onChanged: () => void }) {
   const toast = useToast();
   const confirm = useConfirm();
-  const { can } = useAuth();
+  const { can, isAdmin } = useAuth();
   const [page, setPage] = useState(1);
   const [slip, setSlip] = useState<string | null>(null);
   const { data, error, loading, reload } = useApi<Paged<BankDeposit>>("/deposits", { page, pageSize: 20 });
@@ -355,12 +355,12 @@ function DepositsTab({ onChanged }: { onChanged: () => void }) {
                             Slip
                           </Button>
                         )}
-                        {gap !== 0 && !d.resolvedAt && can("ADMIN") && (
+                        {gap !== 0 && !d.resolvedAt && isAdmin && (
                           <Button size="sm" variant="secondary" icon={<CheckCircle2 className="size-4" />} onClick={() => resolve(d)}>
                             Resolve
                           </Button>
                         )}
-                        {can("MANAGER") && (
+                        {can("cash.manage") && (
                           <Button size="sm" variant="ghost" icon={<Trash2 className="size-4" />} onClick={() => remove(d)} aria-label="Delete deposit" />
                         )}
                       </div>

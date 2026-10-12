@@ -83,6 +83,7 @@ export default function AccountPage() {
             <Info label="Email">{user.email}</Info>
             <Info label="Role">
               <StatusBadge status={user.role} />
+              {user.roleTemplate && <span className="ml-1.5 text-sm font-medium text-slate-700">{user.roleTemplate.name}</span>}
               <span className="mt-1 block text-xs font-normal text-slate-500">{ROLE_INFO[user.role]}</span>
             </Info>
           </dl>

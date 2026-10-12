@@ -4,7 +4,7 @@ import { Ban, CheckCircle2, Eye, FileMinus, FilePlus, Printer, Send } from "luci
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { NoteForm, NoteStatusBadge, ReasonBadge, noteTypeName, postLabel, reducesPayable } from "@/components/NoteForm";
 import { VendorPicker } from "@/components/pickers";
 import {
@@ -36,9 +36,9 @@ type TypeTab = "debit" | "credit";
 
 export default function DebitNotesPage() {
   return (
-    <RequireRole roles={["MANAGER", "ACCOUNTANT"]}>
+    <RequirePerm perms={["purchases.view"]}>
       <Notes />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

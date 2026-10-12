@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, Info as InfoIcon, PackageCheck,
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { useCounts } from "@/components/Notifications";
 import {
   Badge,
@@ -75,9 +75,9 @@ function check(item: PoItem, l: Line) {
 
 export default function NewGrnPage() {
   return (
-    <RequireRole roles={["MANAGER"]}>
+    <RequirePerm perms={["purchases.receive"]}>
       <NewGrn />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

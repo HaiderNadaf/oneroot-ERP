@@ -30,7 +30,6 @@ import {
   X,
   ChevronDown,
   ChevronRight,
-  UserRoundPlus,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -45,7 +44,7 @@ import {
 
 import { useAuth } from "@/lib/auth";
 import { BranchProvider, useBranch } from "@/lib/branch";
-import type { Role } from "@/lib/types";
+import type { Permission } from "@/lib/permissions";
 import { CountsProvider, useCounts } from "./Notifications";
 import { TopBar } from "./TopBar";
 import { Spinner, cx } from "./ui";
@@ -54,7 +53,8 @@ export interface NavItem {
   href: string;
   label: string;
   icon: ReactNode;
-  roles?: Role[];
+  /** Shown (and the pages under it opened) only to users holding any of these; none = everyone */
+  perms?: Permission[];
   badge?: "unread" | "approvals";
 }
 
@@ -82,90 +82,79 @@ export const NAV: NavGroup[] = [
   {
     section: "Sales",
     items: [
-      { href: "/sales/new", label: "New Sale (POS)", icon: <ShoppingCart /> },
-      { href: "/sales", label: "Invoices", icon: <Receipt /> },
-      { href: "/sales/returns", label: "Sales Returns", icon: <Undo2 /> },
-      { href: "/customers", label: "Customers", icon: <Users /> },
-      { href: "/customers/reminders", label: "Due Reminders", icon: <BellRing /> },
-      { href: "/approvals", label: "Approvals", icon: <BadgeCheck /> },
+      { href: "/sales/new", label: "New Sale (POS)", icon: <ShoppingCart />, perms: ["sales.bill"] },
+      { href: "/sales", label: "Invoices", icon: <Receipt />, perms: ["sales.bill"] },
+      { href: "/sales/returns", label: "Sales Returns", icon: <Undo2 />, perms: ["sales.returns"] },
+      { href: "/customers", label: "Customers", icon: <Users />, perms: ["customers.view"] },
+      { href: "/customers/reminders", label: "Due Reminders", icon: <BellRing />, perms: ["customers.view"] },
+      { href: "/approvals", label: "Approvals", icon: <BadgeCheck />, badge: "approvals" },
     ],
   },
   {
     section: "Purchasing",
     items: [
-      {
-        href: "/vendors",
-        label: "Vendors",
-        icon: <Boxes />,
-      },
-      {
-        href: "/agents",
-        label: "Agents",
-        icon: <UserRoundPlus />,
-      },
+      { href: "/vendors", label: "Vendors", icon: <Boxes />, perms: ["vendors.view"] },
       {
         href: "/purchase-orders",
         label: "Purchase Orders",
         icon: <ClipboardList />,
-        roles: ["MANAGER", "ACCOUNTANT"],
+        perms: ["purchases.view"],
       },
       {
         href: "/goods-inward",
         label: "Goods Inward (GRN)",
         icon: <PackageCheck />,
-        roles: ["MANAGER", "ACCOUNTANT"],
+        perms: ["purchases.view"],
       },
       {
         href: "/purchases",
         label: "Purchase Invoices",
         icon: <Truck />,
-        roles: ["MANAGER", "ACCOUNTANT"],
+        perms: ["purchases.view"],
       },
       {
         href: "/debit-notes",
         label: "Debit & Credit Notes",
         icon: <FileMinus />,
-        roles: ["MANAGER", "ACCOUNTANT"],
+        perms: ["purchases.view"],
       },
     ],
   },
   {
     section: "Inventory",
     items: [
+      { href: "/products", label: "Products", icon: <Package />, perms: ["products.view"] },
+      { href: "/inventory", label: "Stock & Batches", icon: <RotateCcw />, perms: ["inventory.view"] },
       {
-        href: "/products",
-        label: "Products",
-        icon: <Package />,
-      },
-      {
-        href: "/inventory",
-        label: "Stock & Batches",
-        icon: <RotateCcw />,
+        href: "/inventory/govt-match",
+        label: "Govt Fertiliser Match",
+        icon: <ShieldCheck />,
+        perms: ["inventory.govt"],
       },
     ],
   },
   {
     section: "Finance",
     items: [
-      { href: "/shifts", label: "Shifts & Cash", icon: <Landmark /> },
-      { href: "/payments", label: "Payments", icon: <IndianRupee /> },
+      { href: "/shifts", label: "Shifts & Cash", icon: <Landmark />, perms: ["cash.shifts"] },
+      { href: "/payments", label: "Payments", icon: <IndianRupee />, perms: ["payments.view"] },
       {
         href: "/expenses",
         label: "Expenses",
         icon: <Wallet />,
-        roles: ["MANAGER", "ACCOUNTANT"],
+        perms: ["expenses"],
       },
       {
         href: "/accounts",
         label: "Accounts",
         icon: <BookOpen />,
-        roles: ["MANAGER", "ACCOUNTANT"],
+        perms: ["accounts.view"],
       },
       {
         href: "/reports",
         label: "Reports",
         icon: <BarChart3 />,
-        roles: ["MANAGER", "ACCOUNTANT"],
+        perms: ["reports.view"],
       },
     ],
   },
@@ -187,52 +176,53 @@ export const NAV: NavGroup[] = [
         href: "/admin/users",
         label: "Users",
         icon: <UserCog />,
-        roles: ["ADMIN"],
+        perms: ["admin.users"],
       },
       {
         href: "/admin/roles",
         label: "Roles & Limits",
         icon: <ShieldCheck />,
-        roles: ["ADMIN"],
+        perms: ["admin.roles"],
       },
       {
         href: "/admin/schemes",
         label: "Schemes & Pricing",
         icon: <Tags />,
-        roles: ["MANAGER"],
+        perms: ["admin.schemes"],
       },
       {
         href: "/admin/branches",
         label: "Branches",
         icon: <Store />,
-        roles: ["ADMIN"],
+        perms: ["admin.branches"],
       },
       {
         href: "/admin/settings",
         label: "Store Settings",
         icon: <Settings />,
-        roles: ["ADMIN"],
+        perms: ["admin.settings"],
       },
       {
         href: "/admin/approval-rules",
         label: "PO Approval Rules",
         icon: <BadgeCheck />,
-        roles: ["ADMIN"],
+        perms: ["admin.approval_rules"],
       },
       {
         href: "/admin/audit",
         label: "Audit Log",
         icon: <ShieldCheck />,
-        roles: ["ADMIN"],
+        perms: ["admin.audit"],
       },
     ],
   },
 ];
 
-/**
- * Find the most specific matching route.
- */
-function activeHref(pathname: string): string {
+/** Pages under a gated sidebar item that any signed-in user may open (e.g. a named PO approver) */
+const OPEN_ROUTES = ["/purchase-orders/approvals"];
+
+/** Most specific nav item wins, so /sales/new doesn't also light up /sales */
+function activeHref(pathname: string) {
   let best = "";
 
   for (const group of NAV) {
@@ -268,7 +258,8 @@ function getActiveSection(pathname: string): string {
 }
 
 /**
- * Sidebar navigation with single-open accordion behavior.
+ * Sidebar navigation with single-open accordion behavior: the menu holding the current page opens by itself,
+ * and a click on a menu header opens it (closing the others) or closes it.
  */
 function NavLinks({
   onNavigate,
@@ -282,16 +273,12 @@ function NavLinks({
   const active = activeHref(pathname);
   const activeSection = getActiveSection(pathname);
 
-  const [openSection, setOpenSection] = useState("");
-
-  useEffect(() => {
-    setOpenSection(activeSection);
-  }, [activeSection]);
+  // A header click holds until the page moves to another menu, which then opens instead
+  const [toggled, setToggled] = useState<{ at: string; open: string } | null>(null);
+  const openSection = toggled?.at === activeSection ? toggled.open : activeSection;
 
   function toggleSection(section: string) {
-    setOpenSection((current) =>
-      current === section ? "" : section,
-    );
+    setToggled({ at: activeSection, open: openSection === section ? "" : section });
   }
 
   return (
@@ -301,7 +288,7 @@ function NavLinks({
     >
       {NAV.map((group, groupIndex) => {
         const items = group.items.filter(
-          (item) => !item.roles || can(...item.roles),
+          (item) => !item.perms || can(...item.perms),
         );
 
         if (items.length === 0) {
@@ -512,6 +499,17 @@ export function AppShell({
   const [drawer, setDrawer] = useState(false);
   const [drawerMounted, setDrawerMounted] = useState(false);
 
+  // Mount the drawer closed, then slide it in on the next frame so the opening transition runs
+  function openDrawer() {
+    setDrawerMounted(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => setDrawer(true)));
+  }
+
+  // Slide out; the overlay's transition end unmounts it
+  function closeDrawer() {
+    setDrawer(false);
+  }
+
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/login");
@@ -589,7 +587,7 @@ export function AppShell({
           <main className="mx-auto max-w-[1440px] p-4 lg:p-6">
             <BranchScope>
               <Suspense fallback={<Spinner />}>
-                {children}
+                <RouteGate>{children}</RouteGate>
               </Suspense>
             </BranchScope>
           </main>
@@ -620,33 +618,40 @@ function BranchScope({
   return <Fragment key={version}>{children}</Fragment>;
 }
 
-/**
- * Restrict a page to users with the specified roles.
- */
-export function RequireRole({
-  roles,
+function NoAccess() {
+  return (
+    <div className="mx-auto mt-20 max-w-md text-center">
+      <FileText className="mx-auto size-10 text-slate-300" />
+      <p className="mt-3 font-medium text-slate-700">
+        You don&apos;t have access to this page
+      </p>
+      <p className="mt-1 text-sm text-slate-500">
+        Ask an administrator to give you this permission in Users.
+      </p>
+    </div>
+  );
+}
+
+/** Pages inherit the permission of the sidebar item they sit under (typed URLs included) */
+function RouteGate({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const { can } = useAuth();
+  if (OPEN_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"))) return <>{children}</>;
+  const href = activeHref(pathname);
+  const item = NAV.flatMap((g) => g.items).find((i) => i.href === href);
+  if (item?.perms && !can(...item.perms)) return <NoAccess />;
+  return <>{children}</>;
+}
+
+/** Wrap a page (or part of one) that needs a permission beyond its sidebar item's */
+export function RequirePerm({
+  perms,
   children,
 }: {
-  roles: Role[];
+  perms: Permission[];
   children: ReactNode;
 }) {
   const { can } = useAuth();
-
-  if (!can(...roles)) {
-    return (
-      <div className="mx-auto mt-20 max-w-md text-center">
-        <FileText className="mx-auto size-10 text-slate-300" />
-
-        <p className="mt-3 font-medium text-slate-700">
-          You don&apos;t have access to this page
-        </p>
-
-        <p className="mt-1 text-sm text-slate-500">
-          Ask an administrator to change your role.
-        </p>
-      </div>
-    );
-  }
-
+  if (!can(...perms)) return <NoAccess />;
   return <>{children}</>;
 }

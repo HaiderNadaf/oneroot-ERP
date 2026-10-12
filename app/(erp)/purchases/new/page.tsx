@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowLeft, PackagePlus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { BranchBadge, useNeedBranch } from "@/components/BranchNotice";
 import { CASH_MODES, modeLabel } from "@/components/PartyPaymentForm";
 import { ProductPicker, VendorPicker } from "@/components/pickers";
@@ -69,9 +69,9 @@ let lineSeq = 0;
 
 export default function NewPurchasePage() {
   return (
-    <RequireRole roles={["MANAGER", "ACCOUNTANT"]}>
+    <RequirePerm perms={["purchases.manage"]}>
       <NewPurchase />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

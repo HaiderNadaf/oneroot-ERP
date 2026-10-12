@@ -117,7 +117,7 @@ function Body({ onClose, initial }: { onClose: () => void; initial: LabelItem[] 
             <span>
               {missing.length} product{missing.length > 1 ? "s have" : " has"} no barcode: {missing.map((m) => m.name).join(", ")}
             </span>
-            {can("MANAGER") && (
+            {can("products.manage") && (
               <Button size="sm" variant="secondary" icon={<Sparkles className="size-4" />} loading={busy} onClick={generate}>
                 Generate in-store barcodes
               </Button>

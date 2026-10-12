@@ -49,7 +49,7 @@ export function StockAdjustModal({
   initial?: StockAdjustInitial;
 }) {
   const { can } = useAuth();
-  if (!open || !can("MANAGER")) return null;
+  if (!open || !can("inventory.adjust")) return null;
   // Remount on every open so the form starts from the given defaults
   return <AdjustForm onClose={onClose} onSaved={onSaved} fixed={product ?? null} initial={initial} />;
 }

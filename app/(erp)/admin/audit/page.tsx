@@ -3,7 +3,7 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { Badge, Card, EmptyRow, ErrorBox, LoadingRow, PageHeader, Pagination, Select, Table, Td, Th } from "@/components/ui";
 import { dateTime } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
@@ -38,9 +38,9 @@ const ACTION_TONE: Record<string, "green" | "blue" | "red" | "amber" | "slate" |
 
 export default function AuditPage() {
   return (
-    <RequireRole roles={["ADMIN"]}>
+    <RequirePerm perms={["admin.audit"]}>
       <Audit />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { BalanceSheetTab, ChartTab, DayBookTab, LedgerTab, PartiesTab, PnlTab, TallyTab, TrialBalanceTab } from "@/components/accounts/AccountsTabs";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { RangeBar, type Range } from "@/components/reports/ReportKit";
 import { PageHeader, Tabs } from "@/components/ui";
 import { today } from "@/lib/format";
@@ -30,9 +30,9 @@ function fyRange(): Range {
 
 export default function AccountsPage() {
   return (
-    <RequireRole roles={["MANAGER", "ACCOUNTANT"]}>
+    <RequirePerm perms={["accounts.view"]}>
       <Accounts />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

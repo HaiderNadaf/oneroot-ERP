@@ -4,7 +4,7 @@ import { Hourglass, IndianRupee, Package, Pin, Plus, Receipt, Truck, X } from "l
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
-import type { Role } from "@/lib/types";
+import type { Permission } from "@/lib/permissions";
 import { NAV } from "./AppShell";
 import { cx } from "./ui";
 
@@ -12,14 +12,14 @@ interface Action {
   href: string;
   label: string;
   icon: ReactNode;
-  roles?: Role[];
+  perms?: Permission[];
 }
 
 const STORAGE_KEY = "oneroot.quickActions";
 
 /** Shown until the user pins their own */
 const DEFAULT_ACTIONS: Action[] = [
-  { href: "/purchases", label: "Purchase", icon: <Truck />, roles: ["MANAGER", "ACCOUNTANT"] },
+  { href: "/purchases", label: "Purchase", icon: <Truck />, perms: ["purchases.view"] },
   { href: "/inventory", label: "Inventory", icon: <Package /> },
   { href: "/sales", label: "Sales", icon: <Receipt /> },
   { href: "/payments", label: "Receive Payment", icon: <IndianRupee /> },
@@ -33,7 +33,7 @@ const CATALOG: Action[] = (() => {
   for (const a of [...DEFAULT_ACTIONS, ...NAV.flatMap((g) => g.items)]) {
     if (seen.has(a.href)) continue;
     seen.add(a.href);
-    all.push({ href: a.href, label: a.label, icon: a.icon, roles: a.roles });
+    all.push({ href: a.href, label: a.label, icon: a.icon, perms: a.perms });
   }
   return all;
 })();
@@ -80,7 +80,7 @@ export function QuickActions() {
     };
   }, [open]);
 
-  const allowed = (a: Action) => !a.roles || can(...a.roles);
+  const allowed = (a: Action) => !a.perms || can(...a.perms);
   const shown = pinned.map((h) => CATALOG.find((a) => a.href === h)).filter((a): a is Action => !!a && allowed(a));
 
   function toggle(href: string) {

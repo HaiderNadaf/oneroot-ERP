@@ -4,7 +4,7 @@ import { Download, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { VendorPicker } from "@/components/pickers";
 import {
   Badge,
@@ -33,9 +33,9 @@ import type { Paged, Purchase, Vendor } from "@/lib/types";
 
 export default function PurchasesPage() {
   return (
-    <RequireRole roles={["MANAGER", "ACCOUNTANT"]}>
+    <RequirePerm perms={["purchases.view"]}>
       <Purchases />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

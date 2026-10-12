@@ -3,7 +3,7 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { PoForm } from "@/components/PoForm";
 import { ErrorBox, PageHeader, Spinner, StatusBadge } from "@/components/ui";
 import { useApi } from "@/lib/hooks";
@@ -11,9 +11,9 @@ import type { PurchaseOrder } from "@/lib/types";
 
 export default function EditPurchaseOrderPage() {
   return (
-    <RequireRole roles={["MANAGER", "ACCOUNTANT"]}>
+    <RequirePerm perms={["purchases.manage"]}>
       <EditPurchaseOrder />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

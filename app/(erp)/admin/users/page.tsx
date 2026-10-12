@@ -2,8 +2,10 @@
 
 import { Plus } from "lucide-react";
 import { useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { BranchCode, useBranchOptions } from "@/components/BranchNotice";
+import { PermissionPicker } from "@/components/PermissionPicker";
+import { RoleTemplateForm } from "@/components/RoleTemplateForm";
 import {
   Badge,
   Button,
@@ -29,28 +31,33 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import { ROLES, type Role, type User } from "@/lib/types";
+import { PERMISSIONS, defaultsFor, hasPerm, normalizePermissions, type Permission } from "@/lib/permissions";
+import { ROLES, type Role, type RoleTemplate, type User } from "@/lib/types";
 
 const ROLE_INFO: Record<Role, string> = {
-  ADMIN: "Everything, including users, store settings and the audit log",
-  MANAGER: "Inventory, purchases, reports and cancellations",
-  CASHIER: "Billing, customers and receipts",
-  ACCOUNTANT: "Purchases, payments, expenses and reports",
+  ADMIN: "Everything, always — including users, store settings and the audit log",
+  MANAGER: "Starts with inventory, purchases, reports, approvals and cancellations",
+  CASHIER: "Starts with billing, customers and receipts",
+  ACCOUNTANT: "Starts with purchases, payments, expenses, accounts and reports",
 };
+
+const roleName = (r: Role) => r.charAt(0) + r.slice(1).toLowerCase();
 
 export default function UsersPage() {
   return (
-    <RequireRole roles={["ADMIN"]}>
+    <RequirePerm perms={["admin.users"]}>
       <Users />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 
 function Users() {
-  const { user: me } = useAuth();
+  const { user: me, can } = useAuth();
   const { data, error, loading, reload } = useApi<User[]>("/users");
+  const templates = useApi<RoleTemplate[]>("/roles/custom");
   const [editing, setEditing] = useState<User | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [roleOpen, setRoleOpen] = useState(false);
 
   const open = (u: User | null) => {
     setEditing(u);
@@ -61,11 +68,18 @@ function Users() {
     <>
       <PageHeader
         title="Users"
-        subtitle="Staff who can sign in, what each of them can do, and which branch they work in"
+        subtitle="Staff who can sign in, what each of them may do, and which branch they work in"
         actions={
-          <Button icon={<Plus className="size-4" />} onClick={() => open(null)}>
-            New user
-          </Button>
+          <>
+            {can("admin.roles") && (
+              <Button variant="secondary" icon={<Plus className="size-4" />} onClick={() => setRoleOpen(true)}>
+                New role
+              </Button>
+            )}
+            <Button icon={<Plus className="size-4" />} onClick={() => open(null)}>
+              New user
+            </Button>
+          </>
         }
       />
 
@@ -80,6 +94,7 @@ function Users() {
               <tr>
                 <Th>Name</Th>
                 <Th>Role</Th>
+                <Th>Access</Th>
                 <Th>Branch</Th>
                 <Th>Phone</Th>
                 <Th>Last sign-in</Th>
@@ -89,9 +104,9 @@ function Users() {
             </thead>
             <tbody>
               {loading && !data ? (
-                <LoadingRow colSpan={7} />
+                <LoadingRow colSpan={8} />
               ) : !data?.length ? (
-                <EmptyRow colSpan={7}>No users</EmptyRow>
+                <EmptyRow colSpan={8}>No users</EmptyRow>
               ) : (
                 data.map((u) => (
                   <tr key={u.id} className={cx("hover:bg-slate-50", !u.isActive && "text-slate-400")}>
@@ -105,7 +120,17 @@ function Users() {
                       <p className="text-xs text-slate-500">{u.email}</p>
                     </Td>
                     <Td>
-                      <StatusBadge status={u.role} />
+                      {u.roleTemplate ? (
+                        <>
+                          <span className="text-sm font-medium text-slate-800">{u.roleTemplate.name}</span>
+                          <p className="text-xs text-slate-500">based on {roleName(u.role)}</p>
+                        </>
+                      ) : (
+                        <StatusBadge status={u.role} />
+                      )}
+                    </Td>
+                    <Td>
+                      <AccessSummary user={u} templates={templates.data ?? []} />
                     </Td>
                     <Td className="whitespace-nowrap">
                       {u.branch ? (
@@ -133,7 +158,7 @@ function Users() {
         )}
       </Card>
 
-      <Card title="Roles" className="mt-4">
+      <Card title="Roles & permissions" className="mt-4">
         <dl className="grid gap-3 sm:grid-cols-2">
           {ROLES.map((r) => (
             <div key={r} className="flex items-start gap-2">
@@ -142,7 +167,28 @@ function Users() {
             </div>
           ))}
         </dl>
+        {!!templates.data?.length && (
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Your roles</p>
+            <dl className="grid gap-2 sm:grid-cols-2">
+              {templates.data.map((t) => (
+                <div key={t.id} className="flex items-start gap-2 text-sm">
+                  <span className="font-medium text-slate-800">{t.name}</span>
+                  <dd className="text-slate-600">
+                    {t.description || `${t.permissions.length} permissions`} · based on {roleName(t.baseRole)} · {t.userCount} user{t.userCount === 1 ? "" : "s"}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
         <p className="mt-4 border-t border-slate-100 pt-3 text-sm text-slate-600">
+          <b className="font-medium text-slate-800">Permissions:</b> a role only fills in the starting ticks. Tick or untick anything in the
+          user form to give exactly the access you want — the sidebar, the pages and the API all follow the ticks. Make your own role
+          (&ldquo;New role&rdquo;) to reuse a set of ticks for several people; discount, refund and adjustment ceilings still come from the
+          built-in role it is based on (Roles &amp; Limits).
+        </p>
+        <p className="mt-2 text-sm text-slate-600">
           <b className="font-medium text-slate-800">Home branch:</b> staff with a home branch are locked to it — they only see and
           record that branch&apos;s stock, sales and purchases. Leave it as &ldquo;All branches&rdquo; for owners and administrators who
           switch between branches from the top bar (an administrator&apos;s home branch is just the one selected when they sign in).
@@ -153,10 +199,23 @@ function Users() {
         <UserForm
           user={editing}
           isSelf={!!editing && editing.id === me?.id}
+          templates={templates.data ?? []}
+          onTemplatesChanged={() => void templates.reload()}
           onClose={() => setFormOpen(false)}
           onSaved={() => {
             setFormOpen(false);
             void reload();
+            void templates.reload();
+          }}
+        />
+      )}
+      {roleOpen && (
+        <RoleTemplateForm
+          template={null}
+          onClose={() => setRoleOpen(false)}
+          onSaved={() => {
+            setRoleOpen(false);
+            void templates.reload();
           }}
         />
       )}
@@ -164,35 +223,122 @@ function Users() {
   );
 }
 
-function RolePicker({ value, onChange, disabled }: { value: Role; onChange: (r: Role) => void; disabled?: boolean }) {
+/** What the user's ticks are compared against: their custom role, else the built-in role */
+function baselineFor(user: { role: Role; roleTemplateId?: string | null }, templates: RoleTemplate[]): Permission[] {
+  const t = user.roleTemplateId ? templates.find((x) => x.id === user.roleTemplateId) : null;
+  return t ? normalizePermissions(t.permissions) : defaultsFor(user.role);
+}
+
+/** "Everything", "Manager defaults", "Store supervisor" or "Custom · 12 of 39" */
+function AccessSummary({ user, templates }: { user: User; templates: RoleTemplate[] }) {
+  if (user.role === "ADMIN") return <span className="text-xs text-slate-500">Everything</span>;
+  const mine = normalizePermissions(user.permissions ?? []);
+  const base = baselineFor(user, templates);
+  const custom = mine.length !== base.length || mine.some((k) => !base.includes(k));
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {ROLES.map((r) => (
-        <button
-          key={r}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(r)}
-          className={cx(
-            "rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-            value === r ? "border-brand-500 bg-brand-50 ring-2 ring-brand-500/20" : "border-slate-200 hover:bg-slate-50",
-          )}
-        >
-          <p className="text-sm font-medium text-slate-800">{r.charAt(0) + r.slice(1).toLowerCase()}</p>
-          <p className="text-xs text-slate-500">{ROLE_INFO[r]}</p>
-        </button>
-      ))}
+    <span className="text-xs text-slate-500">
+      {custom ? <Badge tone="amber">Custom</Badge> : user.roleTemplate ? "As per role" : `${roleName(user.role)} defaults`}
+      <span className="num ml-1.5">
+        {mine.length} of {PERMISSIONS.length}
+      </span>
+    </span>
+  );
+}
+
+/** Built-in roles plus the store's own roles; picking one fills in its ticks */
+function RolePicker({
+  role,
+  templateId,
+  templates,
+  onPick,
+  onNewRole,
+  disabled,
+}: {
+  role: Role;
+  templateId: string | null;
+  templates: RoleTemplate[];
+  onPick: (role: Role, template: RoleTemplate | null) => void;
+  onNewRole?: () => void;
+  disabled?: boolean;
+}) {
+  const { isAdmin } = useAuth();
+  const card = (selected: boolean, off: boolean) =>
+    cx(
+      "rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+      selected ? "border-brand-500 bg-brand-50 ring-2 ring-brand-500/20" : "border-slate-200 hover:bg-slate-50",
+      off && "opacity-60",
+    );
+  return (
+    <div className="space-y-2">
+      <div className="grid gap-2 sm:grid-cols-2">
+        {ROLES.map((r) => {
+          // Only an administrator can make another administrator
+          const off = disabled || (r === "ADMIN" && !isAdmin);
+          return (
+            <button key={r} type="button" disabled={off} onClick={() => onPick(r, null)} className={card(!templateId && role === r, false)}>
+              <p className="text-sm font-medium text-slate-800">{roleName(r)}</p>
+              <p className="text-xs text-slate-500">{ROLE_INFO[r]}</p>
+            </button>
+          );
+        })}
+      </div>
+      {(templates.length > 0 || onNewRole) && (
+        <div>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Your roles</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {templates.map((t) => (
+              <button key={t.id} type="button" disabled={disabled} onClick={() => onPick(t.baseRole, t)} className={card(templateId === t.id, false)}>
+                <p className="text-sm font-medium text-slate-800">{t.name}</p>
+                <p className="text-xs text-slate-500">
+                  {t.description || `${t.permissions.length} permissions`} · based on {roleName(t.baseRole)}
+                </p>
+              </button>
+            ))}
+            {onNewRole && !disabled && (
+              <button
+                type="button"
+                onClick={onNewRole}
+                className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-left text-sm font-medium text-brand-700 hover:bg-slate-50"
+              >
+                <span className="inline-flex items-center gap-1">
+                  <Plus className="size-4" /> New role…
+                </span>
+                <p className="text-xs font-normal text-slate-500">Save a set of ticks under a name to reuse for other staff</p>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function UserForm({ user, isSelf, onClose, onSaved }: { user: User | null; isSelf: boolean; onClose: () => void; onSaved: () => void }) {
+function UserForm({
+  user,
+  isSelf,
+  templates,
+  onTemplatesChanged,
+  onClose,
+  onSaved,
+}: {
+  user: User | null;
+  isSelf: boolean;
+  templates: RoleTemplate[];
+  onTemplatesChanged: () => void;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const toast = useToast();
+  const { user: me, can } = useAuth();
   const editing = !!user;
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
   const [role, setRole] = useState<Role>(user?.role ?? "CASHIER");
+  const [templateId, setTemplateId] = useState<string | null>(user?.roleTemplateId ?? null);
+  const [permissions, setPermissions] = useState<Permission[]>(() =>
+    user ? normalizePermissions(user.permissions ?? []) : defaultsFor("CASHIER").filter((k) => hasPerm(me, k)),
+  );
   const [isActive, setIsActive] = useState(user?.isActive ?? true);
   const [branchId, setBranchId] = useState(user?.branchId ?? user?.branch?.id ?? "");
   const { branches, loading: branchesLoading } = useBranchOptions();
@@ -200,30 +346,39 @@ function UserForm({ user, isSelf, onClose, onSaved }: { user: User | null; isSel
   const [pin, setPin] = useState("");
   const [clearPin, setClearPin] = useState(false);
   const [saving, setSaving] = useState(false);
-  const approver = role === "ADMIN" || role === "MANAGER";
+  const [newRole, setNewRole] = useState(false);
+  const approver = hasPerm({ role, permissions }, "approvals.decide");
+  const template = templateId ? (templates.find((t) => t.id === templateId) ?? null) : null;
+  const baseline = template ? normalizePermissions(template.permissions) : defaultsFor(role);
+
+  // Picking a role (built-in or your own) starts again from that role's ticks
+  const pick = (r: Role, t: RoleTemplate | null) => {
+    setRole(r);
+    setTemplateId(t?.id ?? null);
+    setPermissions(r === "ADMIN" ? [] : (t ? normalizePermissions(t.permissions) : defaultsFor(r)).filter((k) => hasPerm(me, k)));
+  };
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (password && password.length < 6) return toast.error("Password must be at least 6 characters");
     if (!editing && !password) return toast.error("Set a password for the new user");
     if (pin && !/^\d{4,6}$/.test(pin)) return toast.error("Approval PIN must be 4 to 6 digits");
+    if (role !== "ADMIN" && !permissions.length) return toast.error("Tick at least one permission, or disable the account instead");
     setSaving(true);
     try {
+      const access = { role, roleTemplateId: role === "ADMIN" ? null : templateId, permissions: role === "ADMIN" ? [] : permissions };
       if (editing) {
         const body: Record<string, unknown> = { name: name.trim(), phone: phone.trim(), branchId };
-        if (!isSelf) {
-          body.role = role;
-          body.isActive = isActive;
-        }
+        if (!isSelf) Object.assign(body, access, { isActive });
         if (password) body.password = password;
         if (clearPin) body.pin = "";
         else if (pin) body.pin = pin;
         await api.patch(`/users/${user.id}`, body);
         toast.success(password ? "User updated and password reset" : "User updated");
       } else {
-        const created = await api.post<User>("/users", { name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, password, role, branchId });
+        const created = await api.post<User>("/users", { name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, password, branchId, ...access });
         if (pin) await api.patch(`/users/${created.id}`, { pin });
-        toast.success(`${name.trim()} can now sign in as ${role.toLowerCase()}`);
+        toast.success(`${name.trim()} can now sign in as ${template?.name ?? role.toLowerCase()}`);
       }
       onSaved();
     } catch (err) {
@@ -269,9 +424,21 @@ function UserForm({ user, isSelf, onClose, onSaved }: { user: User | null; isSel
         </Field>
         <div className="sm:col-span-2">
           <span className="mb-1 block text-xs font-medium text-slate-600">Role</span>
-          <RolePicker value={role} onChange={setRole} disabled={isSelf} />
-          {isSelf && <p className="mt-1 text-xs text-slate-400">You can&apos;t change your own role or disable your own account.</p>}
+          <RolePicker role={role} templateId={templateId} templates={templates} onPick={pick} onNewRole={can("admin.roles") ? () => setNewRole(true) : undefined} disabled={isSelf} />
+          {isSelf ? (
+            <p className="mt-1 text-xs text-slate-400">You can&apos;t change your own role, permissions or disable your own account.</p>
+          ) : (
+            <p className="mt-1 text-xs text-slate-400">Picking a role fills in its usual ticks below; then give or take away whatever you like.</p>
+          )}
         </div>
+        <PermissionPicker
+          value={permissions}
+          onChange={setPermissions}
+          defaults={baseline}
+          resetLabel={`Reset to ${template ? template.name : `${roleName(role)} defaults`}`}
+          disabled={isSelf}
+          admin={role === "ADMIN"}
+        />
         <Field
           label="Home branch"
           className="sm:col-span-2"
@@ -301,7 +468,7 @@ function UserForm({ user, isSelf, onClose, onSaved }: { user: User | null; isSel
           <Field
             label={user?.hasPin ? "Change approval PIN" : "Approval PIN"}
             className="sm:col-span-2"
-            hint="4–6 digits a manager types at the counter to approve a discount, refund or adjustment above a cashier's limit"
+            hint="4–6 digits an approver types at the counter to approve a discount, refund or adjustment above a cashier's limit"
           >
             <div className="flex items-center gap-3">
               <Input type="password" inputMode="numeric" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} disabled={clearPin} className="num w-40 tracking-[0.4em]" placeholder={user?.hasPin ? "••••" : ""} />
@@ -316,6 +483,17 @@ function UserForm({ user, isSelf, onClose, onSaved }: { user: User | null; isSel
           </div>
         )}
       </form>
+      {newRole && (
+        <RoleTemplateForm
+          template={null}
+          onClose={() => setNewRole(false)}
+          onSaved={(t) => {
+            setNewRole(false);
+            onTemplatesChanged();
+            pick(t.baseRole, t);
+          }}
+        />
+      )}
     </Modal>
   );
 }

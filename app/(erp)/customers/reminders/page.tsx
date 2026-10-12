@@ -115,14 +115,14 @@ export default function RemindersPage() {
         subtitle={`Customers whose bills are past the due date${cfg ? ` (plus ${cfg.graceDays} grace days)` : ""} — send WhatsApp reminders and keep a log of every follow-up`}
         actions={
           <>
-            {can("ADMIN") && (
+            {can("admin.settings") && (
               <Link href="/admin/settings">
                 <Button variant="ghost" icon={<Settings className="size-4" />}>
                   Template & rules
                 </Button>
               </Link>
             )}
-            {cfg?.whatsappConfigured && can("MANAGER") && (
+            {cfg?.whatsappConfigured && can("customers.remind") && (
               <Button icon={<Send className="size-4" />} loading={running} onClick={sendAll} disabled={!rows.length}>
                 Send all via WhatsApp
               </Button>

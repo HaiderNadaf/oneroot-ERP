@@ -4,7 +4,7 @@ import { ArrowLeft, FileText, Printer, Tag } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { RequireRole } from "@/components/AppShell";
+import { RequirePerm } from "@/components/AppShell";
 import { LabelPrintModal } from "@/components/LabelPrintModal";
 import { Badge, Button, Card, ErrorBox, PageHeader, Spinner, StatusBadge, Table, Td, Th, cx } from "@/components/ui";
 import { date, dateTime, inr, n, qty, round2 } from "@/lib/format";
@@ -15,9 +15,9 @@ type GrnDetail = Grn & { vendor: Vendor; items: GrnItem[] };
 
 export default function GrnDetailPage() {
   return (
-    <RequireRole roles={["MANAGER", "ACCOUNTANT"]}>
+    <RequirePerm perms={["purchases.view"]}>
       <GrnView />
-    </RequireRole>
+    </RequirePerm>
   );
 }
 

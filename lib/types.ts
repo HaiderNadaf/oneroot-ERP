@@ -102,6 +102,72 @@ export interface User {
   /** Home branch; null = works across all branches */
   branchId?: string | null;
   branch?: BranchRef | null;
+  /** Approval PIN is set (managers / owner) */
+  hasPin?: boolean;
+}
+
+// ───────────────────────── Authority limits & approvals ─────────────────────────
+
+export interface RoleLimit {
+  role: Role;
+  /** null = no limit */
+  maxDiscountPct: number | null;
+  returnLimit: number | null;
+  adjustmentLimit: number | null;
+  seeCostPrice: boolean;
+}
+
+export type ApprovalKind = "DISCOUNT" | "RETURN" | "ADJUSTMENT" | "OTHER";
+export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "USED";
+
+export interface ApprovalRequest {
+  id: string;
+  kind: ApprovalKind;
+  amount: Dec;
+  details?: Record<string, unknown> | null;
+  reason?: string | null;
+  requestedById: string;
+  requestedBy?: { name: string; role?: Role };
+  status: ApprovalStatus;
+  decidedById?: string | null;
+  decidedBy?: { name: string } | null;
+  decidedAt?: string | null;
+  note?: string | null;
+  byPin: boolean;
+  usedAt?: string | null;
+  branch?: { code: string } | null;
+  createdAt: string;
+}
+
+// ───────────────────────── Schemes & customer types ─────────────────────────
+
+export type SchemeType = "BUY_X_GET_Y" | "PCT_OFF" | "FLAT_OFF";
+
+export interface Scheme {
+  id: string;
+  name: string;
+  type: SchemeType;
+  buyQty?: number | null;
+  freeQty?: number | null;
+  pct?: Dec | null;
+  flat?: Dec | null;
+  from: string;
+  to?: string | null;
+  claimable: boolean;
+  isActive: boolean;
+  notes?: string | null;
+  products: { productId: string; product?: { id: string; name: string; sku: string; salePrice: Dec } }[];
+  _count?: { saleItems: number };
+}
+
+export interface CustomerType {
+  id: string;
+  name: string;
+  discountPct: Dec;
+  minBill: Dec;
+  excludeSubsidised: boolean;
+  isActive: boolean;
+  _count?: { customers: number };
 }
 
 export interface StoreSettings {
@@ -315,6 +381,9 @@ export interface Customer {
   landAcres?: Dec | null;
   crops?: string | null;
   creditLimit: Dec;
+  /** FPO, bulk buyer… decides an automatic discount at the counter */
+  customerTypeId?: string | null;
+  customerType?: CustomerType | null;
   /** Credit period in days; 0 = due immediately */
   creditDays: number;
   /** Credit sales blocked until a manager lifts it */
@@ -422,6 +491,14 @@ export interface SaleItem {
   amount: Dec;
   costPrice: Dec;
   returnedQty: Dec;
+  /** Cashier's own discount on the line (the part that needs authority) */
+  manualDiscountPct?: Dec;
+  /** Customer-type discount folded into discountPct */
+  typeDiscountPct?: Dec;
+  schemeId?: string | null;
+  scheme?: { name: string; type: SchemeType; claimable: boolean } | null;
+  /** Free goods from a buy-X-get-Y scheme (zero price) */
+  isFree?: boolean;
   product?: { sku: string; technicalName?: string | null; packSize?: string | null; isSubsidised?: boolean };
 }
 
@@ -445,6 +522,9 @@ export interface Sale {
   customer?: Customer | null;
   customerName?: string | null;
   customerPhone?: string | null;
+  /** Customer type whose discount applied on this bill (FPO, bulk buyer…) */
+  customerTypeName?: string | null;
+  approvalId?: string | null;
   saleDate: string;
   dueDate?: string | null;
   subtotal: Dec;

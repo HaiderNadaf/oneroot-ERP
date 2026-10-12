@@ -4,6 +4,7 @@ import { ArrowLeft, Ban, IndianRupee, Plus, Printer, Undo2 } from "lucide-react"
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ApprovalGate, approvalNeeded, type ApprovalNeed } from "@/components/ApprovalGate";
 import { PrintPortal } from "@/components/PrintPortal";
 import { SaleInvoice } from "@/components/SaleInvoice";
 import { ThermalReceipt, receiptFromSale } from "@/components/ThermalReceipt";
@@ -381,6 +382,7 @@ function ReturnBody({ open, sale, onClose, onSaved }: ReturnProps) {
   const [reason, setReason] = useState("");
   const [govtRef, setGovtRef] = useState("");
   const [saving, setSaving] = useState(false);
+  const [need, setNeed] = useState<ApprovalNeed | null>(null);
   const items = useMemo(
     () => (sale.items ?? []).map((i) => ({ ...i, left: round2(n(i.quantity) - n(i.returnedQty)) })).filter((i) => i.left > 0),
     [sale.items],
@@ -392,8 +394,8 @@ function ReturnBody({ open, sale, onClose, onSaved }: ReturnProps) {
     items.reduce((s, i) => s + (n(i.amount) / n(i.quantity)) * Math.min(n(qtys[i.id]), i.left), 0),
   );
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
+  async function save(e: React.FormEvent | null, approvalId?: string) {
+    e?.preventDefault();
     const lines = items.filter((i) => n(qtys[i.id]) > 0).map((i) => ({ saleItemId: i.id, quantity: n(qtys[i.id]) }));
     if (!lines.length) return toast.error("Enter the quantity being returned");
     const over = items.find((i) => n(qtys[i.id]) > i.left);
@@ -406,17 +408,21 @@ function ReturnBody({ open, sale, onClose, onSaved }: ReturnProps) {
         refundMode,
         reason: reason.trim() || undefined,
         govtReversalRef: govtRef.trim() || undefined,
+        approvalId,
       });
       toast.success(`Return ${r.returnNo} saved`);
       onSaved();
     } catch (err) {
-      toast.error(errMsg(err));
+      const approval = approvalNeeded(err, { invoiceNo: sale.invoiceNo, customer: sale.customer?.name ?? sale.customerName ?? "Walk-in", refundMode, total: refund });
+      if (approval) setNeed(approval);
+      else toast.error(errMsg(err));
     } finally {
       setSaving(false);
     }
   }
 
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
@@ -500,5 +506,15 @@ function ReturnBody({ open, sale, onClose, onSaved }: ReturnProps) {
         </p>
       </form>
     </Modal>
+    <ApprovalGate
+      need={need}
+      onClose={() => setNeed(null)}
+      onApproved={(id, by) => {
+        setNeed(null);
+        toast.success(`Approved by ${by}`);
+        void save(null, id);
+      }}
+    />
+    </>
   );
 }

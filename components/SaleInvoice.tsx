@@ -129,6 +129,11 @@ export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSet
                     {[i.product?.technicalName, i.product?.packSize].filter(Boolean).join(" · ")}
                   </p>
                 )}
+                {i.isFree ? (
+                  <p className="text-[11px] text-slate-500">Free under scheme{i.scheme ? ` · ${i.scheme.name}` : ""}</p>
+                ) : (
+                  i.scheme && <p className="text-[11px] text-slate-500">Scheme · {i.scheme.name}</p>
+                )}
                 {n(i.returnedQty) > 0 && <p className="text-[11px] text-amber-700">Returned: {qty(i.returnedQty)}</p>}
               </td>
               <td className="py-1.5 pr-1">{i.hsnCode || "—"}</td>

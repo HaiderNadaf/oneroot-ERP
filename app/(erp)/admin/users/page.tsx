@@ -197,12 +197,16 @@ function UserForm({ user, isSelf, onClose, onSaved }: { user: User | null; isSel
   const [branchId, setBranchId] = useState(user?.branchId ?? user?.branch?.id ?? "");
   const { branches, loading: branchesLoading } = useBranchOptions();
   const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
+  const [clearPin, setClearPin] = useState(false);
   const [saving, setSaving] = useState(false);
+  const approver = role === "ADMIN" || role === "MANAGER";
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (password && password.length < 6) return toast.error("Password must be at least 6 characters");
     if (!editing && !password) return toast.error("Set a password for the new user");
+    if (pin && !/^\d{4,6}$/.test(pin)) return toast.error("Approval PIN must be 4 to 6 digits");
     setSaving(true);
     try {
       if (editing) {
@@ -212,10 +216,13 @@ function UserForm({ user, isSelf, onClose, onSaved }: { user: User | null; isSel
           body.isActive = isActive;
         }
         if (password) body.password = password;
+        if (clearPin) body.pin = "";
+        else if (pin) body.pin = pin;
         await api.patch(`/users/${user.id}`, body);
         toast.success(password ? "User updated and password reset" : "User updated");
       } else {
-        await api.post("/users", { name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, password, role, branchId });
+        const created = await api.post<User>("/users", { name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, password, role, branchId });
+        if (pin) await api.patch(`/users/${created.id}`, { pin });
         toast.success(`${name.trim()} can now sign in as ${role.toLowerCase()}`);
       }
       onSaved();
@@ -290,6 +297,19 @@ function UserForm({ user, isSelf, onClose, onSaved }: { user: User | null; isSel
             )}
           </Select>
         </Field>
+        {approver && (
+          <Field
+            label={user?.hasPin ? "Change approval PIN" : "Approval PIN"}
+            className="sm:col-span-2"
+            hint="4–6 digits a manager types at the counter to approve a discount, refund or adjustment above a cashier's limit"
+          >
+            <div className="flex items-center gap-3">
+              <Input type="password" inputMode="numeric" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} disabled={clearPin} className="num w-40 tracking-[0.4em]" placeholder={user?.hasPin ? "••••" : ""} />
+              {user?.hasPin && <Checkbox label="Remove PIN" checked={clearPin} onChange={setClearPin} />}
+              {user?.hasPin && !clearPin && <Badge tone="green">PIN set</Badge>}
+            </div>
+          </Field>
+        )}
         {editing && !isSelf && (
           <div className="sm:col-span-2">
             <Checkbox label="Active — can sign in" checked={isActive} onChange={setIsActive} />

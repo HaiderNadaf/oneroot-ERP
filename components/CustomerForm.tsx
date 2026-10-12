@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { n } from "@/lib/format";
-import type { Customer } from "@/lib/types";
+import { useApi } from "@/lib/hooks";
+import type { Customer, CustomerType } from "@/lib/types";
 import { parseGstin } from "@/lib/gst";
 import { GstinField, StateSelect } from "./GstinField";
-import { Button, Checkbox, Field, Input, Modal, Textarea, errMsg, useToast } from "./ui";
+import { Button, Checkbox, Field, Input, Modal, Select, Textarea, errMsg, useToast } from "./ui";
 
 type FormState = Record<string, string | boolean>;
 
@@ -26,6 +27,7 @@ function toForm(c?: Customer | null): FormState {
     landAcres: c?.landAcres !== null && c?.landAcres !== undefined ? String(n(c.landAcres)) : "",
     crops: c?.crops ?? "",
     creditLimit: c ? String(n(c.creditLimit)) : "",
+    customerTypeId: c?.customerTypeId ?? "",
     creditDays: c ? String(c.creditDays ?? 0) : "",
     creditHold: c?.creditHold ?? false,
     openingBalance: c ? String(n(c.openingBalance)) : "",
@@ -55,6 +57,7 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
   const [f, setF] = useState<FormState>(() => ({ ...toForm(customer), ...(!customer && initialName ? { name: initialName } : {}) }));
   const [saving, setSaving] = useState(false);
   const editing = !!customer;
+  const { data: types } = useApi<CustomerType[]>(quick ? null : "/customer-types");
 
   const set = (k: string, v: string | boolean) => setF((s) => ({ ...s, [k]: v }));
   const str = (k: string) => String(f[k] ?? "");
@@ -86,6 +89,7 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
     body.creditLimit = str("creditLimit") === "" ? (editing ? 0 : undefined) : Number(str("creditLimit"));
     body.creditDays = str("creditDays") === "" ? (editing ? 0 : undefined) : Math.round(Number(str("creditDays")));
     if (!quick) body.creditHold = !!f.creditHold;
+    if (!quick) body.customerTypeId = str("customerTypeId") || (editing ? null : undefined);
     body.openingBalance = str("openingBalance") === "" ? (editing ? 0 : undefined) : Number(str("openingBalance"));
     if (editing) body.isActive = f.isActive;
     try {
@@ -166,6 +170,16 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
             </Field>
             <Field label="Crops" className="sm:col-span-2" hint="e.g. Cotton, Soybean, Tur">
               <Input value={str("crops")} onChange={(e) => set("crops", e.target.value)} />
+            </Field>
+            <Field label="Customer type" hint="Automatic discount at the counter">
+              <Select value={str("customerTypeId")} onChange={(e) => set("customerTypeId", e.target.value)}>
+                <option value="">Retail (no type)</option>
+                {(types ?? []).map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} · {n(t.discountPct)}% off{n(t.minBill) > 0 ? ` above ₹${n(t.minBill)}` : ""}
+                  </option>
+                ))}
+              </Select>
             </Field>
             <Field label="Credit limit (₹)" hint="0 = no limit">
               <Input type="number" step="0.01" min="0" value={str("creditLimit")} onChange={(e) => set("creditLimit", e.target.value)} />

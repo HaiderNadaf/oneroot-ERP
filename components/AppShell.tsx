@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   Store,
+  Tags,
   Truck,
   Undo2,
   UserCog,
@@ -68,6 +69,7 @@ export const NAV: { section: string; items: NavItem[] }[] = [
       { href: "/sales/returns", label: "Sales Returns", icon: <Undo2 /> },
       { href: "/customers", label: "Customers", icon: <Users /> },
       { href: "/customers/reminders", label: "Due Reminders", icon: <BellRing /> },
+      { href: "/approvals", label: "Approvals", icon: <BadgeCheck /> },
     ],
   },
   {
@@ -146,6 +148,18 @@ export const NAV: { section: string; items: NavItem[] }[] = [
         label: "Users",
         icon: <UserCog />,
         roles: ["ADMIN"],
+      },
+      {
+        href: "/admin/roles",
+        label: "Roles & Limits",
+        icon: <ShieldCheck />,
+        roles: ["ADMIN"],
+      },
+      {
+        href: "/admin/schemes",
+        label: "Schemes & Pricing",
+        icon: <Tags />,
+        roles: ["MANAGER"],
       },
       {
         href: "/admin/branches",

@@ -30,9 +30,10 @@ import { useAuth } from "@/lib/auth";
 import { date, dateTime, inr, n, qty, round2, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { defaultPrintMode, printAs, printReceipt, receiptWidth } from "@/lib/print";
-import type { PaymentMode, Sale, StoreSettings } from "@/lib/types";
+import type { Customer, PaymentMode, Sale, StoreSettings } from "@/lib/types";
+import { MONEY_MODES, modeLabel } from "@/lib/types";
 
-const RECEIPT_MODES: PaymentMode[] = ["CASH", "UPI", "CARD", "BANK", "CHEQUE"];
+const RECEIPT_MODES: PaymentMode[] = [...MONEY_MODES];
 
 export default function SaleDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -128,7 +129,7 @@ export default function SaleDetailPage() {
                 Return items
               </Button>
             )}
-            {!cancelled && can("MANAGER") && (
+            {!cancelled && can("sales.cancel") && (
               <Button
                 variant="danger"
                 icon={<Ban className="size-4" />}
@@ -187,7 +188,7 @@ export default function SaleDetailPage() {
                     <div className="min-w-0">
                       <p className="font-medium text-slate-800">{p.paymentNo}</p>
                       <p className="text-xs text-slate-500">
-                        {date(p.paymentDate)} · {p.mode}
+                        {date(p.paymentDate)} · {modeLabel(p.mode)}
                         {p.reference && ` · ${p.reference}`}
                       </p>
                     </div>
@@ -292,12 +293,17 @@ function RecordPaymentBody({ open, sale, balance, onClose, onSaved }: PayProps) 
   const [reference, setReference] = useState("");
   const [payDate, setPayDate] = useState(today());
   const [saving, setSaving] = useState(false);
+  // Credit notes the customer still holds can settle the bill without money moving
+  const { data: cust } = useApi<Customer>(sale.customerId ? `/customers/${sale.customerId}` : null);
+  const credit = round2(n(cust?.creditNoteBalance));
+  const modes: PaymentMode[] = credit > 0 ? [...RECEIPT_MODES, "CREDIT_NOTE"] : RECEIPT_MODES;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const amt = n(amount);
     if (amt <= 0) return toast.error("Enter an amount");
     if (amt > balance + 0.004) return toast.error(`Amount cannot exceed the balance of ${inr(balance)}`);
+    if (mode === "CREDIT_NOTE" && amt > credit + 0.004) return toast.error(`Only ${inr(credit)} of credit note is available`);
     setSaving(true);
     try {
       await api.post("/payments", {
@@ -345,8 +351,11 @@ function RecordPaymentBody({ open, sale, balance, onClose, onSaved }: PayProps) 
         </Field>
         <Field label="Mode" required>
           <Select value={mode} onChange={(e) => setMode(e.target.value as PaymentMode)}>
-            {RECEIPT_MODES.map((m) => (
-              <option key={m}>{m}</option>
+            {modes.map((m) => (
+              <option key={m} value={m}>
+                {modeLabel(m)}
+                {m === "CREDIT_NOTE" ? ` (${inr(credit)} available)` : ""}
+              </option>
             ))}
           </Select>
         </Field>
@@ -354,7 +363,7 @@ function RecordPaymentBody({ open, sale, balance, onClose, onSaved }: PayProps) 
           <Input type="date" value={payDate} max={today()} onChange={(e) => setPayDate(e.target.value)} />
         </Field>
         <Field label="Reference" hint="UTR / cheque no.">
-          <Input value={reference} onChange={(e) => setReference(e.target.value)} disabled={mode === "CASH"} />
+          <Input value={reference} onChange={(e) => setReference(e.target.value)} disabled={mode === "CASH" || mode === "CREDIT_NOTE"} />
         </Field>
       </form>
     </Modal>

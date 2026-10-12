@@ -2,6 +2,7 @@
 
 import { amountInWords, date, inr, n, qty } from "@/lib/format";
 import type { Sale, StoreSettings } from "@/lib/types";
+import { modeLabel } from "@/lib/types";
 
 /** Printable GST tax invoice. Render inside a `.print-area` container. */
 export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSettings | null }) {
@@ -89,7 +90,7 @@ export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSet
           </p>
           <p>
             <span className="text-slate-500">Payment: </span>
-            {sale.paymentMode}
+            {sale.payments && sale.payments.length > 1 ? sale.payments.map((p) => `${modeLabel(p.mode)} ${inr(p.amount)}`).join(" + ") : modeLabel(sale.paymentMode)}
           </p>
           {sale.govtReceiptNo && (
             <p>

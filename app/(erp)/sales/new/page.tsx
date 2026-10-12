@@ -6,8 +6,10 @@ import {
   Check,
   ChevronDown,
   CloudOff,
+  History,
   LockKeyholeOpen,
   Minus,
+  PauseCircle,
   Plus,
   Printer,
   ReceiptText,
@@ -15,6 +17,7 @@ import {
   ScanLine,
   ShieldCheck,
   ShoppingCart,
+  Split,
   Trash2,
   UserPlus,
   WifiOff,
@@ -41,7 +44,7 @@ import { isNetworkError, newOfflineId, queueAdd, queueList, queueRemove, syncQue
 import { priceLines, type PricedLine } from "@/lib/pricing";
 import { defaultPrintMode, printReceipt, receiptWidth } from "@/lib/print";
 import { useScanner } from "@/lib/scanner";
-import type { Batch, Category, Customer, Paged, PaymentMode, Product, RoleLimit, Sale, Scheme, Shift, StoreSettings } from "@/lib/types";
+import { MONEY_MODES, modeLabel, type Batch, type Category, type Customer, type HeldBill, type Paged, type PaymentMode, type Product, type RoleLimit, type Sale, type Scheme, type Shift, type StoreSettings } from "@/lib/types";
 
 /** Product list row with the POS extras from `withExpiry=true` */
 type PosProduct = Product & { sellable?: number; nextExpiry?: string | null };
@@ -57,6 +60,30 @@ interface Line {
   discountPct: string;
 }
 
+/** One part of a split payment */
+interface Part {
+  key: number;
+  mode: PaymentMode;
+  amount: string;
+  reference: string;
+}
+let partSeq = 0;
+
+/** What a held bill stores: the cart exactly as it was */
+interface HoldPayload {
+  lines: { productId: string; batchId: string | null; quantity: number; rate: number; discountPct: string }[];
+  customerId: string | null;
+  walkinName: string;
+  phone: string;
+  billDiscount: string;
+  mode: PaymentMode;
+  reference: string;
+  notes: string;
+  interState: boolean;
+  govtReceipt: string;
+  aadhaar: boolean;
+}
+
 interface Done {
   sale: Sale | null;
   receipt: ReceiptData;
@@ -68,6 +95,7 @@ const MODES: { mode: PaymentMode; label: string }[] = [
   { mode: "CASH", label: "Cash" },
   { mode: "UPI", label: "UPI" },
   { mode: "CARD", label: "Card" },
+  { mode: "KCC", label: "KCC" },
   { mode: "CREDIT", label: "Credit" },
   { mode: "BANK", label: "Bank" },
   { mode: "CHEQUE", label: "Cheque" },
@@ -110,6 +138,11 @@ export default function PosPage() {
   const { data: limits } = useApi<RoleLimit>("/roles/mine");
   const [need, setNeed] = useState<ApprovalNeed | null>(null);
   const overRef = useRef(false);
+  // Bills parked on this branch's counters (hold / recall)
+  const holds = useApi<HeldBill[]>(needBranch.blocked || !online ? null : "/sales/holds");
+  const [holdsOpen, setHoldsOpen] = useState(false);
+  const [holdLabel, setHoldLabel] = useState<string | null>(null);
+  const [holding, setHolding] = useState(false);
   const [openShift, setOpenShift] = useState(false);
   const [openingFloat, setOpeningFloat] = useState("");
   const [openingShift, setOpeningShift] = useState(false);
@@ -130,6 +163,9 @@ export default function PosPage() {
   const [mode, setMode] = useState<PaymentMode>("CASH");
   const [received, setReceived] = useState<string | null>(null);
   const [reference, setReference] = useState("");
+  // Split payment: several modes on one bill (cash + UPI, credit note + cash…)
+  const [split, setSplit] = useState(false);
+  const [parts, setParts] = useState<Part[]>([]);
   const [interState, setInterState] = useState(false);
   const [notes, setNotes] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
@@ -342,9 +378,13 @@ export default function PosPage() {
 
   const defaultReceived = mode === "CREDIT" ? 0 : summary.total;
   const receivedAmt = received === null ? defaultReceived : n(received);
-  const change = mode === "CASH" ? round2(receivedAmt - summary.total) : 0;
-  const paidAmount = round2(Math.min(receivedAmt, summary.total));
+  const partsTotal = round2(parts.reduce((s, p) => s + n(p.amount), 0));
+  const change = !split && mode === "CASH" ? round2(receivedAmt - summary.total) : 0;
+  const paidAmount = round2(Math.min(split ? partsTotal : receivedAmt, summary.total));
   const due = round2(summary.total - paidAmount);
+  // Credit notes the customer still holds (from the customer detail; applied as a payment mode)
+  const availableCredit = round2(n(credit?.creditNoteBalance));
+  const creditNoteUsed = round2(parts.filter((p) => p.mode === "CREDIT_NOTE").reduce((s, p) => s + n(p.amount), 0));
   const projectedBalance = customer ? round2(n(customer.balance) + due) : 0;
   const overCredit = !!customer && n(customer.creditLimit) > 0 && due > 0 && projectedBalance > n(customer.creditLimit);
   const creditHold = (credit ?? customer)?.creditHold ?? false;
@@ -371,8 +411,26 @@ export default function PosPage() {
 
   function chooseMode(m: PaymentMode) {
     setMode(m);
+    setSplit(false);
     setReceived(null);
     if (m === "CASH" || m === "CREDIT") setReference("");
+  }
+
+  /** Switch to a split payment; with a credit note first when the customer has one */
+  function startSplit(withCreditNote = false) {
+    const note = withCreditNote ? round2(Math.min(availableCredit, summary.total)) : 0;
+    const rows: Part[] = [];
+    if (note > 0) rows.push({ key: ++partSeq, mode: "CREDIT_NOTE", amount: String(note), reference: "" });
+    rows.push({ key: ++partSeq, mode: "CASH", amount: String(round2(summary.total - note)), reference: "" });
+    setParts(rows);
+    setSplit(true);
+    setReceived(null);
+  }
+  const updatePart = (key: number, patch: Partial<Part>) => setParts((ps) => ps.map((p) => (p.key === key ? { ...p, ...patch } : p)));
+  const removePart = (key: number) => setParts((ps) => ps.filter((p) => p.key !== key));
+  function addPart() {
+    const rest = round2(Math.max(0, summary.total - partsTotal));
+    setParts((ps) => [...ps, { key: ++partSeq, mode: ps.some((p) => p.mode === "CASH") ? "UPI" : "CASH", amount: rest ? String(rest) : "", reference: "" }]);
   }
 
   function validate(): string | null {
@@ -387,6 +445,13 @@ export default function PosPage() {
     if (!customer && due > 0) return "Credit needs a registered customer — pick or add the farmer first";
     if (due > 0 && creditHold) return `Credit is on hold for ${customer?.name} — collect the dues first or ask a manager to lift the hold`;
     if (phone && phone.length !== 10) return "Enter a valid 10-digit mobile number";
+    if (split) {
+      if (!parts.length) return "Add a payment line or switch off split payment";
+      if (parts.some((p) => n(p.amount) <= 0)) return "Every payment line needs an amount";
+      if (partsTotal > summary.total + 0.004) return `Payments (${inr(partsTotal)}) exceed the bill total`;
+      if (creditNoteUsed > 0 && !customer) return "A credit note needs a registered customer";
+      if (creditNoteUsed > availableCredit + 0.004) return `Only ${inr(availableCredit)} of credit note is available for ${customer?.name}`;
+    }
     if (govtMissing) return "Sell the subsidised fertiliser on the govt POS device first, then enter its receipt no.";
     if (shiftMissing) return "Open your shift (enter the opening cash) before billing";
     return null;
@@ -411,7 +476,8 @@ export default function PosPage() {
       roundOff: summary.roundOff,
       total: summary.total,
       paid: paidAmount,
-      paymentMode: mode,
+      paymentMode: split ? "Split" : modeLabel(mode),
+      payments: split ? parts.map((p) => ({ mode: modeLabel(p.mode), amount: n(p.amount), reference: p.reference.trim() || null })) : undefined,
       notes: notes.trim() || null,
       govtReceiptNo: govtReceipt.trim() || null,
       provisional: true,
@@ -470,8 +536,9 @@ export default function PosPage() {
       })),
       discount: summary.discount || undefined,
       paidAmount,
-      paymentMode: mode,
-      paymentReference: reference.trim() || undefined,
+      paymentMode: split ? undefined : mode,
+      paymentReference: split ? undefined : reference.trim() || undefined,
+      payments: split ? parts.map((p) => ({ mode: p.mode, amount: n(p.amount), reference: p.reference.trim() || undefined })) : undefined,
       isInterState: interState,
       allowOverCreditLimit: allowOverCreditLimit || undefined,
       notes: notes.trim() || undefined,
@@ -501,7 +568,7 @@ export default function PosPage() {
         return;
       }
       const msg = errMsg(e);
-      if (e instanceof ApiError && /credit limit/i.test(msg) && can("MANAGER") && !allowOverCreditLimit) setOverLimit(msg);
+      if (e instanceof ApiError && /credit limit/i.test(msg) && can("approvals.decide") && !allowOverCreditLimit) setOverLimit(msg);
       else toast.error(msg);
     } finally {
       setSaving(false);
@@ -520,11 +587,100 @@ export default function PosPage() {
     setCustomer(null);
     setCredit(null);
     setMode("CASH");
+    setSplit(false);
+    setParts([]);
     setInterState(false);
     setEditing(null);
     setGovtReceipt("");
     setAadhaar(false);
     setTimeout(() => searchRef.current?.focus(), 0);
+  }
+
+  // ── Hold / recall: park the cart on the server so any counter of the branch can pick it up ──
+  async function holdBill() {
+    setHolding(true);
+    try {
+      const payload: HoldPayload = {
+        lines: lines.map((l) => ({ productId: l.product.id, batchId: l.batchId || null, quantity: n(l.quantity), rate: n(l.rate), discountPct: l.discountPct })),
+        customerId: customer?.id ?? null,
+        walkinName,
+        phone,
+        billDiscount,
+        mode,
+        reference,
+        notes,
+        interState,
+        govtReceipt,
+        aadhaar,
+      };
+      const h = await api.post<HeldBill>("/sales/holds", {
+        customerId: customer?.id,
+        customerName: customer ? undefined : walkinName.trim() || undefined,
+        label: holdLabel?.trim() || undefined,
+        total: summary.total,
+        itemCount: lines.length,
+        payload,
+      });
+      toast.success(`Bill held as #${h.holdNo} — recall it from the Recall button`);
+      setHoldLabel(null);
+      newSale();
+      void holds.reload();
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setHolding(false);
+    }
+  }
+
+  async function recall(h: HeldBill) {
+    const p = h.payload as unknown as HoldPayload;
+    const rebuilt: Line[] = [];
+    let missing = 0;
+    for (const hl of p.lines ?? []) {
+      const prod = products.find((x) => x.id === hl.productId);
+      if (!prod) {
+        missing++;
+        continue;
+      }
+      rebuilt.push({ key: ++keySeq.current, product: prod, batches: null, batchId: hl.batchId ?? "", quantity: String(hl.quantity), rate: String(hl.rate), discountPct: hl.discountPct ?? "" });
+    }
+    newSale();
+    setLines(rebuilt);
+    for (const l of rebuilt) {
+      api
+        .get<Product>(`/products/${l.product.id}`)
+        .then((full) => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, batches: full.batches ?? [] } : x))))
+        .catch(() => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, batches: [] } : x))));
+    }
+    if (p.customerId) {
+      try {
+        const c = await api.get<Customer>(`/customers/${p.customerId}`);
+        setCustomer(c);
+        setCredit(c);
+        setPhone(c.phone ?? "");
+      } catch {
+        /* customer gone: continue as walk-in */
+      }
+    } else {
+      setWalkinName(p.walkinName ?? "");
+      setPhone(p.phone ?? "");
+    }
+    setBillDiscount(p.billDiscount ?? "");
+    setMode(p.mode ?? "CASH");
+    setReference(p.reference ?? "");
+    setNotes(p.notes ?? "");
+    setInterState(!!p.interState);
+    setGovtReceipt(p.govtReceipt ?? "");
+    setAadhaar(!!p.aadhaar);
+    setHoldsOpen(false);
+    try {
+      await api.del(`/sales/holds/${h.id}`);
+    } catch {
+      /* already taken by another counter */
+    }
+    void holds.reload();
+    if (missing) toast.error(`${missing} product${missing > 1 ? "s" : ""} from hold #${h.holdNo} ${missing > 1 ? "are" : "is"} no longer on sale`);
+    else toast.success(`Recalled hold #${h.holdNo}`);
   }
 
   /** Thermal receipt from the page, or the A4 invoice page */
@@ -619,6 +775,16 @@ export default function PosPage() {
                 Open shift
               </Button>
             ))}
+          {lines.length > 0 && online && !needBranch.blocked && (
+            <Button variant="secondary" icon={<PauseCircle className="size-4" />} onClick={() => setHoldLabel("")} title="Park this cart and serve the next farmer; recall it later on any counter">
+              Hold bill
+            </Button>
+          )}
+          {online && !needBranch.blocked && (holds.data?.length ?? 0) > 0 && (
+            <Button variant="secondary" icon={<History className="size-4" />} onClick={() => setHoldsOpen(true)}>
+              Recall · {holds.data?.length}
+            </Button>
+          )}
           <Link href="/sales">
             <Button variant="secondary" icon={<ReceiptText className="size-4" />}>
               Invoices
@@ -806,6 +972,18 @@ export default function PosPage() {
                 <span className={n(customer.balance) > 0 ? "font-semibold text-[#c2412d]" : ""}>due {inr(customer.balance)}</span>
                 {n(customer.creditLimit) > 0 && ` · limit ${inr0(customer.creditLimit)}`}
                 {customer.creditDays > 0 && ` · ${customer.creditDays} days credit`}
+              </p>
+            )}
+            {customer && availableCredit > 0 && (
+              <p className="flex items-center justify-between gap-2 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-800">
+                <span>
+                  Credit note available: <b className="num">{inr(availableCredit)}</b>
+                </span>
+                {lines.length > 0 && creditNoteUsed === 0 && (
+                  <button type="button" className="font-semibold underline" onClick={() => startSplit(true)}>
+                    Apply to this bill
+                  </button>
+                )}
               </p>
             )}
             {customer && creditHold && (
@@ -1003,7 +1181,7 @@ export default function PosPage() {
               </dl>
             )}
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {MODES.map((m) => {
                 const disabled = m.mode === "CREDIT" && (!customer || creditHold);
                 return (
@@ -1011,17 +1189,28 @@ export default function PosPage() {
                     key={m.mode}
                     type="button"
                     disabled={disabled}
-                    title={disabled ? (creditHold ? "Credit is on hold" : "Credit needs a registered customer") : undefined}
+                    title={disabled ? (creditHold ? "Credit is on hold" : "Credit needs a registered customer") : m.mode === "KCC" ? "Kisan Credit Card (settles to the bank)" : undefined}
                     onClick={() => chooseMode(m.mode)}
                     className={cx(
                       "h-11 rounded-lg border text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40",
-                      mode === m.mode ? "border-brand-500 bg-[#e3f1e3] text-brand-700" : "border-[#e1e6d8] bg-white text-[#1d2a1f] hover:border-brand-500",
+                      !split && mode === m.mode ? "border-brand-500 bg-[#e3f1e3] text-brand-700" : "border-[#e1e6d8] bg-white text-[#1d2a1f] hover:border-brand-500",
                     )}
                   >
                     {m.label}
                   </button>
                 );
               })}
+              <button
+                type="button"
+                onClick={() => (split ? setSplit(false) : startSplit(false))}
+                title="Pay with more than one mode, e.g. part cash + part UPI, or apply a credit note"
+                className={cx(
+                  "inline-flex h-11 items-center justify-center gap-1 rounded-lg border text-sm font-semibold transition-colors",
+                  split ? "border-brand-500 bg-[#e3f1e3] text-brand-700" : "border-[#e1e6d8] bg-white text-[#1d2a1f] hover:border-brand-500",
+                )}
+              >
+                <Split className="size-4" /> Split
+              </button>
             </div>
 
             {mode === "CREDIT" && !customer && (
@@ -1030,7 +1219,50 @@ export default function PosPage() {
               </p>
             )}
 
-            {lines.length > 0 && (
+            {lines.length > 0 && split && (
+              <div className="space-y-2 rounded-lg bg-[#f7f9f3] p-2">
+                {parts.map((p) => (
+                  <div key={p.key} className="flex items-center gap-1.5">
+                    <Select value={p.mode} onChange={(e) => updatePart(p.key, { mode: e.target.value as PaymentMode, reference: "" })} className="h-8 w-32 text-xs" aria-label="Payment mode">
+                      {MONEY_MODES.map((m) => (
+                        <option key={m} value={m}>
+                          {modeLabel(m)}
+                        </option>
+                      ))}
+                      {customer && availableCredit > 0 && <option value="CREDIT_NOTE">Credit note</option>}
+                    </Select>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={p.amount}
+                      onChange={(e) => updatePart(p.key, { amount: e.target.value })}
+                      onFocus={(e) => e.target.select()}
+                      className="num h-8 w-24 text-right"
+                      aria-label="Amount"
+                    />
+                    {p.mode !== "CASH" && p.mode !== "CREDIT_NOTE" ? (
+                      <Input value={p.reference} onChange={(e) => updatePart(p.key, { reference: e.target.value })} placeholder={p.mode === "CHEQUE" ? "Cheque no." : p.mode === "UPI" ? "UTR" : "Ref"} className="h-8 min-w-0 flex-1 text-xs" />
+                    ) : (
+                      <span className="min-w-0 flex-1 truncate text-[11px] text-[#5f6e60]">{p.mode === "CREDIT_NOTE" ? `of ${inr(availableCredit)} available` : ""}</span>
+                    )}
+                    <button type="button" onClick={() => removePart(p.key)} className="rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove payment line">
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between text-xs">
+                  <button type="button" onClick={addPart} className="font-semibold text-brand-700 hover:underline">
+                    + Add payment line
+                  </button>
+                  <span className={cx("num font-semibold", partsTotal > summary.total + 0.004 ? "text-red-600" : due > 0 ? "text-[#b7791f]" : "text-brand-700")}>
+                    {partsTotal > summary.total + 0.004 ? `Over by ${inr(partsTotal - summary.total)}` : due > 0 ? `${inr(due)} left${customer ? " → added to dues" : " (needs a customer)"}` : "Fully paid"}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {lines.length > 0 && !split && (
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-[#5f6e60]">
                   {mode === "CREDIT" ? "Advance received" : "Amount received"}
@@ -1046,7 +1278,7 @@ export default function PosPage() {
                 </label>
                 {mode !== "CASH" && mode !== "CREDIT" ? (
                   <label className="text-xs text-[#5f6e60]">
-                    {mode === "CHEQUE" ? "Cheque no." : mode === "UPI" ? "UPI ref / UTR" : "Reference"}
+                    {mode === "CHEQUE" ? "Cheque no." : mode === "UPI" ? "UPI ref / UTR" : mode === "KCC" ? "KCC card / txn no." : "Reference"}
                     <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Optional" className="mt-0.5 h-9" />
                   </label>
                 ) : (
@@ -1116,6 +1348,67 @@ export default function PosPage() {
           </Button>
         </div>
       )}
+
+      <Modal
+        open={holdLabel !== null}
+        onClose={() => setHoldLabel(null)}
+        title="Hold this bill"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setHoldLabel(null)}>
+              Cancel
+            </Button>
+            <Button loading={holding} icon={<PauseCircle className="size-4" />} onClick={() => void holdBill()}>
+              Hold · {inr(summary.total)}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600">The cart is parked for this branch; any counter can recall it. Stock is not reserved.</p>
+        <Input className="mt-3" value={holdLabel ?? ""} onChange={(e) => setHoldLabel(e.target.value)} placeholder="Note, e.g. gone to ATM / blue shirt (optional)" autoFocus />
+      </Modal>
+
+      <Modal open={holdsOpen} onClose={() => setHoldsOpen(false)} title="Held bills" size="md">
+        {!holds.data?.length ? (
+          <p className="py-6 text-center text-sm text-slate-400">Nothing on hold</p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {holds.data.map((h) => (
+              <li key={h.id} className="flex items-center gap-3 py-2.5 text-sm">
+                <span className="num w-10 shrink-0 font-semibold text-slate-700">#{h.holdNo}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-slate-800">
+                    {h.customer?.name ?? h.customerName ?? "Walk-in"}
+                    {h.label && <span className="font-normal text-slate-500"> · {h.label}</span>}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {h.itemCount} item{h.itemCount === 1 ? "" : "s"} · {inr(h.total)} · {dateTime(h.createdAt)} · {h.user?.name}
+                  </p>
+                </div>
+                <Button size="sm" onClick={() => void recall(h)}>
+                  Recall
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon={<Trash2 className="size-4" />}
+                  aria-label="Discard held bill"
+                  onClick={async () => {
+                    if (!(await confirm(`Discard held bill #${h.holdNo}?`, { danger: true, confirmLabel: "Discard" }))) return;
+                    try {
+                      await api.del(`/sales/holds/${h.id}`);
+                      void holds.reload();
+                    } catch (e) {
+                      toast.error(errMsg(e));
+                    }
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Modal>
 
       <ApprovalGate
         need={need}
@@ -1199,7 +1492,10 @@ export default function PosPage() {
           <div className={cx("flex items-start gap-3 rounded-lg p-3 text-sm text-[#1d2a1f]", done.queued ? "bg-[#fbefd9]" : "bg-[#e3f1e3]")}>
             {done.queued ? <CloudOff className="mt-0.5 size-5 shrink-0 text-[#8a5a0f]" /> : <Check className="mt-0.5 size-5 shrink-0 text-brand-700" />}
             <p>
-              <b>{done.receipt.invoiceNo}</b> · {inr(done.receipt.total)} by {done.receipt.paymentMode.toLowerCase()}
+              <b>{done.receipt.invoiceNo}</b> · {inr(done.receipt.total)}{" "}
+              {done.receipt.payments && done.receipt.payments.length > 1
+                ? `by ${done.receipt.payments.map((p) => `${p.mode} ${inr(p.amount)}`).join(" + ")}`
+                : `by ${done.receipt.paymentMode.toLowerCase()}`}
               {done.receipt.total > done.receipt.paid && (
                 <>
                   <br />

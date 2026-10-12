@@ -34,6 +34,7 @@ import { api } from "@/lib/api";
 import { date, downloadCsv, inr, n, qty, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { Customer, CustomerReminder, Dec, Ledger, Paged, Payment, PaymentMode, PaymentStatus, ReminderChannel, Sale, StoreSettings } from "@/lib/types";
+import { MONEY_MODES, modeLabel } from "@/lib/types";
 
 interface CustomerDetail extends Customer {
   stats: { totalPurchases: Dec; invoiceCount: number; lastPurchase: string | null };
@@ -49,7 +50,7 @@ interface CustomerDetail extends Customer {
 }
 
 type Tab = "ledger" | "invoices" | "payments" | "reminders";
-const RECEIPT_MODES: PaymentMode[] = ["CASH", "UPI", "CARD", "BANK", "CHEQUE"];
+const RECEIPT_MODES: PaymentMode[] = [...MONEY_MODES];
 const CHANNEL_LABEL: Record<ReminderChannel, string> = { WHATSAPP: "WhatsApp", SMS: "SMS", CALL: "Phone call", VISIT: "Visit", NOTE: "Note" };
 
 export default function CustomerDetailPage() {
@@ -615,7 +616,9 @@ function ReceivePaymentBody({ open, customer, onClose, onSaved }: ReceiveProps) 
         <Field label="Mode" required>
           <Select value={mode} onChange={(e) => setMode(e.target.value as PaymentMode)}>
             {RECEIPT_MODES.map((m) => (
-              <option key={m}>{m}</option>
+              <option key={m} value={m}>
+                {modeLabel(m)}
+              </option>
             ))}
           </Select>
         </Field>

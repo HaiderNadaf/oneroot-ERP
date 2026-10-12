@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { inr, n, round2, today } from "@/lib/format";
-import { PAYMENT_MODES, type Customer, type Payment, type PaymentMode, type Vendor } from "@/lib/types";
+import { MONEY_MODES, modeLabel, type Customer, type Payment, type PaymentMode, type Vendor } from "@/lib/types";
 import { RecordedIn } from "./BranchNotice";
 import { CustomerPicker, VendorPicker } from "./pickers";
 import { Button, Field, Input, Modal, Select, Textarea, cx, errMsg, useToast } from "./ui";
@@ -24,17 +24,8 @@ export interface FixedParty {
   due?: number;
 }
 
-export const CASH_MODES = PAYMENT_MODES.filter((m) => m !== "CREDIT");
-
-const MODE_LABEL: Record<PaymentMode, string> = {
-  CASH: "Cash",
-  UPI: "UPI",
-  CARD: "Card",
-  BANK: "Bank transfer",
-  CHEQUE: "Cheque",
-  CREDIT: "Credit",
-};
-export const modeLabel = (m: PaymentMode) => MODE_LABEL[m] ?? m;
+export const CASH_MODES = MONEY_MODES;
+export { modeLabel };
 
 interface PartyPaymentFormProps {
   open: boolean;

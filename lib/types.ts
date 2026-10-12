@@ -3,7 +3,7 @@
 export type Dec = string | number;
 export type Role = "ADMIN" | "MANAGER" | "CASHIER" | "ACCOUNTANT";
 export type ProductType = "SEED" | "FERTILIZER" | "PESTICIDE" | "EQUIPMENT" | "OTHER";
-export type PaymentMode = "CASH" | "UPI" | "CARD" | "BANK" | "CHEQUE" | "CREDIT";
+export type PaymentMode = "CASH" | "UPI" | "CARD" | "BANK" | "CHEQUE" | "CREDIT" | "KCC" | "CREDIT_NOTE";
 export type PaymentStatus = "PAID" | "PARTIAL" | "UNPAID";
 export type DocStatus = "COMPLETED" | "CANCELLED";
 export type PoStatus =
@@ -96,6 +96,8 @@ export interface User {
   email: string;
   phone?: string | null;
   role: Role;
+  /** Ticks from lib/permissions.ts; a role only sets the starting ticks (administrators need none) */
+  permissions: string[];
   isActive: boolean;
   lastLoginAt?: string | null;
   createdAt: string;
@@ -395,6 +397,8 @@ export interface Customer {
   createdAt: string;
   /** Detail only */
   overdue?: Overdue;
+  /** Credit notes not yet applied to a bill (detail only) — usable as a payment mode */
+  creditNoteBalance?: number;
   lastReminder?: CustomerReminder | null;
 }
 
@@ -1010,7 +1014,37 @@ export const REF_TYPE_LABEL: Record<string, string> = {
 };
 
 export const PRODUCT_TYPES: ProductType[] = ["SEED", "FERTILIZER", "PESTICIDE", "EQUIPMENT", "OTHER"];
-export const PAYMENT_MODES: PaymentMode[] = ["CASH", "UPI", "CARD", "BANK", "CHEQUE", "CREDIT"];
+export const PAYMENT_MODES: PaymentMode[] = ["CASH", "UPI", "CARD", "KCC", "BANK", "CHEQUE", "CREDIT", "CREDIT_NOTE"];
+export const MODE_LABEL: Record<PaymentMode, string> = {
+  CASH: "Cash",
+  UPI: "UPI",
+  CARD: "Card",
+  KCC: "KCC",
+  BANK: "Bank transfer",
+  CHEQUE: "Cheque",
+  CREDIT: "Credit",
+  CREDIT_NOTE: "Credit note",
+};
+export const modeLabel = (m: PaymentMode | string) => MODE_LABEL[m as PaymentMode] ?? m;
+/** Modes money actually arrives in (for receipts and vendor payments) */
+export const MONEY_MODES: PaymentMode[] = ["CASH", "UPI", "CARD", "KCC", "BANK", "CHEQUE"];
+
+/** A POS cart parked for later (hold / recall) */
+export interface HeldBill {
+  id: string;
+  holdNo: number;
+  branchId: string;
+  userId: string;
+  user?: { name: string };
+  customerId?: string | null;
+  customer?: { name: string; phone?: string | null } | null;
+  customerName?: string | null;
+  label?: string | null;
+  total: Dec;
+  itemCount: number;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
 export const UNITS = ["NOS", "KG", "GM", "LTR", "ML", "BAG", "PKT", "BOX", "BTL", "MTR"];
 export const GST_RATES = [0, 5, 12, 18, 28];
 export const ROLES: Role[] = ["ADMIN", "MANAGER", "CASHIER", "ACCOUNTANT"];

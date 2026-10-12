@@ -29,6 +29,8 @@ export interface ReceiptData {
   paid: number;
   paymentMode: string;
   notes?: string | null;
+  /** Government fertiliser POS receipt (subsidised lines) */
+  govtReceiptNo?: string | null;
   /** Bill made offline and not yet numbered by the server */
   provisional?: boolean;
   cancelled?: boolean;
@@ -59,6 +61,7 @@ export function receiptFromSale(sale: Sale): ReceiptData {
     paid: n(sale.paidAmount),
     paymentMode: sale.paymentMode,
     notes: sale.notes,
+    govtReceiptNo: sale.govtReceiptNo ?? null,
     cancelled: sale.status === "CANCELLED",
   };
 }
@@ -112,6 +115,7 @@ export function ThermalReceipt({ data, settings, width = 80 }: { data: ReceiptDa
       <Row l={d.provisional ? "Ref" : "Bill no"} r={d.invoiceNo} />
       <Row l="Date" r={dateTime(d.date)} />
       {(d.customerName || d.customerPhone) && <Row l="Customer" r={[d.customerName, d.customerPhone].filter(Boolean).join(" ")} />}
+      {d.govtReceiptNo && <Row l="Govt POS rcpt" r={d.govtReceiptNo} />}
       <div className="my-1 border-t border-dashed border-black" />
       {d.lines.map((l, i) => (
         <div key={i} className="mb-0.5">

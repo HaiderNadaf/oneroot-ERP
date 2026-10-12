@@ -6,12 +6,14 @@ import {
   Check,
   ChevronDown,
   CloudOff,
+  LockKeyholeOpen,
   Minus,
   Plus,
   Printer,
   ReceiptText,
   RefreshCw,
   ScanLine,
+  ShieldCheck,
   ShoppingCart,
   Trash2,
   UserPlus,
@@ -37,7 +39,7 @@ import { useApi } from "@/lib/hooks";
 import { isNetworkError, newOfflineId, queueAdd, queueList, queueRemove, syncQueue, useOnline, useQueue } from "@/lib/offline";
 import { defaultPrintMode, printReceipt, receiptWidth } from "@/lib/print";
 import { useScanner } from "@/lib/scanner";
-import type { Batch, Category, Customer, Paged, PaymentMode, Product, Sale, StoreSettings } from "@/lib/types";
+import type { Batch, Category, Customer, Paged, PaymentMode, Product, Sale, Shift, StoreSettings } from "@/lib/types";
 
 /** Product list row with the POS extras from `withExpiry=true` */
 type PosProduct = Product & { sellable?: number; nextExpiry?: string | null };
@@ -97,6 +99,15 @@ export default function PosPage() {
   });
   const { data: categories } = useApi<Category[]>("/categories");
   const { data: store } = useApi<StoreSettings>("/settings");
+  // The cashier's open shift (counter cash is counted against it at close)
+  const shiftQ = useApi<Shift | null>(needBranch.blocked ? null : "/shifts/current");
+  const shift = shiftQ.data ?? null;
+  const [openShift, setOpenShift] = useState(false);
+  const [openingFloat, setOpeningFloat] = useState("");
+  const [openingShift, setOpeningShift] = useState(false);
+  // Government fertiliser POS: required on bills with subsidised fertiliser
+  const [govtReceipt, setGovtReceipt] = useState("");
+  const [aadhaar, setAadhaar] = useState(false);
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
@@ -314,6 +325,25 @@ export default function PosPage() {
   const overCredit = !!customer && n(customer.creditLimit) > 0 && due > 0 && projectedBalance > n(customer.creditLimit);
   const creditHold = (credit ?? customer)?.creditHold ?? false;
   const overdue = credit?.overdue;
+  const subsidisedLines = lines.filter((l) => l.product.isSubsidised);
+  const needsGovt = subsidisedLines.length > 0;
+  const govtMissing = needsGovt && !govtReceipt.trim();
+  const shiftMissing = !!store?.requireOpenShift && online && shiftQ.data === null && !shiftQ.loading;
+
+  async function doOpenShift(e: React.FormEvent) {
+    e.preventDefault();
+    setOpeningShift(true);
+    try {
+      await api.post("/shifts", { openingFloat: n(openingFloat) });
+      toast.success("Shift opened");
+      setOpenShift(false);
+      void shiftQ.reload();
+    } catch (err) {
+      toast.error(errMsg(err));
+    } finally {
+      setOpeningShift(false);
+    }
+  }
 
   function chooseMode(m: PaymentMode) {
     setMode(m);
@@ -333,6 +363,8 @@ export default function PosPage() {
     if (!customer && due > 0) return "Credit needs a registered customer — pick or add the farmer first";
     if (due > 0 && creditHold) return `Credit is on hold for ${customer?.name} — collect the dues first or ask a manager to lift the hold`;
     if (phone && phone.length !== 10) return "Enter a valid 10-digit mobile number";
+    if (govtMissing) return "Sell the subsidised fertiliser on the govt POS device first, then enter its receipt no.";
+    if (shiftMissing) return "Open your shift (enter the opening cash) before billing";
     return null;
   }
 
@@ -360,6 +392,7 @@ export default function PosPage() {
       paid: paidAmount,
       paymentMode: mode,
       notes: notes.trim() || null,
+      govtReceiptNo: govtReceipt.trim() || null,
       provisional: true,
     };
   }
@@ -420,6 +453,8 @@ export default function PosPage() {
       isInterState: interState,
       allowOverCreditLimit: allowOverCreditLimit || undefined,
       notes: notes.trim() || undefined,
+      govtReceiptNo: needsGovt ? govtReceipt.trim() : undefined,
+      aadhaarVerified: needsGovt ? aadhaar : undefined,
     };
     if (!online) return queueSale(body);
     setSaving(true);
@@ -455,6 +490,8 @@ export default function PosPage() {
     setMode("CASH");
     setInterState(false);
     setEditing(null);
+    setGovtReceipt("");
+    setAadhaar(false);
     setTimeout(() => searchRef.current?.focus(), 0);
   }
 
@@ -531,6 +568,25 @@ export default function PosPage() {
               Pending sync · {queue.length}
             </Button>
           )}
+          {!needBranch.blocked &&
+            (shift ? (
+              <Link
+                href="/shifts"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-brand-300 bg-brand-50 px-2.5 text-xs font-semibold text-brand-800"
+                title="Your open shift — close it from Shifts & Cash"
+              >
+                <LockKeyholeOpen className="size-3.5" /> Shift {shift.shiftNo.split("/").pop()} · float {inr0(shift.openingFloat)}
+              </Link>
+            ) : (
+              <Button
+                variant={store?.requireOpenShift ? "primary" : "secondary"}
+                icon={<LockKeyholeOpen className="size-4" />}
+                onClick={() => setOpenShift(true)}
+                title="Enter the opening cash to start your shift"
+              >
+                Open shift
+              </Button>
+            ))}
           <Link href="/sales">
             <Button variant="secondary" icon={<ReceiptText className="size-4" />}>
               Invoices
@@ -738,6 +794,25 @@ export default function PosPage() {
               </p>
             )}
           </div>
+
+          {/* Government fertiliser POS — subsidised lines are sold on the govt device first */}
+          {needsGovt && (
+            <div className={cx("space-y-2 border-b p-4", govtMissing ? "border-[#f3c9c1] bg-[#fff5f2]" : "border-[#e1e6d8] bg-[#f3faf3]")}>
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-[#1d2a1f]">
+                <ShieldCheck className={cx("size-4", govtMissing ? "text-[#c2412d]" : "text-brand-700")} />
+                Subsidised fertiliser: {subsidisedLines.map((l) => l.product.name).join(", ")}
+              </p>
+              <Input
+                value={govtReceipt}
+                onChange={(e) => setGovtReceipt(e.target.value.toUpperCase())}
+                placeholder="Govt fertiliser POS receipt no. (required)"
+                aria-label="Govt fertiliser POS receipt no."
+                className={cx("h-10 font-mono", govtMissing && "border-[#e0a097]")}
+              />
+              <Checkbox label="Aadhaar verified on the govt device" checked={aadhaar} onChange={setAadhaar} />
+              {govtMissing && <p className="text-xs text-[#c2412d]">Can&apos;t complete until the govt POS receipt no. is entered.</p>}
+            </div>
+          )}
 
           {/* Lines */}
           <div className="max-h-[42vh] overflow-y-auto">
@@ -964,10 +1039,18 @@ export default function PosPage() {
               </div>
             )}
 
+            {shiftMissing && (
+              <p className="flex items-center justify-between gap-2 rounded-lg bg-[#fbefd9] px-3 py-2 text-xs text-[#8a5a0f]">
+                <span>No shift open — enter the opening cash first.</span>
+                <button type="button" className="font-semibold underline" onClick={() => setOpenShift(true)}>
+                  Open shift
+                </button>
+              </p>
+            )}
             <Button
               className="h-12 w-full text-[15px]"
               loading={saving}
-              disabled={!lines.length || needBranch.blocked}
+              disabled={!lines.length || needBranch.blocked || govtMissing || shiftMissing}
               icon={online ? <Check className="size-4" /> : <CloudOff className="size-4" />}
               onClick={() => void submit()}
             >
@@ -1147,6 +1230,31 @@ export default function PosPage() {
           </ul>
         )}
         {!online && queue.length > 0 && <p className="mt-3 text-xs text-amber-700">You are offline — bills sync automatically when the connection returns.</p>}
+      </Modal>
+
+      <Modal
+        open={openShift}
+        onClose={() => setOpenShift(false)}
+        title="Open shift"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setOpenShift(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="pos-open-shift" loading={openingShift}>
+              Open shift
+            </Button>
+          </>
+        }
+      >
+        <form id="pos-open-shift" onSubmit={doOpenShift}>
+          <label className="text-xs text-[#5f6e60]">
+            Opening cash in the drawer (₹)
+            <Input type="number" min="0" step="1" value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} autoFocus required className="num mt-1 h-11 text-lg" />
+          </label>
+          <p className="mt-2 text-xs text-[#5f6e60]">Count the float before the first bill. Cash sales, refunds and cash expenses are tallied against this shift when you close it.</p>
+        </form>
       </Modal>
 
       <PrintPortal className="thermal-host">{printData && <ThermalReceipt data={printData} settings={store} width={receiptWidth(store)} />}</PrintPortal>

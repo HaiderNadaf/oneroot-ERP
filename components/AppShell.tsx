@@ -12,6 +12,7 @@ import {
   ClipboardList,
   FileText,
   IndianRupee,
+  Landmark,
   LayoutDashboard,
   Package,
   Receipt,
@@ -159,11 +160,8 @@ export const NAV: NavGroup[] = [
   {
     section: "Finance",
     items: [
-      {
-        href: "/payments",
-        label: "Payments",
-        icon: <IndianRupee />,
-      },
+      { href: "/shifts", label: "Shifts & Cash", icon: <Landmark /> },
+      { href: "/payments", label: "Payments", icon: <IndianRupee /> },
       {
         href: "/expenses",
         label: "Expenses",

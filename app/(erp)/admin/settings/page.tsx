@@ -33,7 +33,7 @@ const TEXT_FIELDS = [
 ] as const;
 
 type TextKey = (typeof TEXT_FIELDS)[number] | "expiryAlertDays" | "reminderGraceDays" | "receiptFormat";
-type Form = Record<TextKey, string> & { autoReminders: boolean; blockOverdueCredit: boolean };
+type Form = Record<TextKey, string> & { autoReminders: boolean; blockOverdueCredit: boolean; requireOpenShift: boolean };
 
 const DEFAULT_TEMPLATE =
   "Namaste {name} ji, a gentle reminder from {store}: ₹{amount} is pending on your account ({days} days past due). Kindly clear it at your earliest convenience. If you have already paid, please ignore this message. Thank you! — {store} {phone}";
@@ -46,6 +46,7 @@ function toForm(s: StoreSettings): Form {
   f.receiptFormat = s.receiptFormat ?? "A4";
   f.autoReminders = !!s.autoReminders;
   f.blockOverdueCredit = !!s.blockOverdueCredit;
+  f.requireOpenShift = !!s.requireOpenShift;
   return f;
 }
 
@@ -112,6 +113,7 @@ function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (
       receiptFormat: f.receiptFormat,
       autoReminders: f.autoReminders,
       blockOverdueCredit: f.blockOverdueCredit,
+      requireOpenShift: f.requireOpenShift,
     };
     for (const k of TEXT_FIELDS) body[k] = f[k].trim();
     body.gstin = gstin;
@@ -190,7 +192,10 @@ function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (
             <Field label="Seed licence no.">{text("seedLicenseNo")}</Field>
           </Section>
 
-          <Section title="Printing & stock alerts">
+          <Section title="Counter, printing & stock alerts">
+            <div className="sm:col-span-2">
+              <Checkbox label="No billing without an open shift (cashier enters the opening cash first)" checked={f.requireOpenShift} onChange={(v) => setF((s) => ({ ...s, requireOpenShift: v }))} />
+            </div>
             <Field label="Bill print layout" hint="Thermal receipts suit 80 mm / 58 mm roll printers at the counter; A4 is the full GST invoice">
               <Select value={f.receiptFormat} onChange={(e) => set("receiptFormat", e.target.value)}>
                 <option value="A4">A4 tax invoice</option>

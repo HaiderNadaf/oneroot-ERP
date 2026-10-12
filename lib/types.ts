@@ -131,8 +131,100 @@ export interface StoreSettings {
   reminderGraceDays: number;
   autoReminders: boolean;
   blockOverdueCredit: boolean;
+  /** No billing until the cashier opens a shift */
+  requireOpenShift: boolean;
   /** WhatsApp Cloud API keys are present on the server */
   whatsappConfigured?: boolean;
+}
+
+// ───────────────────────── Cash control ─────────────────────────
+
+export interface CashBreakdown {
+  openingFloat: number;
+  cashSales: number;
+  vendorCashPayments: number;
+  cashExpenses: number;
+  cashRefunds: number;
+  expected: number;
+}
+
+export interface Shift {
+  id: string;
+  shiftNo: string;
+  branchId: string;
+  branch?: { code: string; name: string };
+  openedById: string;
+  openedBy?: { name: string };
+  openedAt: string;
+  openingFloat: Dec;
+  status: "OPEN" | "CLOSED";
+  closedAt?: string | null;
+  closedBy?: { name: string } | null;
+  expectedCash?: Dec | null;
+  countedCash?: Dec | null;
+  noteCounts?: Record<string, number> | null;
+  difference?: Dec | null;
+  differenceReason?: string | null;
+  floatKept?: Dec | null;
+  toDeposit?: Dec | null;
+  handedTo?: string | null;
+  notes?: string | null;
+  breakdown?: CashBreakdown;
+  /** list only */
+  deposited?: number;
+  depositGap?: number;
+  unexplainedGap?: boolean;
+  deposits?: BankDeposit[];
+}
+
+export interface BankDeposit {
+  id: string;
+  depositNo: string;
+  shiftId?: string | null;
+  shift?: { id: string; shiftNo: string; openedAt: string; toDeposit: Dec | null; openedBy?: { name: string } } | null;
+  branchId: string;
+  branch?: { code: string; name: string };
+  depositDate: string;
+  amount: Dec;
+  bankAccount?: string | null;
+  reference?: string | null;
+  /** true when a slip photo is stored (fetch /deposits/:id/slip) */
+  slipImage?: boolean;
+  difference: Dec;
+  reason?: string | null;
+  resolvedAt?: string | null;
+  createdAt: string;
+}
+
+export interface CashReconciliation {
+  days: number;
+  openShifts: number;
+  toDeposit: number;
+  deposited: number;
+  gap: number;
+  unexplained: number;
+  rows: { id: string; shiftNo: string; closedAt: string | null; cashier: string; branch: string; toDeposit: number; deposited: number; gap: number; counterDifference: number; unexplained: boolean }[];
+}
+
+export interface GovtMatchRow {
+  id: string | null;
+  product: { id: string; name: string; sku: string; unit: string };
+  ourSales: number;
+  ourStock: number;
+  govtSales: number | null;
+  portalStock: number | null;
+  salesOff: number | null;
+  stockOff: number | null;
+  note: string | null;
+  resolvedAt: string | null;
+  status: "PENDING" | "MATCH" | "MISMATCH" | "RESOLVED";
+}
+
+export interface GovtMatch {
+  date: string;
+  rows: GovtMatchRow[];
+  receiptsOnBills: { id: string; invoiceNo: string; govtReceiptNo: string; aadhaarVerified: boolean; customerName: string | null; totalAmount: Dec }[];
+  subsidisedProducts: number;
 }
 
 export interface Category {
@@ -180,6 +272,8 @@ export interface Product {
   purchasePrice: Dec;
   reorderLevel: Dec;
   trackBatch: boolean;
+  /** Govt-subsidised fertiliser: bills need the govt POS receipt no. */
+  isSubsidised?: boolean;
   isActive: boolean;
   /** With a branch selected: stock in that branch; otherwise all branches */
   stock: Dec;
@@ -328,7 +422,7 @@ export interface SaleItem {
   amount: Dec;
   costPrice: Dec;
   returnedQty: Dec;
-  product?: { sku: string; technicalName?: string | null; packSize?: string | null };
+  product?: { sku: string; technicalName?: string | null; packSize?: string | null; isSubsidised?: boolean };
 }
 
 export interface SaleReturn {
@@ -368,6 +462,9 @@ export interface Sale {
   status: DocStatus;
   isInterState: boolean;
   offlineId?: string | null;
+  /** Government fertiliser POS receipt for subsidised lines */
+  govtReceiptNo?: string | null;
+  aadhaarVerified?: boolean;
   notes?: string | null;
   items?: SaleItem[];
   payments?: Payment[];

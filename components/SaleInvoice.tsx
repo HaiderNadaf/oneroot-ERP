@@ -91,6 +91,13 @@ export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSet
             <span className="text-slate-500">Payment: </span>
             {sale.paymentMode}
           </p>
+          {sale.govtReceiptNo && (
+            <p>
+              <span className="text-slate-500">Govt POS receipt: </span>
+              <span className="font-semibold">{sale.govtReceiptNo}</span>
+              {sale.aadhaarVerified ? " · Aadhaar verified" : ""}
+            </p>
+          )}
         </div>
       </div>
 

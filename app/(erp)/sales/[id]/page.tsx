@@ -379,11 +379,14 @@ function ReturnBody({ open, sale, onClose, onSaved }: ReturnProps) {
     sale.customerId && n(sale.totalAmount) - n(sale.paidAmount) > 0 ? "CREDIT" : "CASH",
   );
   const [reason, setReason] = useState("");
+  const [govtRef, setGovtRef] = useState("");
   const [saving, setSaving] = useState(false);
   const items = useMemo(
     () => (sale.items ?? []).map((i) => ({ ...i, left: round2(n(i.quantity) - n(i.returnedQty)) })).filter((i) => i.left > 0),
     [sale.items],
   );
+  // Subsidised fertiliser has to be reversed on the government POS before it comes back
+  const subsidisedReturn = items.some((i) => i.product?.isSubsidised && n(qtys[i.id]) > 0);
 
   const refund = round2(
     items.reduce((s, i) => s + (n(i.amount) / n(i.quantity)) * Math.min(n(qtys[i.id]), i.left), 0),
@@ -395,12 +398,14 @@ function ReturnBody({ open, sale, onClose, onSaved }: ReturnProps) {
     if (!lines.length) return toast.error("Enter the quantity being returned");
     const over = items.find((i) => n(qtys[i.id]) > i.left);
     if (over) return toast.error(`Only ${qty(over.left)} ${over.unit} of ${over.productName} can be returned`);
+    if (subsidisedReturn && !govtRef.trim()) return toast.error("Enter the reversal reference from the govt fertiliser POS first");
     setSaving(true);
     try {
       const r = await api.post<{ returnNo: string }>(`/sales/${sale.id}/returns`, {
         items: lines,
         refundMode,
         reason: reason.trim() || undefined,
+        govtReversalRef: govtRef.trim() || undefined,
       });
       toast.success(`Return ${r.returnNo} saved`);
       onSaved();
@@ -484,6 +489,11 @@ function ReturnBody({ open, sale, onClose, onSaved }: ReturnProps) {
           <Field label="Reason" className="sm:col-span-2">
             <Textarea rows={1} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Wrong product, damaged pack" />
           </Field>
+          {subsidisedReturn && (
+            <Field label="Govt POS reversal reference" required className="sm:col-span-3" hint="Reverse the sale on the government fertiliser device first, then enter its reference here">
+              <Input value={govtRef} onChange={(e) => setGovtRef(e.target.value)} className="font-mono" />
+            </Field>
+          )}
         </div>
         <p className="text-right text-sm text-slate-600">
           Refund amount: <span className="num text-base font-semibold text-slate-900">{inr(refund)}</span>

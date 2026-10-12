@@ -58,6 +58,7 @@ interface Dashboard {
     govtMismatches: number;
     cashGaps: number;
     openShifts: number;
+    approvalRequests: number;
   };
   cash?: CashReconciliation;
   trend: { month: string; sales: number; purchases: number }[];
@@ -559,6 +560,7 @@ export default function DashboardPage() {
 
       {/* Needs attention */}
       <section aria-label="Needs attention" className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
+        <AlertTile n={data.alerts.approvalRequests ?? 0} label="Approval requests waiting" tone="warn" href="/approvals" />
         <AlertTile n={data.alerts.cashGaps ?? 0} label="Cash gaps not explained" tone="bad" href="/shifts" />
         <AlertTile n={data.alerts.govtMismatches ?? 0} label="Govt fertiliser mismatches" tone="bad" href="/inventory/govt-match" />
         <AlertTile n={data.alerts.expiring7} label="Batches expire in 7 days" tone="bad" href="/inventory" />

@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { date, inr, n, qty } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { Product } from "@/lib/types";
+import { ApprovalGate, approvalNeeded, type ApprovalNeed } from "./ApprovalGate";
 import { BranchBadge, useNeedBranch } from "./BranchNotice";
 import { ProductPicker } from "./pickers";
 import { Button, Field, Info, Input, Modal, Select, Textarea, cx, errMsg, useToast } from "./ui";
@@ -77,6 +78,7 @@ function AdjustForm({
   const [unitCost, setUnitCost] = useState("");
   const [reason, setReason] = useState(initial?.reason ?? "");
   const [saving, setSaving] = useState(false);
+  const [need, setNeed] = useState<ApprovalNeed | null>(null);
   const needBranch = useNeedBranch("adjust its stock");
 
   const isIn = type === "ADJUSTMENT_IN";
@@ -102,14 +104,14 @@ function AdjustForm({
     setUnitCost("");
   }
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
+  async function save(e: React.FormEvent | null, approvalId?: string) {
+    e?.preventDefault();
     if (needBranch.blocked) return toast.error("Pick a branch in the top bar first");
     if (!productId) return toast.error("Choose a product");
     if (!(q > 0)) return toast.error("Enter a quantity greater than zero");
     if (overdraw) return toast.error(`Only ${qty(available)} ${unit} available`);
     if (!reason.trim()) return toast.error("Give a reason for this adjustment");
-    const body: Record<string, unknown> = { productId, type, quantity: q, reason: reason.trim() };
+    const body: Record<string, unknown> = { productId, type, quantity: q, reason: reason.trim(), approvalId };
     if (isIn) {
       if (batchSel && batchSel !== NEW_BATCH) body.batchId = batchSel;
       else if (tracksBatch) {
@@ -127,13 +129,16 @@ function AdjustForm({
       onSaved?.();
       onClose();
     } catch (err) {
-      toast.error(errMsg(err));
+      const approval = approvalNeeded(err, { product: name, quantity: q, type, reason: reason.trim() });
+      if (approval) setNeed(approval);
+      else toast.error(errMsg(err));
     } finally {
       setSaving(false);
     }
   }
 
   return (
+    <>
     <Modal
       open
       onClose={onClose}
@@ -281,5 +286,15 @@ function AdjustForm({
         </Field>
       </form>
     </Modal>
+    <ApprovalGate
+      need={need}
+      onClose={() => setNeed(null)}
+      onApproved={(id, by) => {
+        setNeed(null);
+        toast.success(`Approved by ${by}`);
+        void save(null, id);
+      }}
+    />
+    </>
   );
 }

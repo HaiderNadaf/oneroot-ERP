@@ -58,7 +58,9 @@ const dash = (v: unknown) => (v === null || v === undefined || v === "" ? <span 
 
 export default function ProductsPage() {
   const { can } = useAuth();
-  const showCost = can("MANAGER", "ACCOUNTANT");
+  // Cost price visibility follows the role's authority limits (Admin → Roles & Limits)
+  const { data: limits } = useApi<{ seeCostPrice: boolean }>("/roles/mine");
+  const showCost = limits ? limits.seeCostPrice : can("MANAGER", "ACCOUNTANT");
   const { current, branches, locked } = useBranch();
   // Stock figures are for the selected branch; name it when the store has several
   const branchCode = current && (branches.length > 1 || locked) ? current.code : null;

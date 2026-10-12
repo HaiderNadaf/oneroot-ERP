@@ -25,6 +25,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNeedBranch } from "@/components/BranchNotice";
 import { CameraScanner } from "@/components/CameraScanner";
+import { ApprovalGate, approvalNeeded, type ApprovalNeed } from "@/components/ApprovalGate";
 import { CustomerForm } from "@/components/CustomerForm";
 import { CustomerPicker } from "@/components/pickers";
 import { PrintPortal } from "@/components/PrintPortal";
@@ -37,9 +38,10 @@ import { date, dateTime, daysUntil, inr, inr0, n, qty, round2 } from "@/lib/form
 import { placeOfSupply } from "@/lib/gst";
 import { useApi } from "@/lib/hooks";
 import { isNetworkError, newOfflineId, queueAdd, queueList, queueRemove, syncQueue, useOnline, useQueue } from "@/lib/offline";
+import { priceLines, type PricedLine } from "@/lib/pricing";
 import { defaultPrintMode, printReceipt, receiptWidth } from "@/lib/print";
 import { useScanner } from "@/lib/scanner";
-import type { Batch, Category, Customer, Paged, PaymentMode, Product, Sale, Shift, StoreSettings } from "@/lib/types";
+import type { Batch, Category, Customer, Paged, PaymentMode, Product, RoleLimit, Sale, Scheme, Shift, StoreSettings } from "@/lib/types";
 
 /** Product list row with the POS extras from `withExpiry=true` */
 type PosProduct = Product & { sellable?: number; nextExpiry?: string | null };
@@ -72,7 +74,8 @@ const MODES: { mode: PaymentMode; label: string }[] = [
 ];
 
 const isExpired = (b: Batch) => !!b.expiryDate && (daysUntil(b.expiryDate) ?? 0) < 0;
-const lineGross = (l: Line) => n(l.quantity) * n(l.rate) * (1 - Math.min(100, n(l.discountPct)) / 100);
+/** Line value after the cashier's discount, the scheme and the customer-type discount (free goods are extra, at zero) */
+const lineGross = (l: Line, p?: PricedLine) => n(l.quantity) * n(l.rate) * (1 - Math.min(100, p ? p.effectivePct : n(l.discountPct)) / 100);
 /** Sellable stock in this branch for a product card */
 const sellableOf = (p: PosProduct) => (p.sellable !== undefined ? p.sellable : n(p.stock));
 
@@ -102,6 +105,11 @@ export default function PosPage() {
   // The cashier's open shift (counter cash is counted against it at close)
   const shiftQ = useApi<Shift | null>(needBranch.blocked ? null : "/shifts/current");
   const shift = shiftQ.data ?? null;
+  // Running company schemes and this role's authority limits (both kept on the device for offline billing)
+  const { data: schemes } = useApi<Scheme[]>(needBranch.blocked ? null : "/schemes/active");
+  const { data: limits } = useApi<RoleLimit>("/roles/mine");
+  const [need, setNeed] = useState<ApprovalNeed | null>(null);
+  const overRef = useRef(false);
   const [openShift, setOpenShift] = useState(false);
   const [openingFloat, setOpeningFloat] = useState("");
   const [openingShift, setOpeningShift] = useState(false);
@@ -292,18 +300,32 @@ export default function PosPage() {
     }
   }
 
+  // ── Pricing rules (mirrors the server): cashier discount → best scheme per line → customer-type discount ──
+  const pricing = useMemo(() => {
+    const r = priceLines(
+      lines.map((l) => ({ productId: l.product.id, quantity: n(l.quantity), rate: n(l.rate), manualPct: Math.min(100, Math.max(0, n(l.discountPct))), isSubsidised: !!l.product.isSubsidised })),
+      schemes ?? [],
+      (credit ?? customer)?.customerType,
+    );
+    const byKey = new Map<number, PricedLine>();
+    lines.forEach((l, i) => byKey.set(l.key, r.lines[i]));
+    return { ...r, byKey };
+  }, [lines, schemes, customer, credit]);
+
   // ── Bill math (mirrors the server: GST-inclusive rates, bill discount spread pro-rata) ──
   const summary = useMemo(() => {
-    const itemsTotal = lines.reduce((s, l) => s + lineGross(l), 0);
+    const itemsTotal = lines.reduce((s, l) => s + lineGross(l, pricing.byKey.get(l.key)), 0);
     const discount = Math.min(n(billDiscount), itemsTotal);
     const factor = itemsTotal > 0 ? 1 - discount / itemsTotal : 1;
     let tax = 0;
     for (const l of lines) {
-      const amt = lineGross(l) * factor;
+      const amt = lineGross(l, pricing.byKey.get(l.key)) * factor;
       tax += amt - amt / (1 + n(l.product.gstRate) / 100);
     }
     const net = itemsTotal - discount;
     const total = Math.round(net);
+    // The cashier's own discount (schemes and customer types don't count against the limit)
+    const manualMax = round2(Math.max(0, ...lines.map((l) => Math.min(100, n(l.discountPct))), itemsTotal > 0 ? (discount / itemsTotal) * 100 : 0));
     return {
       itemsTotal: round2(itemsTotal),
       discount: round2(discount),
@@ -313,8 +335,10 @@ export default function PosPage() {
       roundOff: round2(total - net),
       total,
       count: lines.reduce((s, l) => s + n(l.quantity), 0),
+      manualMax,
     };
-  }, [lines, billDiscount]);
+  }, [lines, billDiscount, pricing]);
+  const aboveLimit = !!limits && limits.maxDiscountPct !== null && summary.manualMax > n(limits.maxDiscountPct) + 1e-9;
 
   const defaultReceived = mode === "CREDIT" ? 0 : summary.total;
   const receivedAmt = received === null ? defaultReceived : n(received);
@@ -375,14 +399,11 @@ export default function PosPage() {
       date: new Date().toISOString(),
       customerName: customer?.name ?? (walkinName.trim() || null),
       customerPhone: customer?.phone ?? (phone || null),
-      lines: lines.map((l) => ({
-        name: l.product.name,
-        qty: n(l.quantity),
-        unit: l.product.unit,
-        rate: n(l.rate),
-        amount: round2(lineGross(l) * summary.factor),
-        gstRate: n(l.product.gstRate),
-      })),
+      lines: lines.flatMap((l) => {
+        const p = pricing.byKey.get(l.key);
+        const paid = { name: l.product.name, qty: n(l.quantity), unit: l.product.unit, rate: n(l.rate), amount: round2(lineGross(l, p) * summary.factor), gstRate: n(l.product.gstRate) };
+        return p && p.freeQty > 0 ? [paid, { name: `${l.product.name} (free - ${p.schemeName})`, qty: p.freeQty, unit: l.product.unit, rate: 0, amount: 0, gstRate: n(l.product.gstRate) }] : [paid];
+      }),
       taxable: summary.taxable,
       discount: summary.discount,
       tax: summary.tax,
@@ -429,12 +450,13 @@ export default function PosPage() {
     toast.success("No connection — bill saved on this device; it will sync automatically");
   }
 
-  async function submit(allowOverCreditLimit = false) {
+  async function submit(allowOverCreditLimit = false, approvalId?: string) {
     const problem = validate();
     if (problem) {
       toast.error(problem);
       return;
     }
+    overRef.current = allowOverCreditLimit;
     const body = {
       customerId: customer?.id,
       customerName: customer ? undefined : walkinName.trim() || undefined,
@@ -455,17 +477,27 @@ export default function PosPage() {
       notes: notes.trim() || undefined,
       govtReceiptNo: needsGovt ? govtReceipt.trim() : undefined,
       aadhaarVerified: needsGovt ? aadhaar : undefined,
+      approvalId,
     };
-    if (!online) return queueSale(body);
+    if (!online) {
+      if (aboveLimit && !approvalId) return toast.error(`A discount above ${n(limits?.maxDiscountPct)}% needs a manager's approval, which needs internet`);
+      return queueSale(body);
+    }
     setSaving(true);
     try {
       const sale = await api.post<Sale>("/sales", body);
       setOverLimit(null);
+      setNeed(null);
       setDone({ sale, receipt: receiptFromSale(sale), queued: false });
       void catalogue.reload();
     } catch (e) {
       if (isNetworkError(e)) {
         queueSale(body);
+        return;
+      }
+      const approval = approvalNeeded(e, { customer: customer?.name ?? (walkinName.trim() || "Walk-in"), items: lines.length, total: summary.total });
+      if (approval) {
+        setNeed(approval);
         return;
       }
       const msg = errMsg(e);
@@ -769,7 +801,7 @@ export default function PosPage() {
             )}
             {customer && (
               <p className="text-xs text-[#5f6e60]">
-                {[customer.village, customer.gstin && `GSTIN ${customer.gstin}`].filter(Boolean).join(" · ") || "Registered customer"}
+                {[customer.village, customer.gstin && `GSTIN ${customer.gstin}`, customer.customerType?.name && `${customer.customerType.name} · ${n(customer.customerType.discountPct)}% off`].filter(Boolean).join(" · ") || "Registered customer"}
                 {" · "}
                 <span className={n(customer.balance) > 0 ? "font-semibold text-[#c2412d]" : ""}>due {inr(customer.balance)}</span>
                 {n(customer.creditLimit) > 0 && ` · limit ${inr0(customer.creditLimit)}`}
@@ -839,9 +871,10 @@ export default function PosPage() {
                             {chosen ? `Batch ${chosen.batchNo}` : "Batch auto (earliest expiry)"}
                             {n(l.discountPct) > 0 && ` · ${n(l.discountPct)}% off`}
                           </span>
+                          <LinePricing p={pricing.byKey.get(l.key)} unit={l.product.unit} />
                         </div>
                         <div className="shrink-0 text-right">
-                          <b className="num block text-sm">{inr(lineGross(l))}</b>
+                          <b className="num block text-sm">{inr(lineGross(l, pricing.byKey.get(l.key)))}</b>
                           <span className="num text-xs text-[#5f6e60]">
                             {qty(l.quantity)} × {inr(l.rate)}
                           </span>
@@ -947,6 +980,12 @@ export default function PosPage() {
                     />
                   </dd>
                 </div>
+                {aboveLimit && (
+                  <p className="text-xs font-medium text-amber-700">
+                    {summary.manualMax}% is above your {n(limits?.maxDiscountPct)}% limit — a manager&apos;s PIN or approval will be asked on completing the sale
+                  </p>
+                )}
+                {pricing.typeName && <Row label={`${pricing.typeName} price`} value={pricing.typeApplied ? "applied" : `from ${inr0(pricing.minBill)}`} muted />}
                 <Row label="Taxable value" value={inr(summary.taxable)} muted />
                 {interState ? (
                   <Row label="IGST" value={inr(summary.tax)} muted />
@@ -1077,6 +1116,16 @@ export default function PosPage() {
           </Button>
         </div>
       )}
+
+      <ApprovalGate
+        need={need}
+        onClose={() => setNeed(null)}
+        onApproved={(id, by) => {
+          setNeed(null);
+          toast.success(`Approved by ${by}`);
+          void submit(overRef.current, id);
+        }}
+      />
 
       <CustomerForm
         open={quickAdd}
@@ -1259,6 +1308,22 @@ export default function PosPage() {
 
       <PrintPortal className="thermal-host">{printData && <ThermalReceipt data={printData} settings={store} width={receiptWidth(store)} />}</PrintPortal>
     </div>
+  );
+}
+
+/** Scheme, free goods and customer-type discount on a cart line */
+function LinePricing({ p, unit }: { p?: PricedLine; unit: string }) {
+  if (!p || (!p.schemeName && !p.typePct)) return null;
+  return (
+    <span className="mt-0.5 flex flex-wrap gap-1 text-[11px]">
+      {p.schemeName && (
+        <span className="rounded bg-brand-50 px-1.5 py-0.5 font-medium text-brand-800">
+          {p.schemeName}
+          {p.freeQty > 0 ? ` · +${qty(p.freeQty)} ${unit} free` : p.schemePct > 0 ? ` · ${p.schemePct}% off` : p.toNextFree ? ` · ${p.toNextFree} more for a free one` : ""}
+        </span>
+      )}
+      {p.typePct > 0 && <span className="rounded bg-violet-50 px-1.5 py-0.5 font-medium text-violet-800">{p.typePct}% customer type</span>}
+    </span>
   );
 }
 

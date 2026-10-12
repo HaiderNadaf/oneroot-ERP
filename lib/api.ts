@@ -24,6 +24,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** The error body, e.g. { code: "APPROVAL_REQUIRED", kind, amount } */
+    public data?: Record<string, unknown> | null,
   ) {
     super(message);
   }
@@ -108,7 +110,7 @@ async function request<T>(method: string, path: string, body?: unknown, opts?: S
       }
     }
     const msg = Array.isArray(data?.message) ? data.message.join(", ") : data?.message;
-    throw new ApiError(res.status, msg || `Request failed (${res.status})`);
+    throw new ApiError(res.status, msg || `Request failed (${res.status})`, data && typeof data === "object" ? data : null);
   }
   return data as T;
 }

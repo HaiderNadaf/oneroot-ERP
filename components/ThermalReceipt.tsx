@@ -43,7 +43,7 @@ export function receiptFromSale(sale: Sale): ReceiptData {
     customerName: sale.customer?.name ?? sale.customerName,
     customerPhone: sale.customer?.phone ?? sale.customerPhone,
     lines: (sale.items ?? []).map((i) => ({
-      name: i.productName,
+      name: i.isFree ? `${i.productName} (free)` : i.productName,
       qty: n(i.quantity),
       unit: i.unit,
       rate: n(i.rate),

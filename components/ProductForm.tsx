@@ -39,6 +39,7 @@ function toForm(p?: Product | null): FormState {
     purchasePrice: p ? String(n(p.purchasePrice)) : "",
     reorderLevel: p ? String(n(p.reorderLevel)) : "",
     trackBatch: p?.trackBatch ?? true,
+    isSubsidised: p?.isSubsidised ?? false,
     isActive: p?.isActive ?? true,
     description: p?.description ?? "",
     openQty: "",
@@ -111,6 +112,7 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
       purchasePrice: numOrUndef("purchasePrice"),
       reorderLevel: numOrUndef("reorderLevel"),
       trackBatch: f.trackBatch,
+      isSubsidised: !!f.isSubsidised,
       isActive: f.isActive,
       description: str("description") || undefined,
     };
@@ -266,6 +268,7 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
         </Field>
         <div className="flex flex-wrap gap-5 sm:col-span-3">
           <Checkbox label="Track batches & expiry" checked={!!f.trackBatch} onChange={(v) => set("trackBatch", v)} />
+          <Checkbox label="Govt-subsidised fertiliser (bills need the govt POS receipt no.)" checked={!!f.isSubsidised} onChange={(v) => set("isSubsidised", v)} />
           {editing && <Checkbox label="Active" checked={!!f.isActive} onChange={(v) => set("isActive", v)} />}
         </div>
 

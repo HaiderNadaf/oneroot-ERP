@@ -12,6 +12,7 @@ import {
   ClipboardList,
   FileText,
   IndianRupee,
+  Landmark,
   LayoutDashboard,
   Package,
   Receipt,
@@ -104,11 +105,18 @@ export const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { href: "/products", label: "Products", icon: <Package /> },
       { href: "/inventory", label: "Stock & Batches", icon: <RotateCcw /> },
+      {
+        href: "/inventory/govt-match",
+        label: "Govt Fertiliser Match",
+        icon: <ShieldCheck />,
+        roles: ["MANAGER", "ACCOUNTANT"],
+      },
     ],
   },
   {
     section: "Finance",
     items: [
+      { href: "/shifts", label: "Shifts & Cash", icon: <Landmark /> },
       { href: "/payments", label: "Payments", icon: <IndianRupee /> },
       {
         href: "/expenses",

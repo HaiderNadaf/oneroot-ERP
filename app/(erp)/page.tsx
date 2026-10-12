@@ -11,13 +11,14 @@ import {
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CashReconciliationCard } from "@/components/CashReconciliationCard";
 import { QuickActions } from "@/components/QuickActions";
 import { ErrorBox, Spinner, StatusBadge, cx } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
 import { date, daysUntil, inr, inr0, inrCompact, qty } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import type { PaymentMode, PaymentStatus } from "@/lib/types";
+import type { CashReconciliation, PaymentMode, PaymentStatus } from "@/lib/types";
 
 type Period = "today" | "month" | "fy";
 
@@ -54,7 +55,11 @@ interface Dashboard {
     lowStock: number;
     grnsToInvoice: number;
     draftDebitNotes: number;
+    govtMismatches: number;
+    cashGaps: number;
+    openShifts: number;
   };
+  cash?: CashReconciliation;
   trend: { month: string; sales: number; purchases: number }[];
   byCategory: { category: string; amount: number }[];
   expiring: {
@@ -554,6 +559,8 @@ export default function DashboardPage() {
 
       {/* Needs attention */}
       <section aria-label="Needs attention" className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
+        <AlertTile n={data.alerts.cashGaps ?? 0} label="Cash gaps not explained" tone="bad" href="/shifts" />
+        <AlertTile n={data.alerts.govtMismatches ?? 0} label="Govt fertiliser mismatches" tone="bad" href="/inventory/govt-match" />
         <AlertTile n={data.alerts.expiring7} label="Batches expire in 7 days" tone="bad" href="/inventory" />
         <AlertTile n={data.alerts.expired} label="Expired batches in stock" tone="bad" href="/inventory" />
         <AlertTile n={data.alerts.approvals} label="POs awaiting approval" tone="warn" href="/purchase-orders/approvals" />
@@ -561,6 +568,12 @@ export default function DashboardPage() {
         <AlertTile n={data.alerts.lowStock} label="Items below reorder level" tone="info" href="/inventory?tab=low" />
         <AlertTile n={data.alerts.grnsToInvoice} label="GRNs waiting for invoice" tone="info" href="/goods-inward" />
       </section>
+
+      {finance && data.cash && (data.cash.toDeposit > 0 || data.cash.openShifts > 0 || data.cash.unexplained > 0) && (
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <CashReconciliationCard cash={data.cash} />
+        </section>
+      )}
 
       {/* Branch comparison (All branches view only) */}
       {branchRows.length > 1 && (

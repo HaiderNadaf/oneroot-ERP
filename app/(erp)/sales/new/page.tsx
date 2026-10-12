@@ -32,6 +32,7 @@ import { ApprovalGate, approvalNeeded, type ApprovalNeed } from "@/components/Ap
 import { CustomerForm } from "@/components/CustomerForm";
 import { CustomerPicker } from "@/components/pickers";
 import { PrintPortal } from "@/components/PrintPortal";
+import { SerialPicker } from "@/components/SerialPicker";
 import { ThermalReceipt, receiptFromSale, type ReceiptData } from "@/components/ThermalReceipt";
 import { Button, Checkbox, Input, Modal, Select, Spinner, Textarea, cx, errMsg, useConfirm, useToast } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -58,6 +59,8 @@ interface Line {
   quantity: string;
   rate: string;
   discountPct: string;
+  /** Serial numbers picked for this line (products that track serials) */
+  serialNos: string[];
 }
 
 /** One part of a split payment */
@@ -143,6 +146,8 @@ export default function PosPage() {
   const [holdsOpen, setHoldsOpen] = useState(false);
   const [holdLabel, setHoldLabel] = useState<string | null>(null);
   const [holding, setHolding] = useState(false);
+  // Cart line whose serial numbers are being picked
+  const [serialFor, setSerialFor] = useState<number | null>(null);
   const [openShift, setOpenShift] = useState(false);
   const [openingFloat, setOpeningFloat] = useState("");
   const [openingShift, setOpeningShift] = useState(false);
@@ -282,7 +287,7 @@ export default function PosPage() {
       return;
     }
     const key = ++keySeq.current;
-    setLines((ls) => [...ls, { key, product: p, batches: null, batchId: "", quantity: "1", rate: String(n(p.salePrice)), discountPct: "" }]);
+    setLines((ls) => [...ls, { key, product: p, batches: null, batchId: "", quantity: "1", rate: String(n(p.salePrice)), discountPct: "", serialNos: [] }]);
     // Batches for this branch, for the optional batch choice (not available offline — auto FEFO still applies)
     api
       .get<Product>(`/products/${p.id}`)
@@ -302,7 +307,8 @@ export default function PosPage() {
     addProduct(hit);
     setSearch("");
   }
-  useScanner(scanCode, !done && !camOpen && !quickAdd);
+  // Off while a dialog takes its own scans (serial numbers, approvals, holds)
+  useScanner(scanCode, !done && !camOpen && !quickAdd && serialFor === null && !need && holdLabel === null && !holdsOpen);
 
   function step(key: number, delta: number) {
     setLines((ls) =>
@@ -440,6 +446,11 @@ export default function PosPage() {
       if (n(l.quantity) <= 0) return `Enter a quantity for ${l.product.name}`;
       if (n(l.rate) < 0) return `Rate for ${l.product.name} cannot be negative`;
       if (n(l.discountPct) < 0 || n(l.discountPct) > 100) return `Discount for ${l.product.name} must be 0–100%`;
+      if (l.product.trackSerial) {
+        if (!online) return `${l.product.name} is sold by serial number, which needs internet`;
+        if (!Number.isInteger(n(l.quantity))) return `${l.product.name} is sold per unit — use a whole number`;
+        if (l.serialNos.length !== n(l.quantity)) return `Pick the ${qty(l.quantity)} serial number${n(l.quantity) === 1 ? "" : "s"} for ${l.product.name}`;
+      }
     }
     if (summary.total <= 0) return "Bill total must be more than zero";
     if (!customer && due > 0) return "Credit needs a registered customer — pick or add the farmer first";
@@ -533,6 +544,7 @@ export default function PosPage() {
         quantity: n(l.quantity),
         rate: n(l.rate),
         discountPct: n(l.discountPct) || undefined,
+        serialNos: l.product.trackSerial && l.serialNos.length ? l.serialNos : undefined,
       })),
       discount: summary.discount || undefined,
       paidAmount,
@@ -642,7 +654,7 @@ export default function PosPage() {
         missing++;
         continue;
       }
-      rebuilt.push({ key: ++keySeq.current, product: prod, batches: null, batchId: hl.batchId ?? "", quantity: String(hl.quantity), rate: String(hl.rate), discountPct: hl.discountPct ?? "" });
+      rebuilt.push({ key: ++keySeq.current, product: prod, batches: null, batchId: hl.batchId ?? "", quantity: String(hl.quantity), rate: String(hl.rate), discountPct: hl.discountPct ?? "", serialNos: [] });
     }
     newSale();
     setLines(rebuilt);
@@ -1047,9 +1059,23 @@ export default function PosPage() {
                             {l.product.packSize || l.product.unit}
                             {" · "}
                             {chosen ? `Batch ${chosen.batchNo}` : "Batch auto (earliest expiry)"}
+                            {(chosen?.location ?? l.product.location) && ` · ${chosen?.location ?? l.product.location}`}
                             {n(l.discountPct) > 0 && ` · ${n(l.discountPct)}% off`}
                           </span>
                           <LinePricing p={pricing.byKey.get(l.key)} unit={l.product.unit} />
+                          {l.product.trackSerial && (
+                            <button
+                              type="button"
+                              onClick={() => setSerialFor(l.key)}
+                              className={cx(
+                                "mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium",
+                                l.serialNos.length === n(l.quantity) ? "bg-brand-50 text-brand-800" : "bg-amber-50 text-amber-800",
+                              )}
+                            >
+                              Serial no. {l.serialNos.length}/{qty(l.quantity)}
+                              {l.serialNos.length ? ` · ${l.serialNos.join(", ")}` : " · pick"}
+                            </button>
+                          )}
                         </div>
                         <div className="shrink-0 text-right">
                           <b className="num block text-sm">{inr(lineGross(l, pricing.byKey.get(l.key)))}</b>
@@ -1409,6 +1435,21 @@ export default function PosPage() {
           </ul>
         )}
       </Modal>
+
+      {(() => {
+        const sl = lines.find((l) => l.key === serialFor);
+        return sl ? (
+          <SerialPicker
+            open
+            productId={sl.product.id}
+            productName={sl.product.name}
+            quantity={Math.max(1, Math.round(n(sl.quantity)))}
+            value={sl.serialNos}
+            onClose={() => setSerialFor(null)}
+            onChange={(serialNos) => update(sl.key, { serialNos })}
+          />
+        ) : null;
+      })()}
 
       <ApprovalGate
         need={need}

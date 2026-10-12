@@ -8,6 +8,8 @@ import { Barcode } from "@/components/Barcode";
 import { BranchCode } from "@/components/BranchNotice";
 import { LabelPrintModal } from "@/components/LabelPrintModal";
 import { ProductForm } from "@/components/ProductForm";
+import { AttributeList } from "@/components/AttributeFields";
+import { SerialsPanel } from "@/components/SerialsPanel";
 import { StockAdjustModal } from "@/components/StockAdjustModal";
 import { ExpiryBadge, MovementBadge, MovementRef, SignedQty } from "@/components/StockBits";
 import {
@@ -177,7 +179,14 @@ export default function ProductDetailPage() {
               ) : null}
             </Info>
             <Info label="Batch tracking">{p.trackBatch ? "Batches & expiry tracked" : "Not tracked"}</Info>
+            <Info label="Location in store">{p.location}</Info>
+            <Info label="Serial numbers">{p.trackSerial ? "Each unit tracked" : "Not tracked"}</Info>
           </dl>
+          {p.category?.fields && p.category.fields.length > 0 && (
+            <div className="mt-4 border-t border-slate-100 pt-3">
+              <AttributeList fields={p.category.fields} value={p.attributes} />
+            </div>
+          )}
           {p.description && <p className="mt-4 border-t border-slate-100 pt-3 text-sm text-slate-600">{p.description}</p>}
         </Card>
 
@@ -326,6 +335,12 @@ export default function ProductDetailPage() {
           )}
         </Table>
       </Card>
+
+      {p.trackSerial && (
+        <div className="mt-4">
+          <SerialsPanel productId={p.id} batches={batches} />
+        </div>
+      )}
 
       <Card title="Stock movement history" className="mt-4" bodyClassName="p-0">
         {moves.error ? (

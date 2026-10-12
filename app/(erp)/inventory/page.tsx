@@ -269,6 +269,7 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
               <Th>Product</Th>
               {showBranch && <Th>Branch</Th>}
               <Th>Batch</Th>
+              <Th>Location</Th>
               <Th>Mfg date</Th>
               <Th>Expiry</Th>
               <Th right>Qty</Th>
@@ -312,6 +313,7 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
                       </Td>
                     )}
                     <Td className="font-medium">{b.batchNo}</Td>
+                    <Td className="text-xs text-slate-600">{b.location ?? b.product?.location ?? "—"}</Td>
                     <Td className="text-xs">{date(b.mfgDate)}</Td>
                     <Td className="whitespace-nowrap">
                       <span className="mr-2 text-xs">{date(b.expiryDate)}</span>

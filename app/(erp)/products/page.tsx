@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Eye, Pencil, Plus, Tags, X } from "lucide-react";
+import { Download, Eye, Pencil, Plus, Tags, Upload, X } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CategoryManager } from "@/components/CategoryManager";
@@ -233,6 +233,11 @@ export default function ProductsPage() {
             </Button>
             {can("products.manage") && (
               <>
+                <Link href="/products/import">
+                  <Button variant="secondary" icon={<Upload className="size-4" />}>
+                    Import
+                  </Button>
+                </Link>
                 <GenerateBarcodesButton />
                 <Button variant="secondary" icon={<Tags className="size-4" />} onClick={() => setCatsOpen(true)}>
                   Categories

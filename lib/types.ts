@@ -1,3 +1,4 @@
+import type { Attributes, FieldDef } from "./attributes";
 // Shapes returned by the OneRoot API. Prisma Decimal fields arrive as strings — wrap with n() before math.
 
 export type Dec = string | number;
@@ -315,6 +316,8 @@ export interface Category {
   /** SKU prefix, e.g. FRT */
   code?: string | null;
   description?: string | null;
+  /** Extra fields every product in this category carries (lib/attributes.ts) */
+  fields?: FieldDef[] | null;
   _count?: { products: number };
 }
 
@@ -327,10 +330,12 @@ export interface Batch {
   costPrice: Dec;
   mrp?: Dec | null;
   quantity: Dec;
+  /** Rack / bin this lot sits in */
+  location?: string | null;
   createdAt: string;
   branchId?: string;
   branch?: BranchRef | null;
-  product?: Pick<Product, "id" | "name" | "sku" | "unit" | "type">;
+  product?: Pick<Product, "id" | "name" | "sku" | "unit" | "type" | "location">;
 }
 
 export interface Product {
@@ -340,7 +345,7 @@ export interface Product {
   name: string;
   type: ProductType;
   categoryId?: string | null;
-  category?: { id: string; name: string } | null;
+  category?: { id: string; name: string; fields?: FieldDef[] | null } | null;
   brand?: string | null;
   manufacturer?: string | null;
   technicalName?: string | null;
@@ -356,6 +361,12 @@ export interface Product {
   trackBatch: boolean;
   /** Govt-subsidised fertiliser: bills need the govt POS receipt no. */
   isSubsidised?: boolean;
+  /** Every unit carries a serial number; bills pick which serials leave */
+  trackSerial?: boolean;
+  /** Usual rack / bin / shelf */
+  location?: string | null;
+  /** Values of the category's extra fields */
+  attributes?: Attributes | null;
   isActive: boolean;
   /** With a branch selected: stock in that branch; otherwise all branches */
   stock: Dec;
@@ -491,6 +502,24 @@ export interface Payment {
   purchase?: { id: string; purchaseNo: string } | null;
 }
 
+export type SerialStatus = "IN_STOCK" | "SOLD";
+
+/** One serial-numbered unit of a product */
+export interface SerialNumber {
+  id: string;
+  productId: string;
+  serialNo: string;
+  branchId: string;
+  batchId?: string | null;
+  batch?: { batchNo: string } | null;
+  status: SerialStatus;
+  saleItemId?: string | null;
+  saleItem?: { sale: { id: string; invoiceNo: string } } | null;
+  note?: string | null;
+  soldAt?: string | null;
+  createdAt: string;
+}
+
 export interface SaleItem {
   id: string;
   productId: string;
@@ -517,6 +546,8 @@ export interface SaleItem {
   scheme?: { name: string; type: SchemeType; claimable: boolean } | null;
   /** Free goods from a buy-X-get-Y scheme (zero price) */
   isFree?: boolean;
+  /** Serial-numbered units that left with this line */
+  serials?: { serialNo: string }[];
   product?: { sku: string; technicalName?: string | null; packSize?: string | null; isSubsidised?: boolean };
 }
 
@@ -642,7 +673,7 @@ export interface PoItem {
   damagedQty: Dec;
   expiredQty: Dec;
   pendingQty?: number;
-  product: { name: string; sku: string; unit: string; hsnCode?: string | null; trackBatch: boolean; packSize?: string | null; barcode?: string | null };
+  product: { name: string; sku: string; unit: string; hsnCode?: string | null; trackBatch: boolean; trackSerial?: boolean; location?: string | null; packSize?: string | null; barcode?: string | null };
 }
 
 export interface PoHistory {

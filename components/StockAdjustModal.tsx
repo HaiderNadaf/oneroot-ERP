@@ -76,6 +76,8 @@ function AdjustForm({
   const [expiry, setExpiry] = useState("");
   const [quantity, setQuantity] = useState(initial?.quantity ? String(initial.quantity) : "");
   const [unitCost, setUnitCost] = useState("");
+  const [location, setLocation] = useState("");
+  const [serials, setSerials] = useState("");
   const [reason, setReason] = useState(initial?.reason ?? "");
   const [saving, setSaving] = useState(false);
   const [need, setNeed] = useState<ApprovalNeed | null>(null);
@@ -119,8 +121,14 @@ function AdjustForm({
         if (expiry) body.expiryDate = expiry;
       }
       if (unitCost !== "") body.unitCost = Number(unitCost);
+      if (location.trim()) body.location = location.trim();
     } else if (batchSel) {
       body.batchId = batchSel;
+    }
+    const serialNos = serials.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+    if (detail?.trackSerial && serialNos.length) {
+      if (serialNos.length !== q) return toast.error(`Give ${qty(q)} serial numbers (${serialNos.length} given), or none`);
+      body.serialNos = serialNos;
     }
     setSaving(true);
     try {
@@ -275,6 +283,16 @@ function AdjustForm({
           </>
         )}
 
+        {isIn && (
+          <Field label="Location" hint={detail?.location ? `Usually ${detail.location}` : "Rack / bin (optional)"}>
+            <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder={detail?.location ?? ""} />
+          </Field>
+        )}
+        {detail?.trackSerial && (
+          <Field label={isIn ? "Serial numbers of the units added" : "Serial numbers of the units removed"} hint="One per line; optional">
+            <Textarea rows={3} value={serials} onChange={(e) => setSerials(e.target.value)} className="font-mono" />
+          </Field>
+        )}
         <Field label="Reason" required>
           <Textarea
             rows={2}

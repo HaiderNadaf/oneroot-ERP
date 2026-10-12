@@ -573,6 +573,9 @@ export interface Sale {
   customerPhone?: string | null;
   /** Customer type whose discount applied on this bill (FPO, bulk buyer…) */
   customerTypeName?: string | null;
+  /** Counter or van trip */
+  channel?: SaleChannel;
+  vanTripId?: string | null;
   approvalId?: string | null;
   saleDate: string;
   dueDate?: string | null;
@@ -1073,6 +1076,44 @@ export const MODE_LABEL: Record<PaymentMode, string> = {
 export const modeLabel = (m: PaymentMode | string) => MODE_LABEL[m as PaymentMode] ?? m;
 /** Modes money actually arrives in (for receipts and vendor payments) */
 export const MONEY_MODES: PaymentMode[] = ["CASH", "UPI", "CARD", "KCC", "BANK", "CHEQUE"];
+
+export type SaleChannel = "COUNTER" | "VAN";
+
+/** A van-stock day */
+export interface VanTrip {
+  id: string;
+  tripNo: string;
+  branchId: string;
+  branch?: { code: string; name?: string } | null;
+  userId: string;
+  user?: { id?: string; name: string } | null;
+  date: string;
+  vehicleNo?: string | null;
+  route?: string | null;
+  status: "OPEN" | "CLOSED";
+  openingCash: Dec;
+  cashExpected?: Dec | null;
+  cashHandedOver?: Dec | null;
+  cashDifference?: Dec | null;
+  notes?: string | null;
+  closeNote?: string | null;
+  closedAt?: string | null;
+}
+
+export interface VanTripDetail extends VanTrip {
+  items: {
+    id: string;
+    productId: string;
+    product: { id: string; name: string; sku: string; unit: string; salePrice: Dec; packSize?: string | null };
+    loadedQty: Dec;
+    soldQty: number;
+    onVan: number;
+    returnedQty?: Dec | null;
+    shortQty?: Dec | null;
+  }[];
+  sales: { id: string; invoiceNo: string; saleDate: string; customerName?: string | null; customer?: { name: string } | null; totalAmount: Dec; paidAmount: Dec; paymentMode: PaymentMode }[];
+  summary: { salesTotal: number; bills: number; credit: number; cashSales: number; cashRefunds: number; cashExpected: number; byMode: { mode: PaymentMode; amount: number }[] };
+}
 
 /** A POS cart parked for later (hold / recall) */
 export interface HeldBill {

@@ -71,6 +71,7 @@ export const NAV: { section: string; items: NavItem[] }[] = [
       { href: "/customers", label: "Customers", icon: <Users />, perms: ["customers.view"] },
       { href: "/customers/reminders", label: "Due Reminders", icon: <BellRing />, perms: ["customers.view"] },
       { href: "/approvals", label: "Approvals", icon: <BadgeCheck /> },
+      { href: "/van", label: "Van Trips", icon: <Truck />, perms: ["sales.van"] },
     ],
   },
   {

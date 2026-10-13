@@ -135,7 +135,7 @@ function Users() {
                         <>
                           <span className="text-sm font-medium text-slate-800">{u.roleTemplate.name}</span>
                           <p className="text-xs text-slate-500">
-                            {u.roleTemplate.department ? `${u.roleTemplate.department.name} · ` : ""}based on {roleName(u.role)}
+                            {u.roleTemplate.department?.name ?? "No department"}
                           </p>
                         </>
                       ) : (
@@ -192,7 +192,7 @@ function Users() {
           <b className="font-medium text-slate-800">Permissions:</b> a role only fills in the starting ticks. Tick or untick anything in the
           user form to give exactly the access you want — the sidebar, the pages and the API all follow the ticks. Put roles inside a
           department (Procurement, Sales, Warehouse...) so the right people find them; discount, refund and adjustment ceilings still come
-          from the built-in role each one is based on (Roles &amp; Limits).
+          from the limits chosen for each role (Roles &amp; Limits).
         </p>
         <p className="mt-2 text-sm text-slate-600">
           <b className="font-medium text-slate-800">Home branch:</b> staff with a home branch are locked to it — they only see and
@@ -299,7 +299,7 @@ function RolePicker({
                   <button key={t.id} type="button" disabled={disabled} onClick={() => onPick(t.baseRole, t)} className={card(templateId === t.id, false)}>
                     <p className="text-sm font-medium text-slate-800">{t.name}</p>
                     <p className="text-xs text-slate-500">
-                      {t.description || `${t.permissions.length} permissions`} · based on {roleName(t.baseRole)}
+                      {t.description || `${t.permissions.length} permissions`}
                     </p>
                   </button>
                 ))}
@@ -317,7 +317,7 @@ function RolePicker({
           <span className="inline-flex items-center gap-1">
             <Plus className="size-4" /> New role…
           </span>
-          <p className="text-xs font-normal text-slate-500">Save a set of ticks under a name and a department to reuse for other staff</p>
+          <p className="text-xs font-normal text-slate-500">Make a role inside a department, e.g. Procurement → Category Head</p>
         </button>
       )}
     </div>

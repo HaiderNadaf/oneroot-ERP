@@ -4,10 +4,8 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { clearApiCache, useApi } from "@/lib/hooks";
-import type { Department, Role, RoleTemplate } from "@/lib/types";
+import type { Department, RoleTemplate } from "@/lib/types";
 import { Button, Card, Field, Input, Modal, Spinner, errMsg, useConfirm, useToast } from "./ui";
-
-const roleName = (r: Role) => r.charAt(0) + r.slice(1).toLowerCase();
 
 /**
  * Departments (Procurement, Sales, Warehouse...) and the roles that sit inside each one.
@@ -177,7 +175,7 @@ function Section({
             >
               <span className="text-sm font-medium text-slate-800">{t.name}</span>
               <span className="text-xs text-slate-500">
-                based on {roleName(t.baseRole)} · {t.permissions.length} ticks · {t.userCount} user{t.userCount === 1 ? "" : "s"}
+                {t.permissions.length} permissions · {t.userCount} user{t.userCount === 1 ? "" : "s"}
               </span>
             </button>
           </li>

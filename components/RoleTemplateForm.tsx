@@ -2,22 +2,22 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
 import { clearApiCache, useApi } from "@/lib/hooks";
-import { defaultsFor, hasPerm, normalizePermissions, type Permission } from "@/lib/permissions";
+import { normalizePermissions, type Permission } from "@/lib/permissions";
 import type { Department, Role, RoleTemplate } from "@/lib/types";
 import { PermissionPicker } from "./PermissionPicker";
 import { Button, Checkbox, Field, Input, Modal, Select, errMsg, useToast } from "./ui";
 
-const BASE_ROLES: { value: Role; label: string; hint: string }[] = [
-  { value: "CASHIER", label: "Cashier", hint: "Counter staff — cashier discount / refund ceilings apply" },
-  { value: "ACCOUNTANT", label: "Accountant", hint: "Books and payments — accountant ceilings apply" },
-  { value: "MANAGER", label: "Manager", hint: "Can approve others — manager ceilings apply" },
+/** Which built-in role's money limits (Roles & Limits) this role shares */
+const LIMIT_ROLES: { value: Role; label: string; hint: string }[] = [
+  { value: "CASHIER", label: "Cashier limits", hint: "Smallest discount / refund / adjustment allowed without approval" },
+  { value: "ACCOUNTANT", label: "Accountant limits", hint: "The accountant's discount / refund / adjustment amounts" },
+  { value: "MANAGER", label: "Manager limits", hint: "Largest amounts; pick this for heads who approve others" },
 ];
 
 /**
- * Create or edit a custom role: a name plus a set of ticks. The base role only decides the
- * discount / refund / adjustment ceilings (Roles & Limits) and whether the role can hold a PIN.
+ * Create or edit a role inside a department: a name plus exactly the ticks it may do.
+ * Opened from a department's "+ Role" button the department is fixed; otherwise it must be chosen.
  */
 export function RoleTemplateForm({
   template,
@@ -26,50 +26,51 @@ export function RoleTemplateForm({
   onSaved,
 }: {
   template: RoleTemplate | null;
-  /** Department to start in when the role is made from a department */
+  /** Department the role is being made in (from its "+ Role" button) */
   initialDepartmentId?: string | null;
   onClose: () => void;
   onSaved: (saved: RoleTemplate) => void;
 }) {
   const toast = useToast();
-  const { user: me } = useAuth();
   const editing = !!template;
   const departments = useApi<Department[]>("/departments");
+  // Made from a department's own button: no need to ask again
+  const fixedDepartment = !editing && !!initialDepartmentId;
   const [name, setName] = useState(template?.name ?? "");
   const [description, setDescription] = useState(template?.description ?? "");
   const [departmentId, setDepartmentId] = useState<string>(template?.departmentId ?? initialDepartmentId ?? "");
   const [baseRole, setBaseRole] = useState<Role>(template?.baseRole ?? "CASHIER");
-  const [permissions, setPermissions] = useState<Permission[]>(() =>
-    template ? normalizePermissions(template.permissions) : defaultsFor("CASHIER").filter((k) => hasPerm(me, k)),
-  );
+  // A new role starts empty: tick exactly what it may do
+  const [permissions, setPermissions] = useState<Permission[]>(() => (template ? normalizePermissions(template.permissions) : []));
   const [applyToUsers, setApplyToUsers] = useState(true);
   const [saving, setSaving] = useState(false);
   const inUse = (template?.userCount ?? 0) > 0;
-
-  const changeBase = (r: Role) => {
-    setBaseRole(r);
-    // Start a new role from the base role's usual ticks; keep an existing role's ticks as they are
-    if (!editing) setPermissions(defaultsFor(r).filter((k) => hasPerm(me, k)));
-  };
+  const departmentName = departments.data?.find((d) => d.id === departmentId)?.name ?? template?.department?.name;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (name.trim().length < 2) return toast.error("Give the role a name");
-    if (!permissions.length) return toast.error("Tick at least one permission");
+    if (!departmentId) return toast.error("Choose the department this role belongs to");
+    if (!permissions.length) return toast.error("Tick at least one thing this role may do");
     setSaving(true);
     try {
       const body = {
         name: name.trim(),
         description: description.trim() || undefined,
-        departmentId: departmentId || null,
+        departmentId,
         baseRole,
         permissions,
         applyToUsers: editing && inUse ? applyToUsers : undefined,
       };
       const saved = editing ? await api.put<RoleTemplate>(`/roles/custom/${template.id}`, body) : await api.post<RoleTemplate>("/roles/custom", body);
       clearApiCache("/roles/custom");
+      clearApiCache("/departments");
       clearApiCache("/users");
-      toast.success(editing ? `${saved.name} updated${inUse && applyToUsers ? ` for ${template.userCount} user${template.userCount > 1 ? "s" : ""}` : ""}` : `Role "${saved.name}" created`);
+      toast.success(
+        editing
+          ? `${saved.name} updated${inUse && applyToUsers ? ` for ${template.userCount} user${template.userCount > 1 ? "s" : ""}` : ""}`
+          : `Role "${saved.name}" created${departmentName ? ` in ${departmentName}` : ""}`,
+      );
       onSaved(saved);
     } catch (err) {
       toast.error(errMsg(err));
@@ -78,11 +79,13 @@ export function RoleTemplateForm({
     }
   }
 
+  const title = editing ? `Edit role: ${template.name}` : fixedDepartment ? `New role in ${departmentName ?? "department"}` : "New role";
+
   return (
     <Modal
       open
       onClose={onClose}
-      title={editing ? `Edit role: ${template.name}` : "New role"}
+      title={title}
       size="lg"
       footer={
         <>
@@ -96,32 +99,40 @@ export function RoleTemplateForm({
       }
     >
       <form id="role-template-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Role name" required hint="e.g. Store supervisor, Billing clerk, Purchase officer">
+        <Field label="Role name" required hint="e.g. Category Head, Manager, Intern" className={fixedDepartment ? "sm:col-span-2" : undefined}>
           <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus minLength={2} />
         </Field>
-        <Field label="Department" hint="Groups this role on the Users page">
-          <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-            <option value="">No department</option>
-            {(departments.data ?? []).map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
+        {!fixedDepartment && (
+          <Field label="Department" required>
+            <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} required>
+              <option value="" disabled>
+                {departments.loading ? "Loading departments…" : departments.error ? "Could not load departments" : "Choose a department"}
               </option>
-            ))}
-          </Select>
+              {(departments.data ?? []).map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+        <Field label="Description" className="sm:col-span-2">
+          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What this role does (optional)" />
         </Field>
-        <Field label="Based on" required hint={BASE_ROLES.find((b) => b.value === baseRole)?.hint}>
-          <Select value={baseRole} onChange={(e) => changeBase(e.target.value as Role)}>
-            {BASE_ROLES.map((b) => (
+        <PermissionPicker value={permissions} onChange={setPermissions} defaults={template ? normalizePermissions(template.permissions) : permissions} />
+        <Field
+          label="Discount, refund and stock-adjustment limits"
+          className="sm:col-span-2"
+          hint={`${LIMIT_ROLES.find((b) => b.value === baseRole)?.hint}. The amounts themselves are set in Roles & Limits.`}
+        >
+          <Select value={baseRole} onChange={(e) => setBaseRole(e.target.value as Role)}>
+            {LIMIT_ROLES.map((b) => (
               <option key={b.value} value={b.value}>
                 {b.label}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="Description" className="sm:col-span-2">
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What this role is for (shown in the role picker)" />
-        </Field>
-        <PermissionPicker value={permissions} onChange={setPermissions} defaults={defaultsFor(baseRole)} resetLabel={`Reset to ${BASE_ROLES.find((b) => b.value === baseRole)?.label} defaults`} />
         {editing && inUse && (
           <div className="sm:col-span-2">
             <Checkbox

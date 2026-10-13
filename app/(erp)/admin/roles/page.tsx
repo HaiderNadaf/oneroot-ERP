@@ -156,7 +156,7 @@ function CustomRoles() {
             <tr>
               <Th>Role</Th>
               <Th>Department</Th>
-              <Th>Based on</Th>
+              <Th>Money limits</Th>
               <Th>Permissions</Th>
               <Th right>Users</Th>
               <Th />

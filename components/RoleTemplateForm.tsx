@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { clearApiCache } from "@/lib/hooks";
+import { clearApiCache, useApi } from "@/lib/hooks";
 import { defaultsFor, hasPerm, normalizePermissions, type Permission } from "@/lib/permissions";
-import type { Role, RoleTemplate } from "@/lib/types";
+import type { Department, Role, RoleTemplate } from "@/lib/types";
 import { PermissionPicker } from "./PermissionPicker";
 import { Button, Checkbox, Field, Input, Modal, Select, errMsg, useToast } from "./ui";
 
@@ -21,18 +21,23 @@ const BASE_ROLES: { value: Role; label: string; hint: string }[] = [
  */
 export function RoleTemplateForm({
   template,
+  initialDepartmentId,
   onClose,
   onSaved,
 }: {
   template: RoleTemplate | null;
+  /** Department to start in when the role is made from a department */
+  initialDepartmentId?: string | null;
   onClose: () => void;
   onSaved: (saved: RoleTemplate) => void;
 }) {
   const toast = useToast();
   const { user: me } = useAuth();
   const editing = !!template;
+  const departments = useApi<Department[]>("/departments");
   const [name, setName] = useState(template?.name ?? "");
   const [description, setDescription] = useState(template?.description ?? "");
+  const [departmentId, setDepartmentId] = useState<string>(template?.departmentId ?? initialDepartmentId ?? "");
   const [baseRole, setBaseRole] = useState<Role>(template?.baseRole ?? "CASHIER");
   const [permissions, setPermissions] = useState<Permission[]>(() =>
     template ? normalizePermissions(template.permissions) : defaultsFor("CASHIER").filter((k) => hasPerm(me, k)),
@@ -53,7 +58,14 @@ export function RoleTemplateForm({
     if (!permissions.length) return toast.error("Tick at least one permission");
     setSaving(true);
     try {
-      const body = { name: name.trim(), description: description.trim() || undefined, baseRole, permissions, applyToUsers: editing && inUse ? applyToUsers : undefined };
+      const body = {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        departmentId: departmentId || null,
+        baseRole,
+        permissions,
+        applyToUsers: editing && inUse ? applyToUsers : undefined,
+      };
       const saved = editing ? await api.put<RoleTemplate>(`/roles/custom/${template.id}`, body) : await api.post<RoleTemplate>("/roles/custom", body);
       clearApiCache("/roles/custom");
       clearApiCache("/users");
@@ -86,6 +98,16 @@ export function RoleTemplateForm({
       <form id="role-template-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Role name" required hint="e.g. Store supervisor, Billing clerk, Purchase officer">
           <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus minLength={2} />
+        </Field>
+        <Field label="Department" hint="Groups this role on the Users page">
+          <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+            <option value="">No department</option>
+            {(departments.data ?? []).map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </Select>
         </Field>
         <Field label="Based on" required hint={BASE_ROLES.find((b) => b.value === baseRole)?.hint}>
           <Select value={baseRole} onChange={(e) => changeBase(e.target.value as Role)}>

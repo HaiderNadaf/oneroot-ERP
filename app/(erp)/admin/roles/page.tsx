@@ -155,6 +155,7 @@ function CustomRoles() {
           <thead>
             <tr>
               <Th>Role</Th>
+              <Th>Department</Th>
               <Th>Based on</Th>
               <Th>Permissions</Th>
               <Th right>Users</Th>
@@ -164,12 +165,12 @@ function CustomRoles() {
           <tbody>
             {loading && !data ? (
               <tr>
-                <Td colSpan={5}>
+                <Td colSpan={6}>
                   <Spinner />
                 </Td>
               </tr>
             ) : !data?.length ? (
-              <EmptyRow colSpan={5}>No custom roles yet — make one to reuse a set of ticks for several staff (e.g. Store supervisor, Billing clerk)</EmptyRow>
+              <EmptyRow colSpan={6}>No custom roles yet — make one to reuse a set of ticks for several staff (e.g. Store supervisor, Billing clerk)</EmptyRow>
             ) : (
               data.map((t) => (
                 <tr key={t.id} className="hover:bg-slate-50">
@@ -177,6 +178,7 @@ function CustomRoles() {
                     <span className="font-medium text-slate-900">{t.name}</span>
                     {t.description && <p className="text-xs text-slate-500">{t.description}</p>}
                   </Td>
+                  <Td className="text-sm">{t.department?.name ?? <span className="text-xs text-slate-400">none</span>}</Td>
                   <Td>
                     <StatusBadge status={t.baseRole} />
                   </Td>

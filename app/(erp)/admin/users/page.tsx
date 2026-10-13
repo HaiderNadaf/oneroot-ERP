@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { BranchCode, useBranchOptions } from "@/components/BranchNotice";
+import { DepartmentsPanel } from "@/components/DepartmentsPanel";
 import { PermissionPicker } from "@/components/PermissionPicker";
 import { RoleTemplateForm } from "@/components/RoleTemplateForm";
 import {
@@ -43,6 +44,16 @@ const ROLE_INFO: Record<Role, string> = {
 
 const roleName = (r: Role) => r.charAt(0) + r.slice(1).toLowerCase();
 
+/** Custom roles grouped under their department, in the order the server sent them */
+function groupByDepartment(list: RoleTemplate[]): [string, RoleTemplate[]][] {
+  const map = new Map<string, RoleTemplate[]>();
+  for (const t of list) {
+    const key = t.department?.name ?? "No department";
+    map.set(key, [...(map.get(key) ?? []), t]);
+  }
+  return [...map.entries()];
+}
+
 export default function UsersPage() {
   return (
     <RequirePerm perms={["admin.users"]}>
@@ -57,7 +68,7 @@ function Users() {
   const templates = useApi<RoleTemplate[]>("/roles/custom");
   const [editing, setEditing] = useState<User | null>(null);
   const [formOpen, setFormOpen] = useState(false);
-  const [roleOpen, setRoleOpen] = useState(false);
+  const [roleForm, setRoleForm] = useState<{ template: RoleTemplate | null; departmentId: string | null } | null>(null);
 
   const open = (u: User | null) => {
     setEditing(u);
@@ -72,7 +83,7 @@ function Users() {
         actions={
           <>
             {can("admin.roles") && (
-              <Button variant="secondary" icon={<Plus className="size-4" />} onClick={() => setRoleOpen(true)}>
+              <Button variant="secondary" icon={<Plus className="size-4" />} onClick={() => setRoleForm({ template: null, departmentId: null })}>
                 New role
               </Button>
             )}
@@ -123,7 +134,9 @@ function Users() {
                       {u.roleTemplate ? (
                         <>
                           <span className="text-sm font-medium text-slate-800">{u.roleTemplate.name}</span>
-                          <p className="text-xs text-slate-500">based on {roleName(u.role)}</p>
+                          <p className="text-xs text-slate-500">
+                            {u.roleTemplate.department ? `${u.roleTemplate.department.name} · ` : ""}based on {roleName(u.role)}
+                          </p>
                         </>
                       ) : (
                         <StatusBadge status={u.role} />
@@ -158,6 +171,14 @@ function Users() {
         )}
       </Card>
 
+      <DepartmentsPanel
+        templates={templates.data ?? []}
+        canManage={can("admin.roles")}
+        onNewRole={(departmentId) => setRoleForm({ template: null, departmentId })}
+        onEditRole={(t) => setRoleForm({ template: t, departmentId: t.departmentId ?? null })}
+        onChanged={() => void templates.reload()}
+      />
+
       <Card title="Roles & permissions" className="mt-4">
         <dl className="grid gap-3 sm:grid-cols-2">
           {ROLES.map((r) => (
@@ -167,26 +188,11 @@ function Users() {
             </div>
           ))}
         </dl>
-        {!!templates.data?.length && (
-          <div className="mt-3 border-t border-slate-100 pt-3">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Your roles</p>
-            <dl className="grid gap-2 sm:grid-cols-2">
-              {templates.data.map((t) => (
-                <div key={t.id} className="flex items-start gap-2 text-sm">
-                  <span className="font-medium text-slate-800">{t.name}</span>
-                  <dd className="text-slate-600">
-                    {t.description || `${t.permissions.length} permissions`} · based on {roleName(t.baseRole)} · {t.userCount} user{t.userCount === 1 ? "" : "s"}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        )}
         <p className="mt-4 border-t border-slate-100 pt-3 text-sm text-slate-600">
           <b className="font-medium text-slate-800">Permissions:</b> a role only fills in the starting ticks. Tick or untick anything in the
-          user form to give exactly the access you want — the sidebar, the pages and the API all follow the ticks. Make your own role
-          (&ldquo;New role&rdquo;) to reuse a set of ticks for several people; discount, refund and adjustment ceilings still come from the
-          built-in role it is based on (Roles &amp; Limits).
+          user form to give exactly the access you want — the sidebar, the pages and the API all follow the ticks. Put roles inside a
+          department (Procurement, Sales, Warehouse...) so the right people find them; discount, refund and adjustment ceilings still come
+          from the built-in role each one is based on (Roles &amp; Limits).
         </p>
         <p className="mt-2 text-sm text-slate-600">
           <b className="font-medium text-slate-800">Home branch:</b> staff with a home branch are locked to it — they only see and
@@ -209,12 +215,13 @@ function Users() {
           }}
         />
       )}
-      {roleOpen && (
+      {roleForm && (
         <RoleTemplateForm
-          template={null}
-          onClose={() => setRoleOpen(false)}
+          template={roleForm.template}
+          initialDepartmentId={roleForm.departmentId}
+          onClose={() => setRoleForm(null)}
           onSaved={() => {
-            setRoleOpen(false);
+            setRoleForm(null);
             void templates.reload();
           }}
         />
@@ -245,7 +252,7 @@ function AccessSummary({ user, templates }: { user: User; templates: RoleTemplat
   );
 }
 
-/** Built-in roles plus the store's own roles; picking one fills in its ticks */
+/** Built-in roles plus the store's own roles, grouped by department; picking one fills in its ticks */
 function RolePicker({
   role,
   templateId,
@@ -282,32 +289,36 @@ function RolePicker({
           );
         })}
       </div>
-      {(templates.length > 0 || onNewRole) && (
-        <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Your roles</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {templates.map((t) => (
-              <button key={t.id} type="button" disabled={disabled} onClick={() => onPick(t.baseRole, t)} className={card(templateId === t.id, false)}>
-                <p className="text-sm font-medium text-slate-800">{t.name}</p>
-                <p className="text-xs text-slate-500">
-                  {t.description || `${t.permissions.length} permissions`} · based on {roleName(t.baseRole)}
-                </p>
-              </button>
-            ))}
-            {onNewRole && !disabled && (
-              <button
-                type="button"
-                onClick={onNewRole}
-                className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-left text-sm font-medium text-brand-700 hover:bg-slate-50"
-              >
-                <span className="inline-flex items-center gap-1">
-                  <Plus className="size-4" /> New role…
-                </span>
-                <p className="text-xs font-normal text-slate-500">Save a set of ticks under a name to reuse for other staff</p>
-              </button>
-            )}
-          </div>
+      {templates.length > 0 && (
+        <div className="space-y-2">
+          {groupByDepartment(templates).map(([dept, list]) => (
+            <div key={dept}>
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{dept}</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {list.map((t) => (
+                  <button key={t.id} type="button" disabled={disabled} onClick={() => onPick(t.baseRole, t)} className={card(templateId === t.id, false)}>
+                    <p className="text-sm font-medium text-slate-800">{t.name}</p>
+                    <p className="text-xs text-slate-500">
+                      {t.description || `${t.permissions.length} permissions`} · based on {roleName(t.baseRole)}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
+      )}
+      {onNewRole && !disabled && (
+        <button
+          type="button"
+          onClick={onNewRole}
+          className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-left text-sm font-medium text-brand-700 hover:bg-slate-50"
+        >
+          <span className="inline-flex items-center gap-1">
+            <Plus className="size-4" /> New role…
+          </span>
+          <p className="text-xs font-normal text-slate-500">Save a set of ticks under a name and a department to reuse for other staff</p>
+        </button>
       )}
     </div>
   );

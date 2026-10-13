@@ -101,7 +101,7 @@ export interface User {
   permissions: string[];
   /** Custom role (named set of ticks) the user was given, if any */
   roleTemplateId?: string | null;
-  roleTemplate?: { id: string; name: string } | null;
+  roleTemplate?: { id: string; name: string; department?: { id: string; name: string } | null } | null;
   isActive: boolean;
   lastLoginAt?: string | null;
   createdAt: string;
@@ -120,7 +120,17 @@ export interface RoleTemplate {
   baseRole: Role;
   permissions: string[];
   userCount: number;
+  departmentId?: string | null;
+  department?: { id: string; name: string } | null;
   createdAt?: string;
+}
+
+/** A department groups the custom roles of one function (Procurement, Sales, Warehouse...) */
+export interface Department {
+  id: string;
+  name: string;
+  description?: string | null;
+  roleCount: number;
 }
 
 // ───────────────────────── Authority limits & approvals ─────────────────────────

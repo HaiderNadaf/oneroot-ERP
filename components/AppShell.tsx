@@ -4,15 +4,12 @@ import {
   BadgeCheck,
   BarChart3,
   Bell,
-  BellRing,
-  BookOpen,
   Boxes,
   FileMinus,
   PackageCheck,
   ClipboardList,
   FileText,
   IndianRupee,
-  Landmark,
   LayoutDashboard,
   Package,
   Receipt,
@@ -21,7 +18,6 @@ import {
   ShieldCheck,
   ShoppingCart,
   Store,
-  Tags,
   Truck,
   Undo2,
   UserCog,
@@ -30,6 +26,7 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  UserRoundPlus,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -44,7 +41,7 @@ import {
 
 import { useAuth } from "@/lib/auth";
 import { BranchProvider, useBranch } from "@/lib/branch";
-import type { Permission } from "@/lib/permissions";
+import type { Role } from "@/lib/types";
 import { CountsProvider, useCounts } from "./Notifications";
 import { TopBar } from "./TopBar";
 import { Spinner, cx } from "./ui";
@@ -53,8 +50,7 @@ export interface NavItem {
   href: string;
   label: string;
   icon: ReactNode;
-  /** Shown (and the pages under it opened) only to users holding any of these; none = everyone */
-  perms?: Permission[];
+  roles?: Role[];
   badge?: "unread" | "approvals";
 }
 
@@ -82,80 +78,101 @@ export const NAV: NavGroup[] = [
   {
     section: "Sales",
     items: [
-      { href: "/sales/new", label: "New Sale (POS)", icon: <ShoppingCart />, perms: ["sales.bill"] },
-      { href: "/sales", label: "Invoices", icon: <Receipt />, perms: ["sales.bill"] },
-      { href: "/sales/returns", label: "Sales Returns", icon: <Undo2 />, perms: ["sales.returns"] },
-      { href: "/customers", label: "Customers", icon: <Users />, perms: ["customers.view"] },
-      { href: "/customers/reminders", label: "Due Reminders", icon: <BellRing />, perms: ["customers.view"] },
-      { href: "/approvals", label: "Approvals", icon: <BadgeCheck />, badge: "approvals" },
-      { href: "/van", label: "Van Trips", icon: <Truck />, perms: ["sales.van"] },
+      {
+        href: "/sales/new",
+        label: "New Sale (POS)",
+        icon: <ShoppingCart />,
+      },
+      {
+        href: "/sales",
+        label: "Invoices",
+        icon: <Receipt />,
+      },
+      {
+        href: "/sales/returns",
+        label: "Sales Returns",
+        icon: <Undo2 />,
+      },
+      {
+        href: "/customers",
+        label: "Customers",
+        icon: <Users />,
+      },
     ],
   },
   {
     section: "Purchasing",
     items: [
-      { href: "/vendors", label: "Vendors", icon: <Boxes />, perms: ["vendors.view"] },
+      {
+        href: "/vendors",
+        label: "Vendors",
+        icon: <Boxes />,
+      },
+      {
+        href: "/agents",
+        label: "Agents",
+        icon: <UserRoundPlus />,
+      },
       {
         href: "/purchase-orders",
         label: "Purchase Orders",
         icon: <ClipboardList />,
-        perms: ["purchases.view"],
+        roles: ["MANAGER", "ACCOUNTANT"],
       },
       {
         href: "/goods-inward",
         label: "Goods Inward (GRN)",
         icon: <PackageCheck />,
-        perms: ["purchases.view"],
+        roles: ["MANAGER", "ACCOUNTANT"],
       },
       {
         href: "/purchases",
         label: "Purchase Invoices",
         icon: <Truck />,
-        perms: ["purchases.view"],
+        roles: ["MANAGER", "ACCOUNTANT"],
       },
       {
         href: "/debit-notes",
         label: "Debit & Credit Notes",
         icon: <FileMinus />,
-        perms: ["purchases.view"],
+        roles: ["MANAGER", "ACCOUNTANT"],
       },
     ],
   },
   {
     section: "Inventory",
     items: [
-      { href: "/products", label: "Products", icon: <Package />, perms: ["products.view"] },
-      { href: "/inventory", label: "Stock & Batches", icon: <RotateCcw />, perms: ["inventory.view"] },
       {
-        href: "/inventory/govt-match",
-        label: "Govt Fertiliser Match",
-        icon: <ShieldCheck />,
-        perms: ["inventory.govt"],
+        href: "/products",
+        label: "Products",
+        icon: <Package />,
+      },
+      {
+        href: "/inventory",
+        label: "Stock & Batches",
+        icon: <RotateCcw />,
       },
     ],
   },
   {
     section: "Finance",
     items: [
-      { href: "/shifts", label: "Shifts & Cash", icon: <Landmark />, perms: ["cash.shifts"] },
-      { href: "/payments", label: "Payments", icon: <IndianRupee />, perms: ["payments.view"] },
+      {
+        href: "/payments",
+        label: "Payments",
+        icon: <IndianRupee />,
+      },
       {
         href: "/expenses",
         label: "Expenses",
         icon: <Wallet />,
-        perms: ["expenses"],
-      },
-      {
-        href: "/accounts",
-        label: "Accounts",
-        icon: <BookOpen />,
-        perms: ["accounts.view"],
+        roles: ["MANAGER", "ACCOUNTANT"],
       },
       {
         href: "/reports",
         label: "Reports",
         icon: <BarChart3 />,
-        perms: ["reports.view"],
+        roles: ["MANAGER", "ACCOUNTANT"],
       },
     ],
   },
@@ -177,53 +194,40 @@ export const NAV: NavGroup[] = [
         href: "/admin/users",
         label: "Users",
         icon: <UserCog />,
-        perms: ["admin.users"],
-      },
-      {
-        href: "/admin/roles",
-        label: "Roles & Limits",
-        icon: <ShieldCheck />,
-        perms: ["admin.roles"],
-      },
-      {
-        href: "/admin/schemes",
-        label: "Schemes & Pricing",
-        icon: <Tags />,
-        perms: ["admin.schemes"],
+        roles: ["ADMIN"],
       },
       {
         href: "/admin/branches",
         label: "Branches",
         icon: <Store />,
-        perms: ["admin.branches"],
+        roles: ["ADMIN"],
       },
       {
         href: "/admin/settings",
         label: "Store Settings",
         icon: <Settings />,
-        perms: ["admin.settings"],
+        roles: ["ADMIN"],
       },
       {
         href: "/admin/approval-rules",
         label: "PO Approval Rules",
         icon: <BadgeCheck />,
-        perms: ["admin.approval_rules"],
+        roles: ["ADMIN"],
       },
       {
         href: "/admin/audit",
         label: "Audit Log",
         icon: <ShieldCheck />,
-        perms: ["admin.audit"],
+        roles: ["ADMIN"],
       },
     ],
   },
 ];
 
-/** Pages under a gated sidebar item that any signed-in user may open (e.g. a named PO approver) */
-const OPEN_ROUTES = ["/purchase-orders/approvals"];
-
-/** Most specific nav item wins, so /sales/new doesn't also light up /sales */
-function activeHref(pathname: string) {
+/**
+ * Find the most specific matching route.
+ */
+function activeHref(pathname: string): string {
   let best = "";
 
   for (const group of NAV) {
@@ -259,8 +263,7 @@ function getActiveSection(pathname: string): string {
 }
 
 /**
- * Sidebar navigation with single-open accordion behavior: the menu holding the current page opens by itself,
- * and a click on a menu header opens it (closing the others) or closes it.
+ * Sidebar navigation with single-open accordion behavior.
  */
 function NavLinks({
   onNavigate,
@@ -274,12 +277,16 @@ function NavLinks({
   const active = activeHref(pathname);
   const activeSection = getActiveSection(pathname);
 
-  // A header click holds until the page moves to another menu, which then opens instead
-  const [toggled, setToggled] = useState<{ at: string; open: string } | null>(null);
-  const openSection = toggled?.at === activeSection ? toggled.open : activeSection;
+  const [openSection, setOpenSection] = useState("");
+
+  useEffect(() => {
+    setOpenSection(activeSection);
+  }, [activeSection]);
 
   function toggleSection(section: string) {
-    setToggled({ at: activeSection, open: openSection === section ? "" : section });
+    setOpenSection((current) =>
+      current === section ? "" : section,
+    );
   }
 
   return (
@@ -289,7 +296,7 @@ function NavLinks({
     >
       {NAV.map((group, groupIndex) => {
         const items = group.items.filter(
-          (item) => !item.perms || can(...item.perms),
+          (item) => !item.roles || can(...item.roles),
         );
 
         if (items.length === 0) {
@@ -500,24 +507,49 @@ export function AppShell({
   const [drawer, setDrawer] = useState(false);
   const [drawerMounted, setDrawerMounted] = useState(false);
 
-  // Mount the drawer closed, then slide it in on the next frame so the opening transition runs
-  function openDrawer() {
-    setDrawerMounted(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => setDrawer(true)));
-  }
-
-  // Slide out; the overlay's transition end unmounts it
-  function closeDrawer() {
-    setDrawer(false);
-  }
-
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/login");
     }
   }, [loading, user, router]);
 
-  if (loading || !user) return <Spinner className="min-h-screen" />;
+  // Prevent background scrolling while the drawer is open.
+  useEffect(() => {
+    if (!drawer) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [drawer]);
+
+  // Mount the drawer before starting the opening animation.
+  useEffect(() => {
+    if (drawer) {
+      setDrawerMounted(true);
+    }
+  }, [drawer]);
+
+  function openDrawer() {
+    setDrawerMounted(true);
+
+    // Start the transition after the drawer has mounted.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setDrawer(true);
+      });
+    });
+  }
+
+  function closeDrawer() {
+    setDrawer(false);
+  }
+
+  if (loading || !user) {
+    return <Spinner className="min-h-screen" />;
+  }
 
   return (
     <BranchProvider
@@ -588,7 +620,7 @@ export function AppShell({
           <main className="mx-auto max-w-[1440px] p-4 lg:p-6">
             <BranchScope>
               <Suspense fallback={<Spinner />}>
-                <RouteGate>{children}</RouteGate>
+                {children}
               </Suspense>
             </BranchScope>
           </main>
@@ -619,40 +651,33 @@ function BranchScope({
   return <Fragment key={version}>{children}</Fragment>;
 }
 
-function NoAccess() {
-  return (
-    <div className="mx-auto mt-20 max-w-md text-center">
-      <FileText className="mx-auto size-10 text-slate-300" />
-      <p className="mt-3 font-medium text-slate-700">
-        You don&apos;t have access to this page
-      </p>
-      <p className="mt-1 text-sm text-slate-500">
-        Ask an administrator to give you this permission in Users.
-      </p>
-    </div>
-  );
-}
-
-/** Pages inherit the permission of the sidebar item they sit under (typed URLs included) */
-function RouteGate({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const { can } = useAuth();
-  if (OPEN_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"))) return <>{children}</>;
-  const href = activeHref(pathname);
-  const item = NAV.flatMap((g) => g.items).find((i) => i.href === href);
-  if (item?.perms && !can(...item.perms)) return <NoAccess />;
-  return <>{children}</>;
-}
-
-/** Wrap a page (or part of one) that needs a permission beyond its sidebar item's */
-export function RequirePerm({
-  perms,
+/**
+ * Restrict a page to users with the specified roles.
+ */
+export function RequireRole({
+  roles,
   children,
 }: {
-  perms: Permission[];
+  roles: Role[];
   children: ReactNode;
 }) {
   const { can } = useAuth();
-  if (!can(...perms)) return <NoAccess />;
+
+  if (!can(...roles)) {
+    return (
+      <div className="mx-auto mt-20 max-w-md text-center">
+        <FileText className="mx-auto size-10 text-slate-300" />
+
+        <p className="mt-3 font-medium text-slate-700">
+          You don&apos;t have access to this page
+        </p>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Ask an administrator to change your role.
+        </p>
+      </div>
+    );
+  }
+
   return <>{children}</>;
 }

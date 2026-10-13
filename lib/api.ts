@@ -64,6 +64,9 @@ export function setBranchId(id: string | null) {
   }
 }
 
+/** The API's reply when X-Branch-Id names a branch that no longer exists (see backend auth.guard.ts) */
+const STALE_BRANCH_MESSAGE = "That branch does not exist or is inactive";
+
 interface SendOptions {
   /** Override the top-bar branch (queued offline bills belong to the branch they were made in) */
   branchId?: string | null;
@@ -101,7 +104,13 @@ async function request<T>(method: string, path: string, body?: unknown, opts?: S
       throw new ApiError(0, e instanceof Error ? `Network error: ${e.message}` : "Network error");
     }
   }
-  const data = await res.json().catch(() => null);
+  let data = await res.json().catch(() => null);
+  // The branch saved in this browser was deleted or deactivated: forget it and retry without it
+  if (res.status === 403 && data?.message === STALE_BRANCH_MESSAGE && !opts?.branchId && getBranch()) {
+    setBranchId(null);
+    res = await send(method, path, body, opts);
+    data = await res.json().catch(() => null);
+  }
   if (!res.ok) {
     if (res.status === 401 && path !== "/auth/login") {
       setToken(null);

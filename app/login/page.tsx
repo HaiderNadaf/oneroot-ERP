@@ -45,7 +45,7 @@ export default function LoginPage() {
           className="mx-auto mb-6 h-auto w-60"
         />
         <div className="rounded-2xl bg-white p-8 shadow-2xl">
-          <div className="mb-6">
+          <div className="mb-6 flex flex-col items-center justify-center text-center">
             <h1 className="text-lg font-semibold text-slate-900">Sign in</h1>
             <p className="text-xs text-slate-500">
               Agri Inputs ERP — use your store account
@@ -64,7 +64,7 @@ export default function LoginPage() {
             </Field>
             <Field label="Password">
               <Input
-                type="password"
+                isPassword
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

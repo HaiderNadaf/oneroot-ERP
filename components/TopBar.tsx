@@ -27,7 +27,7 @@ import { useBranch } from "@/lib/branch";
 import { date, inr, n, qty } from "@/lib/format";
 import { useDebounced } from "@/lib/hooks";
 import { NotificationBell } from "./Notifications";
-import { cx } from "./ui";
+import { Dropdown, cx } from "./ui";
 
 interface SearchResults {
   products: { id: string; name: string; sku: string; unit: string; stock: string; isActive: boolean }[];
@@ -203,7 +203,7 @@ function GlobalSearch() {
         </kbd>
       )}
       {open && debounced.length >= 2 && (ready || loading) && (
-        <div className="absolute left-0 right-0 z-50 mt-1.5 max-h-[70vh] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl sm:min-w-[28rem]">
+        <div className="absolute left-0 right-0 z-50 mt-1.5 max-h-[70vh] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
           {ready && hits.length === 0 && <p className="px-4 py-6 text-center text-sm text-slate-400">No matches for “{debounced}”</p>}
           {hits.map((h, i) => (
             <div key={h.key}>
@@ -303,6 +303,7 @@ function UserMenu() {
 /** "Branch: Main Branch ▾" — staff locked to a branch just see its name */
 function BranchPicker() {
   const { branches, currentId, current, locked, canViewAll, setBranch } = useBranch();
+  const box = useRef<HTMLDivElement>(null);
   const shell = "flex h-10 shrink-0 items-center gap-2 rounded-[9px] border border-[#e1e6d8] bg-white px-2.5";
   const label = <span className="hidden text-[11px] font-medium uppercase tracking-[0.06em] text-[#5f6e60] md:inline">Branch</span>;
   if (locked || branches.length <= 1) {
@@ -315,23 +316,23 @@ function BranchPicker() {
     );
   }
   return (
-    <label className={cx(shell, "cursor-pointer focus-within:border-brand-500")}>
+    <div ref={box} className={cx(shell, "focus-within:border-brand-500")}>
       <Store className="size-4 text-brand-600" />
       {label}
-      <select
+      <Dropdown
+        bare
+        anchor={box}
+        options={[
+          ...(canViewAll ? [{ value: "all", label: "All branches" }] : []),
+          ...branches.map((b) => ({ value: b.id, label: b.name })),
+        ]}
         value={currentId}
-        onChange={(e) => setBranch(e.target.value)}
-        className="max-w-40 cursor-pointer bg-transparent text-sm font-semibold text-slate-800 outline-none"
+        onChange={setBranch}
+        isSearch={branches.length > 10}
+        className="w-auto max-w-44 font-semibold text-slate-800"
         aria-label="Branch"
-      >
-        {canViewAll && <option value="all">All branches</option>}
-        {branches.map((b) => (
-          <option key={b.id} value={b.id}>
-            {b.name}
-          </option>
-        ))}
-      </select>
-    </label>
+      />
+    </div>
   );
 }
 

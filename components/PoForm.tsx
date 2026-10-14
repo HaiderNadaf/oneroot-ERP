@@ -1,11 +1,12 @@
 "use client";
 
-import { AlertTriangle, ListPlus, PackagePlus, Route, Send, Save, Trash2 } from "lucide-react";
+import { AlertTriangle, FileText, ListPlus, PackagePlus, Route, Send, Save, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useBranchOptions } from "@/components/BranchNotice";
 import { useCounts } from "@/components/Notifications";
 import { ProductPicker, VendorPicker } from "@/components/pickers";
+import { PoTermsModal } from "@/components/PoTermsModal";
 import { Button, Card, Field, Input, Select, Spinner, Table, Td, Textarea, Th, cx, errMsg, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useBranch } from "@/lib/branch";
@@ -58,6 +59,9 @@ export function isInterState(
   return placeOfSupply(vendor, store).interState === true;
 }
 
+/** How long a PO stays valid; the backend accepts only these */
+const PO_EXPIRY_DAYS = [7, 14];
+
 /** Create or edit a purchase order; pass `po` to edit */
 export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendorId?: string | null }) {
   const router = useRouter();
@@ -68,6 +72,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
   const [vendor, setVendor] = useState<Vendor | null>(po?.vendor ?? null);
   const [orderDate, setOrderDate] = useState(po ? today(new Date(po.orderDate)) : today());
   const [expectedDate, setExpectedDate] = useState(po?.expectedDate ? today(new Date(po.expectedDate)) : "");
+  const [expiryDays, setExpiryDays] = useState(po?.expiryDays ? String(po.expiryDays) : "");
   const [lines, setLines] = useState<PoLine[]>(() =>
     // Negative keys for loaded lines so they never clash with lines added later
     (po?.items ?? []).map((i, idx) => ({
@@ -82,6 +87,10 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
     })),
   );
   const [notes, setNotes] = useState(po?.notes ?? "");
+  const [termsOpen, setTermsOpen] = useState(false);
+  const [transportCharges, setTransportCharges] = useState(po && n(po.transportCharges) ? String(n(po.transportCharges)) : "");
+  const [otherCharges, setOtherCharges] = useState(po && n(po.otherCharges) ? String(n(po.otherCharges)) : "");
+  const [otherChargesNote, setOtherChargesNote] = useState(po?.otherChargesNote ?? "");
   // Deliver-to branch: where the goods are received (GRN) and stocked
   const { currentId } = useBranch();
   const { branches: branchOptions, loading: branchesLoading } = useBranchOptions();
@@ -169,8 +178,14 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
   const update = (key: number, patch: Partial<PoLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
   const subtotal = round2(lines.reduce((s, l) => s + lineTaxable(l), 0));
-  const total = round2(lines.reduce((s, l) => s + lineAmount(l), 0));
-  const tax = round2(total - subtotal);
+  const itemsTotal = round2(lines.reduce((s, l) => s + lineAmount(l), 0));
+  const tax = round2(itemsTotal - subtotal);
+  const charges = round2(Math.max(0, Number(transportCharges) || 0) + Math.max(0, Number(otherCharges) || 0));
+  // Charges count towards the PO value, and so towards the approval route
+  const raw = round2(itemsTotal + charges);
+  // Whole rupees, as the backend saves it: up to .49 goes down, .50 and above goes up
+  const total = Math.round(raw);
+  const roundOff = round2(total - raw);
   const igst = isInterState(vendor, store);
   const pos = placeOfSupply(vendor, store);
   const cgst = round2(tax / 2);
@@ -187,15 +202,21 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
       if (!(Number(l.quantity) > 0)) return toast.error(`Enter a quantity for ${l.name}`);
       if (!(Number(l.rate) > 0)) return toast.error(`Enter the rate for ${l.name}`);
     }
-    if (expectedDate && expectedDate < orderDate) return toast.error("Expected delivery is before the PO date");
+    if (expectedDate && expectedDate < orderDate) return toast.error("Expected delivery is before the invoice date");
+    if (!expiryDays) return toast.error("Choose the expiry days");
+    if (Number(transportCharges) < 0 || Number(otherCharges) < 0) return toast.error("Charges can't be negative");
     setSaving(submit ? "submit" : "draft");
     const body = {
       vendorId: vendor.id,
       branchId,
       orderDate,
       expectedDate: expectedDate || undefined,
+      expiryDays: Number(expiryDays),
       items: lines.map((l) => ({ productId: l.productId, quantity: Number(l.quantity), rate: Number(l.rate) })),
       notes: notes.trim() || undefined,
+      transportCharges: Number(transportCharges) || 0,
+      otherCharges: Number(otherCharges) || 0,
+      otherChargesNote: otherChargesNote.trim() || undefined,
       submit,
     };
     try {
@@ -241,11 +262,12 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
       )}
 
       <Card className="mb-4">
-        <div className={cx("grid grid-cols-1 gap-3 sm:grid-cols-2", showBranch ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
+        <div className={cx("grid grid-cols-1 gap-3 sm:grid-cols-2", showBranch ? "lg:grid-cols-6" : "lg:grid-cols-5")}>
           <Field label="Vendor" required className="sm:col-span-2">
             <VendorPicker value={vendor} onChange={setVendor} autoFocus={!vendor} />
           </Field>
-          <Field label="PO date" required>
+          {/* Past dates are allowed, e.g. to record an order already placed with the vendor */}
+          <Field label="Invoice date" required>
             <Input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} required />
           </Field>
           <Field label="Expected delivery">
@@ -272,6 +294,16 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
               </Select>
             </Field>
           )}
+          <Field label="Expiry Days" required>
+            <Select value={expiryDays} onChange={(e) => setExpiryDays(e.target.value)} className={cx(!expiryDays && "border-amber-400 bg-amber-50")}>
+              <option value="">Choose…</option>
+              {PO_EXPIRY_DAYS.map((d) => (
+                <option key={d} value={d}>
+                  {d} days
+                </option>
+              ))}
+            </Select>
+          </Field>
         </div>
         {vendor && (
           <p className="mt-2 text-xs text-slate-500">
@@ -301,6 +333,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
               <Th>Product</Th>
               <Th right>In stock</Th>
               <Th right>Qty</Th>
+              <Th>UOM</Th>
               <Th right>Rate (excl. GST)</Th>
               <Th right>GST</Th>
               <Th right>Amount (incl. GST)</Th>
@@ -310,7 +343,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
           <tbody>
             {!lines.length ? (
               <tr>
-                <td colSpan={7} className="px-3 py-12 text-center text-sm text-slate-400">
+                <td colSpan={8} className="px-3 py-12 text-center text-sm text-slate-400">
                   <PackagePlus className="mx-auto mb-2 size-7 text-slate-300" />
                   Search above to add products, or add everything that&apos;s below its reorder level
                 </td>
@@ -320,9 +353,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
                 <tr key={l.key}>
                   <Td className="min-w-56">
                     <p className="font-medium text-slate-900">{l.name}</p>
-                    <p className="text-xs text-slate-500">
-                      {l.sku} · {l.unit}
-                    </p>
+                    <p className="text-xs text-slate-500">{l.sku}</p>
                   </Td>
                   <Td right className={cx("whitespace-nowrap text-slate-500", l.stock !== undefined && l.stock <= 0 && "text-red-600")}>
                     {l.stock === undefined ? "—" : qty(l.stock)}
@@ -338,6 +369,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
                       aria-label={`Quantity of ${l.name}`}
                     />
                   </Td>
+                  <Td className="whitespace-nowrap text-slate-600">{l.unit}</Td>
                   <Td right>
                     <Input
                       type="number"
@@ -415,6 +447,16 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Why this order, scheme / discount agreed, delivery instructions…"
             />
+            <button
+              type="button"
+              onClick={() => setTermsOpen(true)}
+              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-800 hover:underline"
+            >
+              <FileText className="size-4" />
+              Terms & conditions
+              <span className="text-red-500">*</span>
+            </button>
+            <PoTermsModal open={termsOpen} onClose={() => setTermsOpen(false)} />
           </Card>
         </div>
 
@@ -429,6 +471,20 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
                 <TotalRow label="SGST" value={inr(round2(tax - cgst))} />
               </>
             )}
+            <div className="space-y-2 border-t border-dashed border-slate-200 pt-2">
+              <ChargeInput label="Transportation charges" value={transportCharges} onChange={setTransportCharges} />
+              <ChargeInput label="Other charges" value={otherCharges} onChange={setOtherCharges} />
+              {Number(otherCharges) > 0 && (
+                <Input
+                  value={otherChargesNote}
+                  onChange={(e) => setOtherChargesNote(e.target.value)}
+                  placeholder="What for? e.g. loading, packing"
+                  className="h-8 text-xs"
+                  aria-label="Other charges description"
+                />
+              )}
+            </div>
+            {roundOff !== 0 && <TotalRow label="Round off" value={`${roundOff > 0 ? "+" : "−"}${inr(Math.abs(roundOff))}`} />}
             <div className="flex items-baseline justify-between border-t border-slate-200 pt-2">
               <dt className="font-semibold text-slate-900">PO total</dt>
               <dd className="num text-xl font-semibold text-slate-900">{inr(total)}</dd>
@@ -463,6 +519,27 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
         </Card>
       </div>
     </>
+  );
+}
+
+/** Amount box for a PO charge, laid out like a total row */
+function ChargeInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <dt className="text-slate-500">{label}</dt>
+      <dd>
+        <Input
+          type="number"
+          step="0.01"
+          min="0"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="0.00"
+          className="num h-8 w-28 text-right"
+          aria-label={label}
+        />
+      </dd>
+    </div>
   );
 }
 

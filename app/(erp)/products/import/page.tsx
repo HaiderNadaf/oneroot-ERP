@@ -1,42 +1,45 @@
 "use client";
 
 import { Download, FileUp, Upload } from "lucide-react";
+import type { Workbook } from "exceljs";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useNeedBranch } from "@/components/BranchNotice";
 import { Badge, Button, Card, Checkbox, PageHeader, Table, Td, Th, cx, errMsg, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { downloadText, parseCsv, toCsv } from "@/lib/csv";
+import { parseCsv, type ParsedCsv } from "@/lib/csv";
+import { downloadWorkbook, readSheet } from "@/lib/excel";
 import { useApi } from "@/lib/hooks";
-import type { Category } from "@/lib/types";
+import { GST_RATES, UNITS, type Category } from "@/lib/types";
 
-/** Columns the importer understands; the first alias is the template header */
-const COLUMNS: { key: string; aliases: string[]; hint: string; required?: boolean }[] = [
-  { key: "name", aliases: ["name", "product", "product name", "item"], hint: "Urea 45 kg", required: true },
-  { key: "sku", aliases: ["sku", "code", "item code"], hint: "blank = automatic" },
-  { key: "barcode", aliases: ["barcode", "ean", "upc"], hint: "from the pack" },
-  { key: "type", aliases: ["type", "product type"], hint: "SEED / FERTILIZER / PESTICIDE / EQUIPMENT / OTHER" },
-  { key: "category", aliases: ["category", "category name", "category code"], hint: "name or SKU code of an existing category" },
-  { key: "brand", aliases: ["brand"], hint: "" },
-  { key: "manufacturer", aliases: ["manufacturer", "company"], hint: "" },
-  { key: "technicalName", aliases: ["technical name", "technical_name", "composition", "active ingredient"], hint: "Imidacloprid 17.8% SL" },
-  { key: "hsnCode", aliases: ["hsn", "hsn code", "hsn_code"], hint: "3105" },
-  { key: "gstRate", aliases: ["gst", "gst %", "gst rate", "gst_rate", "tax"], hint: "0 / 5 / 12 / 18 / 28" },
-  { key: "unit", aliases: ["unit", "uom"], hint: "BAG, KG, LTR, PKT, NOS…" },
-  { key: "packSize", aliases: ["pack size", "pack_size", "pack", "size"], hint: "50 kg bag" },
-  { key: "mrp", aliases: ["mrp"], hint: "" },
-  { key: "salePrice", aliases: ["sale price", "sale_price", "selling price", "price", "rate"], hint: "incl. GST", required: true },
-  { key: "purchasePrice", aliases: ["purchase price", "purchase_price", "cost", "cost price"], hint: "excl. GST" },
-  { key: "reorderLevel", aliases: ["reorder level", "reorder_level", "min stock", "reorder"], hint: "" },
-  { key: "trackBatch", aliases: ["track batch", "track_batch", "batches"], hint: "yes / no" },
-  { key: "isSubsidised", aliases: ["subsidised", "subsidized", "is_subsidised", "govt subsidised"], hint: "yes / no" },
-  { key: "trackSerial", aliases: ["track serial", "track_serial", "serial"], hint: "yes / no (equipment)" },
-  { key: "location", aliases: ["location", "rack", "bin", "shelf"], hint: "Rack A3" },
-  { key: "openingQty", aliases: ["opening qty", "opening_qty", "opening stock", "stock", "qty", "quantity"], hint: "goes into the selected branch" },
-  { key: "batchNo", aliases: ["batch", "batch no", "batch_no", "lot"], hint: "for opening stock" },
-  { key: "expiryDate", aliases: ["expiry", "expiry date", "expiry_date", "exp"], hint: "YYYY-MM-DD" },
-  { key: "unitCost", aliases: ["unit cost", "unit_cost", "opening cost"], hint: "cost of opening stock" },
+/** Columns the importer understands, in template order; the first alias is the template header */
+const COLUMNS: { key: string; aliases: string[]; hint: string; required?: boolean; width?: number }[] = [
+  { key: "category", aliases: ["Category", "category name", "category code", "main category"], hint: "name or code from the Categories sheet", required: true, width: 20 },
+  { key: "subCategory", aliases: ["Sub-Category", "subcategory", "sub category", "sub-category name", "sub-category code"], hint: "a sub-category of that category", required: true, width: 30 },
+  { key: "name", aliases: ["Product Name", "name", "product", "item"], hint: "Roundup 5 L", required: true, width: 28 },
+  { key: "brand", aliases: ["Brand", "model", "brand/model"], hint: "", width: 16 },
+  { key: "manufacturer", aliases: ["Manufacturer", "company"], hint: "", width: 18 },
+  { key: "technicalName", aliases: ["Technical Name", "technical_name", "composition", "active ingredient"], hint: "Glyphosate 41% SL", width: 22 },
+  { key: "packSize", aliases: ["Pack Size", "pack_size", "pack", "size", "capacity"], hint: "5 L, 50 kg bag", width: 12 },
+  { key: "unit", aliases: ["Unit", "uom"], hint: "NOS, LTR, KG, GM, PKT, BAG…", width: 9 },
+  { key: "hsnCode", aliases: ["HSN Code", "hsn", "hsn_code"], hint: "3808", width: 10 },
+  { key: "gstRate", aliases: ["GST %", "gst", "gst rate", "gst_rate", "tax"], hint: "0 / 5 / 12 / 18 / 28", width: 8 },
+  { key: "purchasePrice", aliases: ["Purchase Price", "purchase_price", "cost", "cost price"], hint: "excl. GST", width: 13 },
+  { key: "salePrice", aliases: ["Selling Price", "sale price", "sale_price", "price", "rate"], hint: "incl. GST", required: true, width: 12 },
+  { key: "mrp", aliases: ["MRP"], hint: "", width: 10 },
+  { key: "reorderLevel", aliases: ["Reorder Level", "reorder_level", "min stock", "reorder"], hint: "alert at this stock", width: 12 },
+  { key: "barcode", aliases: ["Barcode", "ean", "upc"], hint: "from the pack", width: 16 },
+  { key: "location", aliases: ["Location", "rack", "bin", "shelf"], hint: "Rack A3", width: 12 },
+  { key: "trackBatch", aliases: ["Track Batch", "track_batch", "batches"], hint: "yes / no", width: 11 },
+  { key: "trackSerial", aliases: ["Track Serial", "track_serial", "serial"], hint: "yes / no (machinery)", width: 11 },
+  { key: "isSubsidised", aliases: ["Govt Subsidised", "subsidised", "subsidized", "is_subsidised"], hint: "yes / no (fertiliser)", width: 14 },
+  { key: "description", aliases: ["Notes", "description", "remarks"], hint: "", width: 24 },
+  { key: "openingQty", aliases: ["Opening Qty", "opening_qty", "opening stock", "stock", "qty", "quantity"], hint: "goes into the selected branch", width: 11 },
+  { key: "batchNo", aliases: ["Batch No", "batch", "batch_no", "lot"], hint: "for opening stock", width: 12 },
+  { key: "expiryDate", aliases: ["Expiry Date", "expiry", "expiry_date", "exp"], hint: "YYYY-MM-DD", width: 12 },
+  { key: "unitCost", aliases: ["Unit Cost", "unit_cost", "opening cost"], hint: "cost of opening stock", width: 10 },
+  { key: "sku", aliases: ["SKU", "item code"], hint: "only to update an existing product — leave blank, new SKUs are generated", width: 18 },
 ];
 
 type RowResult = { line: number; action: "create" | "update" | "skip" | "error"; sku?: string; name?: string; errors: string[]; warnings: string[] };
@@ -56,7 +59,7 @@ function Importer() {
   const toast = useToast();
   const needBranch = useNeedBranch("put opening stock in it");
   const fileRef = useRef<HTMLInputElement>(null);
-  const { data: categories } = useApi<Category[]>("/categories");
+  const { data: categories } = useApi<Category[]>("/categories", { withSubs: "true" });
   const [fileName, setFileName] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
@@ -65,14 +68,19 @@ function Importer() {
   const [busy, setBusy] = useState(false);
   const [unmapped, setUnmapped] = useState<string[]>([]);
 
-  function loadFile(file: File) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const { headers: hs, rows: rs } = parseCsv(String(reader.result ?? ""));
+  async function loadFile(file: File) {
+    let sheet: ParsedCsv;
+    try {
+      sheet = /\.csv$/i.test(file.name) ? parseCsv(await file.text()) : await readSheet(file, "Products");
+    } catch {
+      return toast.error("Couldn't read that file — upload an Excel .xlsx or a .csv");
+    }
+    {
+      const { headers: hs, rows: rs } = sheet;
       if (!hs.length || !rs.length) return toast.error("The file has no rows");
       // Map each header to a known column; "attr:xyz" (or a category field label) becomes an attribute
       const fieldLabels = new Map<string, string>();
-      for (const c of categories ?? []) {
+      for (const c of (categories ?? []).flatMap((t) => t.subCategories ?? [])) {
         for (const f of c.fields ?? []) {
           fieldLabels.set(norm(f.label), f.key);
           fieldLabels.set(norm(f.key), f.key);
@@ -104,8 +112,7 @@ function Importer() {
       setRows(parsed);
       setResult(null);
       setFileName(file.name);
-    };
-    reader.readAsText(file);
+    }
   }
 
   async function run(commit: boolean) {
@@ -123,14 +130,122 @@ function Importer() {
     }
   }
 
+  /** Excel template: one column per field, a Categories sheet with every code, and dropdowns where the values are fixed */
   function template() {
-    const hs = COLUMNS.map((c) => c.aliases[0]);
-    const sample = [
-      ["Urea 45 kg", "", "", "FERTILIZER", "Fertilizers", "IFFCO", "IFFCO", "Urea 46% N", "3102", "5", "BAG", "45 kg bag", "266.50", "266.50", "242", "20", "yes", "yes", "no", "Rack A1", "100", "", "", "242"],
-      ["Mancozeb 75% WP 1 kg", "", "", "PESTICIDE", "Pesticides", "Indofil", "Indofil", "Mancozeb 75% WP", "3808", "18", "PKT", "1 kg", "420", "400", "300", "10", "yes", "no", "no", "Rack B2", "24", "MZ2601", "2028-03-31", "300"],
-      ["Battery sprayer 16 L", "", "", "EQUIPMENT", "Equipment & Tools", "Neptune", "Neptune", "", "8424", "12", "NOS", "16 L", "3200", "2999", "2400", "2", "no", "no", "yes", "Store room", "3", "", "", "2400"],
+    const tops = categories ?? [];
+    const subsOf = (id: string) => tops.find((t) => t.id === id)?.subCategories ?? [];
+    const pick = (cat: string, sub: string) => {
+      const top = tops.find((t) => t.name === cat) ?? tops[0];
+      const child = top ? (subsOf(top.id).find((x) => x.name === sub) ?? subsOf(top.id)[0]) : undefined;
+      return [top?.name ?? "", child?.name ?? ""];
+    };
+    // Same product in three pack sizes = three sellable variants, each with its own SKU
+    const sample: Record<string, string | number>[] = [
+      ...["5 L", "10 L", "15 L"].map((size, i) => ({
+        ...Object.fromEntries(["category", "subCategory"].map((k, x) => [k, pick("Crop Protection Chemicals", "Herbicides")[x]])),
+        name: `Roundup ${size}`,
+        brand: "Roundup",
+        manufacturer: "Bayer",
+        technicalName: "Glyphosate 41% SL",
+        packSize: size,
+        unit: "LTR",
+        hsnCode: "3808",
+        gstRate: 18,
+        purchasePrice: [1900, 3700, 5400][i],
+        salePrice: [2450, 4800, 7000][i],
+        mrp: [2600, 5000, 7300][i],
+        reorderLevel: 5,
+        trackBatch: "yes",
+        trackSerial: "no",
+        isSubsidised: "no",
+      })),
+      {
+        ...Object.fromEntries(["category", "subCategory"].map((k, x) => [k, pick("Fertilizers", "Chemical Fertilizers")[x]])),
+        name: "Urea 45 kg",
+        brand: "IFFCO",
+        manufacturer: "IFFCO",
+        technicalName: "Urea 46% N",
+        packSize: "45 kg bag",
+        unit: "BAG",
+        hsnCode: "3102",
+        gstRate: 5,
+        purchasePrice: 242,
+        salePrice: 266.5,
+        mrp: 266.5,
+        reorderLevel: 20,
+        trackBatch: "yes",
+        trackSerial: "no",
+        isSubsidised: "yes",
+        openingQty: 100,
+        unitCost: 242,
+      },
+      {
+        ...Object.fromEntries(["category", "subCategory"].map((k, x) => [k, pick("Farm Machinery", "Spraying & Crop Protection Equipment")[x]])),
+        name: "Battery Sprayer 16 L",
+        brand: "Neptune",
+        manufacturer: "Neptune",
+        packSize: "16 L",
+        unit: "NOS",
+        hsnCode: "8424",
+        gstRate: 12,
+        purchasePrice: 2400,
+        salePrice: 2999,
+        mrp: 3200,
+        reorderLevel: 2,
+        trackBatch: "no",
+        trackSerial: "yes",
+        isSubsidised: "no",
+      },
     ];
-    downloadText("oneroot-products-template.csv", toCsv(hs, sample));
+
+    void downloadWorkbook("oneroot-products-template.xlsx", (wb: Workbook) => {
+      const ws = wb.addWorksheet("Products", { views: [{ state: "frozen", ySplit: 1 }] });
+      ws.columns = COLUMNS.map((c) => ({ header: c.aliases[0], key: c.key, width: c.width ?? 14 }));
+      const head = ws.getRow(1);
+      head.height = 22;
+      COLUMNS.forEach((c, i) => {
+        const cell = head.getCell(i + 1);
+        cell.font = { bold: true, color: { argb: c.required ? "FFFFE08A" : "FFFFFFFF" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E5631" } };
+        cell.alignment = { vertical: "middle" };
+        cell.note = `${c.required ? "Required. " : ""}${c.hint}`.trim() || c.aliases[0];
+      });
+      sample.forEach((r) => ws.addRow(r));
+
+      // Lists behind the dropdowns
+      const lists = wb.addWorksheet("Lists", { state: "hidden" });
+      tops.forEach((t, i) => (lists.getCell(i + 1, 1).value = t.name));
+      UNITS.forEach((u, i) => (lists.getCell(i + 1, 2).value = u));
+      GST_RATES.forEach((g, i) => (lists.getCell(i + 1, 3).value = g));
+      ["yes", "no"].forEach((y, i) => (lists.getCell(i + 1, 4).value = y));
+      const col = (key: string) => COLUMNS.findIndex((c) => c.key === key) + 1;
+      const validate = (key: string, range: string) => {
+        for (let r = 2; r <= 1000; r++) {
+          ws.getCell(r, col(key)).dataValidation = { type: "list", allowBlank: true, formulae: [range] };
+        }
+      };
+      if (tops.length) validate("category", `Lists!$A$1:$A$${tops.length}`);
+      validate("unit", `Lists!$B$1:$B$${UNITS.length}`);
+      validate("gstRate", `Lists!$C$1:$C$${GST_RATES.length}`);
+      for (const k of ["trackBatch", "trackSerial", "isSubsidised"]) validate(k, "Lists!$D$1:$D$2");
+
+      // Every category / sub-category with its code and where its SKUs start
+      const ref = wb.addWorksheet("Categories", { views: [{ state: "frozen", ySplit: 1 }] });
+      ref.columns = [
+        { header: "Category", key: "cat", width: 20 },
+        { header: "Category code", key: "catCode", width: 14 },
+        { header: "Sub-Category", key: "sub", width: 40 },
+        { header: "Sub-category code", key: "subCode", width: 17 },
+        { header: "SKUs start at", key: "sku", width: 18 },
+      ];
+      ref.getRow(1).font = { bold: true };
+      for (const t of tops) {
+        for (const c of subsOf(t.id)) {
+          const width = 11 - (t.code ?? "").length - (c.code ?? "").length;
+          ref.addRow({ cat: t.name, catCode: t.code, sub: c.name, subCode: c.code, sku: t.code && c.code ? `ORI${t.code}${c.code}${"1".padStart(width, "0")}` : "" });
+        }
+      }
+    });
   }
 
   const ok = result ? result.rows.filter((r) => r.action !== "error").length : 0;
@@ -139,7 +254,7 @@ function Importer() {
     <>
       <PageHeader
         title="Import products"
-        subtitle="Upload a CSV (from Excel: Save as → CSV UTF-8). Rows are matched to existing products by SKU or barcode; the rest are created."
+        subtitle="Upload the Excel template (or a CSV) — one product per row, one field per column. Every new product gets its own ORI SKU; rows with an existing SKU or barcode update that product."
         actions={
           <>
             <Button variant="secondary" icon={<Download className="size-4" />} onClick={template}>
@@ -157,11 +272,11 @@ function Importer() {
           <input
             ref={fileRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
-              if (f) loadFile(f);
+              if (f) void loadFile(f);
               e.target.value = "";
             }}
           />
@@ -172,7 +287,7 @@ function Importer() {
             onDrop={(e) => {
               e.preventDefault();
               const f = e.dataTransfer.files?.[0];
-              if (f) loadFile(f);
+              if (f) void loadFile(f);
             }}
             className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-slate-300 px-4 py-8 text-sm text-slate-600 hover:border-brand-500 hover:bg-brand-50/40"
           >
@@ -182,7 +297,7 @@ function Importer() {
                 <b>{fileName}</b> · {rows.length} rows
               </span>
             ) : (
-              <span>Drop a CSV here or click to choose</span>
+              <span>Drop an Excel (.xlsx) or CSV file here, or click to choose</span>
             )}
           </button>
           {unmapped.length > 0 && (
@@ -248,8 +363,8 @@ function Importer() {
                     <tr>
                       <Th>Line</Th>
                       <Th>Name</Th>
+                      <Th>Category › Sub-category</Th>
                       <Th>SKU</Th>
-                      <Th>Type</Th>
                       <Th right>Price</Th>
                       <Th right>Opening</Th>
                       <Th>Result</Th>
@@ -262,8 +377,11 @@ function Importer() {
                         <tr key={i} className={cx(res?.action === "error" && "bg-red-50/60")}>
                           <Td className="text-xs text-slate-400">{String(r.line)}</Td>
                           <Td className="font-medium">{String(r.name ?? "")}</Td>
-                          <Td className="font-mono text-xs">{res?.sku ?? String(r.sku ?? "")}</Td>
-                          <Td className="text-xs">{String(r.type ?? "")}</Td>
+                          <Td className="text-xs text-slate-600">{[r.category, r.subCategory].filter(Boolean).map(String).join(" › ")}</Td>
+                          <Td className="whitespace-nowrap font-mono text-xs">
+                            {res?.sku ?? String(r.sku ?? "")}
+                            {res?.sku && res.action === "create" && !result?.committed && <span className="ml-1 font-sans text-slate-400">(next free)</span>}
+                          </Td>
                           <Td right className="num">
                             {String(r.salePrice ?? "")}
                           </Td>

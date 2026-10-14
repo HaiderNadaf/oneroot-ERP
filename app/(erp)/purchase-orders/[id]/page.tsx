@@ -199,7 +199,7 @@ export default function PurchaseOrderDetailPage() {
                 )}
               </div>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                <dt className="text-slate-500">PO date</dt>
+                <dt className="text-slate-500">Invoice date</dt>
                 <dd className="font-medium text-slate-900">{date(po.orderDate)}</dd>
                 <dt className="text-slate-500">Expected</dt>
                 <dd>
@@ -210,6 +210,8 @@ export default function PurchaseOrderDetailPage() {
                     </span>
                   )}
                 </dd>
+                <dt className="text-slate-500">Expiry</dt>
+                <dd>{po.expiryDays ? `${po.expiryDays} days` : "—"}</dd>
                 <dt className="text-slate-500">Vendor GSTIN</dt>
                 <dd className="font-mono text-xs">{v?.gstin || "—"}</dd>
                 <dt className="text-slate-500">Place of supply</dt>
@@ -298,7 +300,7 @@ export default function PurchaseOrderDetailPage() {
                   <Td />
                   <Td />
                   <Td right className="text-slate-900">
-                    {inr(po.totalAmount)}
+                    {inr(round2(n(po.subtotal) + n(po.taxAmount)))}
                   </Td>
                   <Td right className="print:hidden">{qty(sum("passedQty"))}</Td>
                   <Td right className="print:hidden">{qty(sum("rejectedQty"))}</Td>
@@ -330,6 +332,11 @@ export default function PurchaseOrderDetailPage() {
                   <Row label="SGST" value={inr(round2(tax - cgst))} />
                 </>
               )}
+              {n(po.transportCharges) > 0 && <Row label="Transportation charges" value={inr(po.transportCharges)} />}
+              {n(po.otherCharges) > 0 && (
+                <Row label={po.otherChargesNote ? `Other charges (${po.otherChargesNote})` : "Other charges"} value={inr(po.otherCharges)} />
+              )}
+              {n(po.roundOff) !== 0 && <Row label="Round off" value={`${n(po.roundOff) > 0 ? "+" : "−"}${inr(Math.abs(n(po.roundOff)))}`} />}
               <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold text-slate-900">
                 <dt>PO total</dt>
                 <dd className="num">{inr(po.totalAmount)}</dd>

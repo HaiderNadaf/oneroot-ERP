@@ -56,6 +56,9 @@ function StockCell({ p }: { p: Product }) {
 
 const dash = (v: unknown) => (v === null || v === undefined || v === "" ? <span className="text-slate-300">—</span> : String(v));
 
+/** "Crop Protection › Herbicides" */
+const categoryPath = (p: Product) => [p.category?.name, p.subCategory?.name].filter(Boolean).join(" › ");
+
 export default function ProductsPage() {
   const { can } = useAuth();
   // Cost price visibility follows the role's authority limits (Admin → Roles & Limits)
@@ -77,8 +80,18 @@ export default function ProductsPage() {
   const [catsOpen, setCatsOpen] = useState(false);
   const q = useDebounced(search);
 
-  const { data: categories, reload: reloadCats } = useApi<Category[]>("/categories");
-  const filters = { search: q, type, categoryId, status, stock, sort };
+  const { data: categories, reload: reloadCats } = useApi<Category[]>("/categories", { withSubs: "true" });
+  // The category filter holds "cat:<id>" (whole category) or "sub:<id>" (one sub-category)
+  const [pickKind, pickId] = categoryId.split(":");
+  const filters = {
+    search: q,
+    type,
+    categoryId: pickKind === "cat" ? pickId : "",
+    subCategoryId: pickKind === "sub" ? pickId : "",
+    status,
+    stock,
+    sort,
+  };
   const { data, error, loading, reload } = useApi<Paged<Product>>("/products", { ...filters, page, pageSize });
 
   const allColumns = useMemo<ColumnDef<Product>[]>(() => {
@@ -109,7 +122,7 @@ export default function ProductsPage() {
         render: (p) => <StatusBadge status={p.type} />,
         csv: (p) => TYPE_LABEL[p.type],
       },
-      { id: "category", label: "Category", defaultVisible: true, render: (p) => dash(p.category?.name), csv: (p) => p.category?.name },
+      { id: "category", label: "Category", defaultVisible: true, render: (p) => dash(categoryPath(p)), csv: (p) => categoryPath(p) },
       { id: "brand", label: "Brand", defaultVisible: true, render: (p) => dash(p.brand), csv: (p) => p.brand },
       { id: "manufacturer", label: "Manufacturer", render: (p) => dash(p.manufacturer), csv: (p) => p.manufacturer },
       {
@@ -243,7 +256,7 @@ export default function ProductsPage() {
                   Categories
                 </Button>
                 <Button icon={<Plus className="size-4" />} onClick={openNew}>
-                  New product
+                  New Product
                 </Button>
               </>
             )}
@@ -273,10 +286,15 @@ export default function ProductsPage() {
           </Select>
           <Select value={categoryId} onChange={(e) => (setCategoryId(e.target.value), setPage(1))} className="w-40" aria-label="Category">
             <option value="">All categories</option>
-            {categories?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
+            {categories?.map((top) => (
+              <optgroup key={top.id} label={top.name}>
+                <option value={`cat:${top.id}`}>All {top.name}</option>
+                {top.subCategories?.map((c) => (
+                  <option key={c.id} value={`sub:${c.id}`}>
+                    {c.name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </Select>
           <Select value={stock} onChange={(e) => (setStock(e.target.value), setPage(1))} className="w-36" aria-label="Stock">

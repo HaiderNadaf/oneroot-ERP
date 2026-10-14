@@ -60,7 +60,11 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const gst = parseGstin(str("gstin"));
-    if (!gst.empty && !gst.valid) {
+    if (gst.empty) {
+      toast.error("GSTIN is required");
+      return;
+    }
+    if (!gst.valid) {
       toast.error(`GSTIN: ${gst.error}`);
       return;
     }
@@ -72,7 +76,7 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
       body[k] = v || (editing && k !== "email" ? "" : undefined);
     }
     body.name = str("name").trim();
-    body.gstin = str("gstin").trim().toUpperCase() || (editing ? "" : undefined);
+    body.gstin = str("gstin").trim().toUpperCase();
     body.ifsc = str("ifsc").trim().toUpperCase() || (editing ? "" : undefined);
     body.paymentTermsDays = str("paymentTermsDays") === "" ? 0 : Math.max(0, Math.round(Number(str("paymentTermsDays"))));
     body.openingBalance = str("openingBalance") === "" ? 0 : Number(str("openingBalance"));
@@ -124,6 +128,7 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
           value={str("gstin")}
           onChange={(g) => set("gstin", g)}
           onState={(st) => set("state", st)}
+          required
           hint="Place of supply and IGST / CGST + SGST are worked out from this"
         />
         <Field label="Address" className="sm:col-span-3">

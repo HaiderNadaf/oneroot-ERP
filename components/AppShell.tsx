@@ -68,6 +68,17 @@ export const NAV: NavGroup[] = [
     section: "",
     items: [{ href: "/", label: "Dashboard", icon: <LayoutDashboard /> }],
   },
+   {
+    section: "",
+    items: [
+      {
+        href: "/notifications",
+        label: "Notifications",
+        icon: <Bell />,
+        badge: "unread",
+      },
+    ],
+  },
   {
     section: "Sales",
     items: [
@@ -146,17 +157,6 @@ export const NAV: NavGroup[] = [
         label: "Reports",
         icon: <BarChart3 />,
         perms: ["reports.view"],
-      },
-    ],
-  },
-  {
-    section: "",
-    items: [
-      {
-        href: "/notifications",
-        label: "Notifications",
-        icon: <Bell />,
-        badge: "unread",
       },
     ],
   },

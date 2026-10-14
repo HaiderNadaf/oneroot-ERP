@@ -236,14 +236,10 @@ function Importer() {
         { header: "Category code", key: "catCode", width: 14 },
         { header: "Sub-Category", key: "sub", width: 40 },
         { header: "Sub-category code", key: "subCode", width: 17 },
-        { header: "SKUs start at", key: "sku", width: 18 },
       ];
       ref.getRow(1).font = { bold: true };
       for (const t of tops) {
-        for (const c of subsOf(t.id)) {
-          const width = 11 - (t.code ?? "").length - (c.code ?? "").length;
-          ref.addRow({ cat: t.name, catCode: t.code, sub: c.name, subCode: c.code, sku: t.code && c.code ? `ORI${t.code}${c.code}${"1".padStart(width, "0")}` : "" });
-        }
+        for (const c of subsOf(t.id)) ref.addRow({ cat: t.name, catCode: t.code, sub: c.name, subCode: c.code });
       }
     });
   }

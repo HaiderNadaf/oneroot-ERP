@@ -77,7 +77,7 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
   const [attrs, setAttrs] = useState<Attributes>(() => ({ ...(product?.attributes ?? {}) }));
   const [saving, setSaving] = useState(false);
   const editing = !!product;
-  // Preview of the SKU a new product will get: ORI + category code + sub-category code + running number
+  // Preview of the SKU a new product will get: ORI + an 11-digit running number shared by all products
   // Sub-categories are fetched for the chosen category only
   const { data: subCategories, loading: subsLoading } = useApi<SubCategory[]>(f.category ? `/categories/${f.category}/sub-categories` : null);
   const nextSku = useApi<{ sku: string | null }>(editing || !f.subCategoryId ? null : "/products/next-sku", {

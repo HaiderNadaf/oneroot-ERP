@@ -1,12 +1,30 @@
 "use client";
 
-import { RefreshCw, Repeat, Settings2, UserCheck, Users } from "lucide-react";
+import { CheckCheck, RefreshCw, Repeat, Settings2, UserCheck, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { ApprovalChain } from "@/components/ApprovalChain";
-import { Badge, Button, Card, EmptyRow, ErrorBox, LoadingRow, PageHeader, StatCard, Table, Td, Th } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  EmptyRow,
+  ErrorBox,
+  LoadingRow,
+  PageHeader,
+  StatCard,
+  Table,
+  Td,
+  Th,
+  errMsg,
+  useConfirm,
+  useToast,
+} from "@/components/ui";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { date, dateTime, inr } from "@/lib/format";
+import { date, dateTime, inr, n } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { ApprovalQueue } from "@/lib/types";
 
@@ -19,13 +37,67 @@ const decisionBadge = (action: string) =>
     <Badge tone="amber">Sent back</Badge>
   );
 
+interface BulkApproveResult {
+  approved: number;
+  failed: number;
+  results: { id: string; poNo: string | null; ok: boolean; error?: string }[];
+}
+
 /** "Approved · level 2" → "level 2" */
 const levelOf = (action: string) => action.split("·")[1]?.trim();
 
 export default function ApprovalsPage() {
   const router = useRouter();
   const { can } = useAuth();
+  const toast = useToast();
+  const confirm = useConfirm();
   const { data, error, loading, reload } = useApi<ApprovalQueue>("/purchase-orders/approvals");
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [approving, setApproving] = useState(false);
+
+  // Only POs waiting at a step this user can decide can be picked
+  const actionable = data?.pending.filter((po) => po.canAct) ?? [];
+  // Ignore picks that are no longer in the queue (approved elsewhere, refreshed)
+  const picked = actionable.filter((po) => selected.has(po.id));
+  const allPicked = actionable.length > 0 && picked.length === actionable.length;
+  const pickedTotal = picked.reduce((sum, po) => sum + n(po.totalAmount), 0);
+
+  function toggle(id: string, on: boolean) {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function toggleAll(on: boolean) {
+    setSelected(on ? new Set(actionable.map((po) => po.id)) : new Set());
+  }
+
+  async function approvePicked() {
+    if (!picked.length) return;
+    const count = `${picked.length} purchase order${picked.length === 1 ? "" : "s"}`;
+    if (!(await confirm(`Approve ${count} worth ${inr(pickedTotal)} in total?`, { confirmLabel: `Approve ${picked.length}` }))) return;
+    setApproving(true);
+    try {
+      const r = await api.post<BulkApproveResult>("/purchase-orders/approvals/bulk-approve", { ids: picked.map((po) => po.id) });
+      if (r.approved) toast.success(`Approved ${r.approved} PO${r.approved === 1 ? "" : "s"}`);
+      const failed = r.results.filter((x) => !x.ok);
+      if (failed.length) {
+        const first = failed[0];
+        toast.error(
+          `${failed.length} not approved — ${first.poNo ?? "PO"}: ${first.error}${failed.length > 1 ? ` (+${failed.length - 1} more)` : ""}`,
+        );
+      }
+      setSelected(new Set(failed.map((x) => x.id)));
+      void reload();
+    } catch (err) {
+      toast.error(errMsg(err));
+    } finally {
+      setApproving(false);
+    }
+  }
 
   return (
     <>
@@ -75,10 +147,45 @@ export default function ApprovalsPage() {
         </div>
       )}
 
-      <Card title="Waiting for a decision" bodyClassName="p-0" className="mb-4">
+      <Card
+        title={
+          picked.length ? (
+            <span>
+              {picked.length} selected
+              <span className="ml-2 font-normal text-slate-500">· {inr(pickedTotal)}</span>
+            </span>
+          ) : (
+            "Waiting for a decision"
+          )
+        }
+        actions={
+          picked.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="ghost" onClick={() => toggleAll(false)} disabled={approving}>
+                Clear
+              </Button>
+              <Button size="sm" icon={<CheckCheck className="size-4" />} onClick={() => void approvePicked()} loading={approving}>
+                Approve {picked.length}
+              </Button>
+            </div>
+          )
+        }
+        bodyClassName="p-0"
+        className="mb-4"
+      >
         <Table>
           <thead>
             <tr>
+              <Th className="w-10">
+                <Checkbox
+                  checked={allPicked}
+                  indeterminate={picked.length > 0}
+                  onChange={toggleAll}
+                  disabled={!actionable.length || approving}
+                  title={actionable.length ? "Select all you can approve" : "Nothing here is waiting for you"}
+                  aria-label="Select all purchase orders you can approve"
+                />
+              </Th>
               <Th>PO</Th>
               <Th>Vendor</Th>
               <Th right>Value</Th>
@@ -89,12 +196,21 @@ export default function ApprovalsPage() {
           </thead>
           <tbody>
             {loading && !data ? (
-              <LoadingRow colSpan={6} />
+              <LoadingRow colSpan={7} />
             ) : !data?.pending.length ? (
-              <EmptyRow colSpan={6}>No purchase orders are waiting for approval</EmptyRow>
+              <EmptyRow colSpan={7}>No purchase orders are waiting for approval</EmptyRow>
             ) : (
               data.pending.map((po) => (
-                <tr key={po.id} className="hover:bg-slate-50">
+                <tr key={po.id} className={selected.has(po.id) && po.canAct ? "bg-brand-50/60" : "hover:bg-slate-50"}>
+                  <Td>
+                    <Checkbox
+                      checked={po.canAct && selected.has(po.id)}
+                      onChange={(on) => toggle(po.id, on)}
+                      disabled={!po.canAct || approving}
+                      title={po.canAct ? undefined : `Waiting for ${po.waitingFor?.approverName ?? "a manager"}`}
+                      aria-label={`Select ${po.poNo}`}
+                    />
+                  </Td>
                   <Td>
                     <div className="flex items-center gap-1.5">
                       <Link href={`/purchase-orders/${po.id}`} className="whitespace-nowrap font-medium text-slate-900 hover:text-brand-700">

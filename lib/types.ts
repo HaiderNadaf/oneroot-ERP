@@ -320,13 +320,29 @@ export interface GovtMatch {
   subsidisedProducts: number;
 }
 
+/** Product category (top level), from GET /categories */
 export interface Category {
   id: string;
   name: string;
-  /** SKU prefix, e.g. FRT */
+  /** Numeric SKU code (1, 2 … 10 …) */
   code?: string | null;
   description?: string | null;
-  /** Extra fields every product in this category carries (lib/attributes.ts) */
+  /** Tax type: drives GST / HSN defaults for every product under it */
+  type?: ProductType | null;
+  _count?: { products: number; subCategories: number };
+  /** Present with GET /categories?withSubs=true */
+  subCategories?: SubCategory[];
+}
+
+/** Sub-category of one category, from GET /categories/:id/sub-categories */
+export interface SubCategory {
+  id: string;
+  categoryId: string;
+  name: string;
+  /** Numeric SKU code, unique within its category */
+  code?: string | null;
+  description?: string | null;
+  /** Extra fields every product in this sub-category carries (lib/attributes.ts) */
   fields?: FieldDef[] | null;
   _count?: { products: number };
 }
@@ -355,7 +371,9 @@ export interface Product {
   name: string;
   type: ProductType;
   categoryId?: string | null;
-  category?: { id: string; name: string; fields?: FieldDef[] | null } | null;
+  category?: { id: string; name: string } | null;
+  subCategoryId?: string | null;
+  subCategory?: { id: string; name: string; fields?: FieldDef[] | null } | null;
   brand?: string | null;
   manufacturer?: string | null;
   technicalName?: string | null;
@@ -705,6 +723,14 @@ export interface PurchaseOrder {
   vendor?: Vendor;
   orderDate: string;
   expectedDate?: string | null;
+  /** How many days the PO stays valid (7 or 14); null on older POs */
+  expiryDays?: number | null;
+  /** Freight and other charges, already included in totalAmount */
+  transportCharges?: Dec;
+  otherCharges?: Dec;
+  otherChargesNote?: string | null;
+  /** Brings totalAmount to whole rupees (.49 down, .50 up) */
+  roundOff?: Dec;
   status: PoStatus;
   subtotal: Dec;
   taxAmount: Dec;

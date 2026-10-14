@@ -7,6 +7,8 @@ import {
   BellRing,
   BookOpen,
   Boxes,
+  ChevronDown,
+  ChevronRight,
   FileMinus,
   PackageCheck,
   ClipboardList,
@@ -25,6 +27,7 @@ import {
   Truck,
   Undo2,
   UserCog,
+  UserRoundPlus,
   Users,
   Wallet,
   X,
@@ -49,11 +52,25 @@ export interface NavItem {
   badge?: "unread" | "approvals";
 }
 
-export const NAV: { section: string; items: NavItem[] }[] = [
+export interface NavGroup {
+  section: string;
+  items: NavItem[];
+}
+
+/**
+ * Navigation order:
+ * Dashboard -> Sales -> Purchasing -> Inventory -> Finance
+ * -> Notifications -> Admin.
+ * Groups without a section render as direct links; the rest are accordions.
+ */
+export const NAV: NavGroup[] = [
   {
     section: "",
+    items: [{ href: "/", label: "Dashboard", icon: <LayoutDashboard /> }],
+  },
+   {
+    section: "",
     items: [
-      { href: "/", label: "Dashboard", icon: <LayoutDashboard /> },
       {
         href: "/notifications",
         label: "Notifications",
@@ -78,6 +95,7 @@ export const NAV: { section: string; items: NavItem[] }[] = [
     section: "Purchasing",
     items: [
       { href: "/vendors", label: "Vendors", icon: <Boxes />, perms: ["vendors.view"] },
+      { href: "/agents", label: "Agents", icon: <UserRoundPlus />, perms: ["vendors.view"] },
       {
         href: "/purchase-orders",
         label: "Purchase Orders",
@@ -208,53 +226,159 @@ function activeHref(pathname: string) {
   return best;
 }
 
+/** The accordion section holding the active route */
+function getActiveSection(pathname: string): string {
+  const active = activeHref(pathname);
+  return (
+    NAV.find(
+      (group) =>
+        group.section !== "" &&
+        group.items.some((item) => item.href === active),
+    )?.section ?? ""
+  );
+}
+
+function NavItemLink({
+  item,
+  active,
+  nested,
+  onNavigate,
+}: {
+  item: NavItem;
+  active: boolean;
+  nested?: boolean;
+  onNavigate?: () => void;
+}) {
+  const counts = useCounts();
+  const badgeCount =
+    item.badge === "unread"
+      ? counts.unread
+      : item.badge === "approvals"
+        ? counts.approvals
+        : 0;
+
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={cx(
+        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors [&>svg]:shrink-0 [&>svg]:opacity-85",
+        nested
+          ? "text-[12.5px] [&>svg]:size-4"
+          : "text-[13.5px] [&>svg]:size-[17px]",
+        active
+          ? cx(
+              "bg-brand-800 font-medium text-white",
+              nested
+                ? "shadow-[inset_2px_0_0_#8fd19e]"
+                : "shadow-[inset_3px_0_0_#8fd19e]",
+            )
+          : "text-[#d6e4d4] hover:bg-brand-800 hover:text-white",
+      )}
+    >
+      {item.icon}
+      <span className="min-w-0 flex-1">{item.label}</span>
+      {badgeCount > 0 && (
+        <span
+          className={cx(
+            "num rounded-full px-1.5 font-semibold leading-5",
+            nested ? "text-[10px]" : "text-[11px]",
+            item.badge === "unread"
+              ? "bg-red-500 text-white"
+              : "bg-amber-400 text-amber-950",
+          )}
+        >
+          {badgeCount}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+/** Sidebar navigation with single-open accordion behaviour */
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { can } = useAuth();
-  const counts = useCounts();
+
   const active = activeHref(pathname);
+  const activeSection = getActiveSection(pathname);
+
+  const [openSection, setOpenSection] = useState(activeSection);
+  const [prevActiveSection, setPrevActiveSection] = useState(activeSection);
+
+  // Open the section holding the page whenever navigation moves into another section
+  if (activeSection !== prevActiveSection) {
+    setPrevActiveSection(activeSection);
+    setOpenSection(activeSection);
+  }
+
+  function toggleSection(section: string) {
+    setOpenSection((current) => (current === section ? "" : section));
+  }
+
   return (
-    <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">
-      {NAV.map((group) => {
+    <nav
+      aria-label="Main navigation"
+      className="flex-1 space-y-1 overflow-y-auto px-3 pb-4"
+    >
+      {NAV.map((group, groupIndex) => {
         const items = group.items.filter((i) => !i.perms || can(...i.perms));
         if (!items.length) return null;
+
+        // Dashboard and Notifications are direct links
+        if (!group.section) {
+          return (
+            <div key={`direct-${groupIndex}`} className="space-y-1">
+              {items.map((item) => (
+                <NavItemLink
+                  key={item.href}
+                  item={item}
+                  active={active === item.href}
+                  onNavigate={onNavigate}
+                />
+              ))}
+            </div>
+          );
+        }
+
+        const isOpen = openSection === group.section;
+        const hasActiveItem = items.some((item) => item.href === active);
+
         return (
-          <div key={group.section || "main"}>
-            {group.section && (
-              <p className="px-2.5 pb-1.5 pt-3.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[#8fab93]">
-                {group.section}
-              </p>
+          <div key={group.section} className="space-y-1">
+            <button
+              type="button"
+              onClick={() => toggleSection(group.section)}
+              aria-expanded={isOpen}
+              className={cx(
+                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-[13.5px] font-medium transition-colors",
+                hasActiveItem
+                  ? "bg-brand-800 text-white"
+                  : "text-[#d6e4d4] hover:bg-brand-800 hover:text-white",
+              )}
+            >
+              <span className="flex-1">{group.section}</span>
+              {isOpen ? (
+                <ChevronDown className="size-4 shrink-0 opacity-80" aria-hidden="true" />
+              ) : (
+                <ChevronRight className="size-4 shrink-0 opacity-80" aria-hidden="true" />
+              )}
+            </button>
+
+            {isOpen && (
+              <div className="ml-3 space-y-1 border-l border-white/15 pl-2">
+                {items.map((item) => (
+                  <NavItemLink
+                    key={item.href}
+                    item={item}
+                    active={active === item.href}
+                    nested
+                    onNavigate={onNavigate}
+                  />
+                ))}
+              </div>
             )}
-            {items.map((i) => (
-              <Link
-                key={i.href}
-                href={i.href}
-                onClick={onNavigate}
-                className={cx(
-                  "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13.5px] transition-colors [&>svg]:size-[17px] [&>svg]:shrink-0 [&>svg]:opacity-85",
-                  active === i.href
-                    ? "bg-brand-800 font-medium text-white shadow-[inset_3px_0_0_#8fd19e]"
-                    : "text-[#d6e4d4] hover:bg-brand-800",
-                )}
-              >
-                {i.icon}
-                <span className="flex-1">{i.label}</span>
-                {i.badge &&
-                  (i.badge === "unread" ? counts.unread : counts.approvals) >
-                    0 && (
-                    <span
-                      className={cx(
-                        "num rounded-full px-1.5 text-[11px] font-semibold leading-5",
-                        i.badge === "unread"
-                          ? "bg-red-500 text-white"
-                          : "bg-amber-400 text-amber-950",
-                      )}
-                    >
-                      {i.badge === "unread" ? counts.unread : counts.approvals}
-                    </span>
-                  )}
-              </Link>
-            ))}
           </div>
         );
       })}
@@ -293,7 +417,9 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+
   const [drawer, setDrawer] = useState(false);
+  const [drawerMounted, setDrawerMounted] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -306,6 +432,28 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Prevent background scrolling while the drawer is open
+  useEffect(() => {
+    if (!drawer) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [drawer]);
+
+  function openDrawer() {
+    setDrawerMounted(true);
+    // Start the transition after the drawer has mounted
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setDrawer(true));
+    });
+  }
+
+  function closeDrawer() {
+    setDrawer(false);
+  }
+
   if (loading || !user) return <Spinner className="min-h-screen" />;
 
   return (
@@ -316,17 +464,42 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Sidebar />
           </aside>
 
-          {drawer && (
-            <div className="no-print fixed inset-0 z-50 lg:hidden">
+          {drawerMounted && (
+            <div
+              className={cx(
+                "no-print fixed inset-0 z-50 lg:hidden",
+                drawer ? "visible" : "invisible",
+              )}
+            >
               <div
-                className="absolute inset-0 bg-slate-900/50"
-                onClick={() => setDrawer(false)}
+                className={cx(
+                  "absolute inset-0 bg-slate-900/50 transition-opacity duration-500 ease-in-out motion-reduce:transition-none",
+                  drawer ? "opacity-100" : "opacity-0",
+                )}
+                onClick={closeDrawer}
+                aria-hidden="true"
               />
-              <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw]">
-                <Sidebar onNavigate={() => setDrawer(false)} />
+              <aside
+                id="mobile-sidebar"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Mobile navigation"
+                className={cx(
+                  "absolute inset-y-0 left-0 w-72 max-w-[85vw] transform-gpu transition-transform duration-500 ease-in-out motion-reduce:transition-none",
+                  drawer ? "translate-x-0" : "-translate-x-full",
+                )}
+                onTransitionEnd={(event) => {
+                  // Unmount once the closing slide has finished
+                  if (event.target === event.currentTarget && !drawer) {
+                    setDrawerMounted(false);
+                  }
+                }}
+              >
+                <Sidebar onNavigate={closeDrawer} />
                 <button
-                  onClick={() => setDrawer(false)}
-                  className="absolute right-2 top-4 rounded-md p-1 text-white/70 hover:bg-white/10"
+                  type="button"
+                  onClick={closeDrawer}
+                  className="absolute right-2 top-4 rounded-md p-1 text-white/70 transition-colors duration-200 hover:bg-white/10 hover:text-white"
                   aria-label="Close menu"
                 >
                   <X className="size-5" />
@@ -335,7 +508,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           )}
 
-          <TopBar onMenu={() => setDrawer(true)} />
+          <TopBar onMenu={openDrawer} />
 
           <main className="mx-auto max-w-[1440px] p-4 lg:p-6">
             <BranchScope>

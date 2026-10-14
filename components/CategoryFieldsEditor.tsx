@@ -4,11 +4,11 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { FIELD_TYPE_LABEL, SUGGESTED_FIELDS, keyFromLabel, type FieldDef, type FieldType } from "@/lib/attributes";
-import { PRODUCT_TYPES, TYPE_LABEL, type Category, type ProductType } from "@/lib/types";
+import { PRODUCT_TYPES, TYPE_LABEL, type ProductType, type SubCategory } from "@/lib/types";
 import { Button, Checkbox, Input, Modal, Select, errMsg, useToast } from "./ui";
 
-/** Define the extra fields every product in a category carries (variety, CIB reg. no., NPK grade…) */
-export function CategoryFieldsEditor({ category, onClose, onSaved }: { category: Category; onClose: () => void; onSaved: () => void }) {
+/** Define the extra fields every product in a sub-category carries (variety, CIB reg. no., NPK grade…) */
+export function CategoryFieldsEditor({ category, onClose, onSaved }: { category: SubCategory; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const [fields, setFields] = useState<FieldDef[]>(() => (category.fields ?? []).map((f) => ({ ...f, options: f.options ? [...f.options] : undefined })));
   const [suggest, setSuggest] = useState<ProductType>("SEED");
@@ -40,7 +40,7 @@ export function CategoryFieldsEditor({ category, onClose, onSaved }: { category:
     }
     setSaving(true);
     try {
-      await api.patch(`/categories/${category.id}`, { fields: cleaned });
+      await api.patch(`/sub-categories/${category.id}`, { fields: cleaned });
       toast.success(`${category.name}: ${cleaned.length} field${cleaned.length === 1 ? "" : "s"} saved`);
       onSaved();
     } catch (e) {

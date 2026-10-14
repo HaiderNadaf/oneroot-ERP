@@ -166,6 +166,7 @@ export default function ProductDetailPage() {
             <Info label="Brand">{p.brand}</Info>
             <Info label="Manufacturer">{p.manufacturer}</Info>
             <Info label="Category">{p.category?.name}</Info>
+            <Info label="Sub-category">{p.subCategory?.name}</Info>
             <Info label="Pack size">{p.packSize}</Info>
             <Info label="Unit">{p.unit}</Info>
             <Info label="HSN code">{p.hsnCode}</Info>
@@ -182,9 +183,9 @@ export default function ProductDetailPage() {
             <Info label="Location in store">{p.location}</Info>
             <Info label="Serial numbers">{p.trackSerial ? "Each unit tracked" : "Not tracked"}</Info>
           </dl>
-          {p.category?.fields && p.category.fields.length > 0 && (
+          {p.subCategory?.fields && p.subCategory.fields.length > 0 && (
             <div className="mt-4 border-t border-slate-100 pt-3">
-              <AttributeList fields={p.category.fields} value={p.attributes} />
+              <AttributeList fields={p.subCategory.fields} value={p.attributes} />
             </div>
           )}
           {p.description && <p className="mt-4 border-t border-slate-100 pt-3 text-sm text-slate-600">{p.description}</p>}

@@ -19,6 +19,7 @@ export function GstinField({
   hint,
   className,
   showTaxType = true,
+  required,
 }: {
   value: string;
   onChange: (gstin: string) => void;
@@ -28,6 +29,7 @@ export function GstinField({
   className?: string;
   /** Show IGST / CGST + SGST against the store (off for the store's own GSTIN) */
   showTaxType?: boolean;
+  required?: boolean;
 }) {
   const { data: store } = useApi<StoreSettings>("/settings");
   const info = parseGstin(value);
@@ -41,9 +43,10 @@ export function GstinField({
   }
 
   return (
-    <Field label={label} className={className}>
+    <Field label={label} className={className} required={required}>
       <Input
         value={value}
+        required={required}
         onChange={(e) => change(e.target.value)}
         placeholder="e.g. 36AAACC2478M1ZH"
         maxLength={15}

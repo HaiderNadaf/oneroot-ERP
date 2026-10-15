@@ -118,3 +118,32 @@ export function placeOfSupply(
   const taxType = interState === null ? null : interState ? "IGST" : "CGST + SGST";
   return { code, name, interState, taxType, label: name ? (taxType ? `${name} · ${taxType}` : name) : "—" };
 }
+
+/** GST on transportation / other charges when none is chosen (same as the backend) */
+export const CHARGES_GST_RATE = 18;
+
+export interface GstSlab {
+  rate: number;
+  taxable: number;
+  tax: number;
+}
+
+/**
+ * Rate-wise GST: every item and every charge is taxed at its own rate, then grouped by rate (lowest first).
+ * Each part's tax is rounded on its own, as the backend does, so the slabs add up to the PO's tax.
+ */
+export function gstSlabs(parts: { taxable: number; gstRate: number; tax?: number }[]): GstSlab[] {
+  const r2 = (x: number) => Math.round((x + Number.EPSILON) * 100) / 100;
+  const byRate = new Map<number, GstSlab>();
+  for (const p of parts) {
+    if (!(p.taxable > 0)) continue;
+    const slab = byRate.get(p.gstRate) ?? { rate: p.gstRate, taxable: 0, tax: 0 };
+    slab.taxable = r2(slab.taxable + p.taxable);
+    slab.tax = r2(slab.tax + (p.tax ?? r2((p.taxable * p.gstRate) / 100)));
+    byRate.set(p.gstRate, slab);
+  }
+  return [...byRate.values()].sort((a, b) => a.rate - b.rate);
+}
+
+/** "2.5%" / "9%": half the rate, for the CGST and SGST rows */
+export const halfRate = (rate: number) => `${Math.round((rate / 2) * 100) / 100}%`;

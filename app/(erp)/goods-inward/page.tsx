@@ -222,6 +222,7 @@ function GoodsInward() {
                 <Th>PO</Th>
                 <Th>Vendor</Th>
                 <Th>Received by</Th>
+                <Th right>Received</Th>
                 <Th right>Passed</Th>
                 <Th right>Rejected</Th>
                 <Th right>Damaged</Th>
@@ -232,9 +233,9 @@ function GoodsInward() {
             </thead>
             <tbody>
               {grns.loading && !grns.data ? (
-                <LoadingRow colSpan={10} />
+                <LoadingRow colSpan={11} />
               ) : !grns.data?.items.length ? (
-                <EmptyRow colSpan={10}>
+                <EmptyRow colSpan={11}>
                   {filter === "false" ? "Every GRN has its purchase invoice booked." : "No goods received yet."}
                 </EmptyRow>
               ) : (
@@ -250,6 +251,7 @@ function GoodsInward() {
                         </span>
                       )}
                       <p className="text-xs text-slate-500">{date(g.receivedAt)}</p>
+                      {g.supplierInvoiceNo && <p className="text-xs text-slate-500">Inv. {g.supplierInvoiceNo}</p>}
                     </Td>
                     <Td>
                       <Link href={`/purchase-orders/${g.po.id}`} className="text-brand-700 hover:underline">
@@ -262,6 +264,9 @@ function GoodsInward() {
                       </Link>
                     </Td>
                     <Td className="text-slate-600">{g.receivedBy?.name ?? "—"}</Td>
+                    <Td right className="font-semibold text-slate-900">
+                      {qty(g.received)}
+                    </Td>
                     <Td right className="font-semibold text-brand-700">
                       {qty(g.passed)}
                     </Td>

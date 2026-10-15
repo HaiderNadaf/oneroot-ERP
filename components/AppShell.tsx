@@ -32,7 +32,6 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Fragment, Suspense, useEffect, useState, type ReactNode } from "react";
@@ -41,7 +40,8 @@ import { BranchProvider, useBranch } from "@/lib/branch";
 import type { Permission } from "@/lib/permissions";
 import { CountsProvider, useCounts } from "./Notifications";
 import { TopBar } from "./TopBar";
-import { Spinner, cx } from "./ui";
+import { QuickActions } from "./QuickActions";
+import { PageHeaderExtraProvider, Spinner, cx, Logo } from "./ui";
 
 export interface NavItem {
   href: string;
@@ -59,7 +59,7 @@ export interface NavGroup {
 
 /**
  * Navigation order:
- * Dashboard -> Sales -> Purchasing -> Inventory -> Finance
+ * Dashboard -> Sales -> Purchases -> Inventory -> Finance
  * -> Notifications -> Admin.
  * Groups without a section render as direct links; the rest are accordions.
  */
@@ -92,7 +92,7 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
-    section: "Purchasing",
+    section: "Purchases",
     items: [
       { href: "/vendors", label: "Vendors", icon: <Boxes />, perms: ["vendors.view"] },
       { href: "/agents", label: "Agents", icon: <UserRoundPlus />, perms: ["vendors.view"] },
@@ -320,7 +320,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav
       aria-label="Main navigation"
-      className="flex-1 space-y-1 overflow-y-auto px-3 pb-4"
+      className="no-scrollbar flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 pb-4"
     >
       {NAV.map((group, groupIndex) => {
         const items = group.items.filter((i) => !i.perms || can(...i.perms));
@@ -386,27 +386,28 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+/** `onClose` (mobile / tablet drawer) adds a close button beside the logo, so it never sits on top of it */
+function Sidebar({ onNavigate, onClose }: { onNavigate?: () => void; onClose?: () => void }) {
   return (
     <div className="flex h-full flex-col bg-brand-900">
-      <Link
-        href="/"
-        onClick={onNavigate}
-        className="block px-5 pb-4 pt-5"
-        aria-label="OneRoot.farm — dashboard"
-      >
-        <Image
-          src="/logo-trimmed.png"
-          alt="OneRoot.farm"
-          width={480}
-          height={138}
-          priority
-          className="h-auto w-[176px]"
-        />
-        <p className="mt-1.5 text-[10.5px] uppercase tracking-[0.12em] text-[#8fab93]">
-          Agri Inputs ERP
-        </p>
-      </Link>
+      <div className="flex items-start gap-2 px-5 pb-4 pt-5">
+        <Link href="/" onClick={onNavigate} className="block min-w-0 flex-1" aria-label="OneRoot.farm — dashboard">
+          <Logo priority framed className="flex" imageClassName="w-full" />
+          <p className="mt-1.5 text-[10.5px] uppercase tracking-[0.12em] text-[#8fab93]">
+            Agri Inputs ERP
+          </p>
+        </Link>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="-mr-2 shrink-0 rounded-md p-1.5 text-white/80 transition-colors duration-200 hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+            aria-label="Close menu"
+          >
+            <X className="size-5" />
+          </button>
+        )}
+      </div>
       <Suspense fallback={<div className="flex-1" />}>
         <NavLinks onNavigate={onNavigate} />
       </Suspense>
@@ -454,10 +455,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     setDrawer(false);
   }
 
-  if (loading || !user) return <Spinner className="min-h-screen" />;
+  if (loading || !user) return <Spinner page />;
 
   return (
-    <BranchProvider fallback={<Spinner className="min-h-screen" />}>
+    <BranchProvider fallback={<Spinner page />}>
       <CountsProvider>
         <div className="min-h-screen lg:pl-64">
           <aside className="no-print fixed inset-y-0 left-0 hidden w-64 lg:block">
@@ -495,15 +496,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   }
                 }}
               >
-                <Sidebar onNavigate={closeDrawer} />
-                <button
-                  type="button"
-                  onClick={closeDrawer}
-                  className="absolute right-2 top-4 rounded-md p-1 text-white/70 transition-colors duration-200 hover:bg-white/10 hover:text-white"
-                  aria-label="Close menu"
-                >
-                  <X className="size-5" />
-                </button>
+                <Sidebar onNavigate={closeDrawer} onClose={closeDrawer} />
               </aside>
             </div>
           )}
@@ -512,9 +505,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <main className="mx-auto max-w-[1440px] p-4 lg:p-6">
             <BranchScope>
-              <Suspense fallback={<Spinner />}>
-                <RouteGate>{children}</RouteGate>
-              </Suspense>
+              {/* Every PageHeader shows the quick-actions bar under it (the dashboard places its own) */}
+              <PageHeaderExtraProvider value={<QuickActions />}>
+                <Suspense fallback={<Spinner page />}>
+                  <RouteGate>{children}</RouteGate>
+                </Suspense>
+              </PageHeaderExtraProvider>
             </BranchScope>
           </main>
           <footer className="no-print mx-auto flex max-w-[1440px] flex-wrap justify-between gap-2 px-4 pb-6 text-xs text-slate-400 lg:px-6">

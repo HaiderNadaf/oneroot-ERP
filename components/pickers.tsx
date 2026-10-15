@@ -219,10 +219,12 @@ export function VendorPicker({
   value,
   onChange,
   autoFocus,
+  placeholder = "Search vendor by name, phone, GSTIN…",
 }: {
   value: Vendor | null;
   onChange: (v: Vendor | null) => void;
   autoFocus?: boolean;
+  placeholder?: string;
 }) {
   return (
     <PartySlot
@@ -231,7 +233,7 @@ export function VendorPicker({
       describe={(v) => [v.gstin, n(v.balance) > 0 ? `payable ${inr(v.balance)}` : null].filter(Boolean).join(" · ")}
     >
       <AsyncPicker<Vendor>
-        placeholder="Search vendor by name, phone, GSTIN…"
+        placeholder={placeholder}
         autoFocus={autoFocus}
         fetcher={async (q) => (await api.get<Paged<Vendor>>("/vendors", { search: q, pageSize: 20 })).items}
         onPick={onChange}

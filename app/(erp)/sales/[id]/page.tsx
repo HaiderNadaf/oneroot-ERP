@@ -63,7 +63,7 @@ export default function SaleDetailPage() {
   }, [wantPrint, sale, settings, id]);
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
-  if (loading && !sale) return <Spinner />;
+  if (loading && !sale) return <Spinner page />;
   if (!sale) return null;
 
   const cancelled = sale.status === "CANCELLED";

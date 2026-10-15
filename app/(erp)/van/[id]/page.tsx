@@ -20,7 +20,7 @@ export default function VanTripPage() {
   const [closing, setClosing] = useState(false);
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
-  if (loading && !t) return <Spinner />;
+  if (loading && !t) return <Spinner page />;
   if (!t) return null;
   const open = t.status === "OPEN";
   const mine = t.userId === user?.id;

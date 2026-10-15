@@ -61,7 +61,7 @@ export default function ProductDetailPage() {
     void moves.reload();
   };
 
-  if (loading && !p) return <Spinner />;
+  if (loading && !p) return <Spinner page />;
   if (error) return <ErrorBox message={error} onRetry={reload} />;
   if (!p) return null;
 

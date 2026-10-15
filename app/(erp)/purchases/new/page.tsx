@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { BranchBadge, useNeedBranch } from "@/components/BranchNotice";
-import { CASH_MODES, modeLabel } from "@/components/PartyPaymentForm";
+// Payment now (hidden for now): import { CASH_MODES, modeLabel } from "@/components/PartyPaymentForm";
 import { ProductPicker, VendorPicker } from "@/components/pickers";
 import {
   Button,
@@ -20,7 +20,7 @@ import {
   Spinner,
   Table,
   Td,
-  Textarea,
+  // Textarea, // Notes (hidden for now)
   Th,
   cx,
   errMsg,
@@ -29,7 +29,7 @@ import {
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { daysUntil, inr, n, qty, round2, today } from "@/lib/format";
-import { GST_RATES, type PaymentMode, type Product, type Purchase, type Vendor } from "@/lib/types";
+import { GST_RATES, /* type PaymentMode, */ type Product, type Purchase, type Vendor } from "@/lib/types";
 
 type LineProduct = Pick<Product, "id" | "name" | "sku" | "unit" | "trackBatch">;
 
@@ -91,10 +91,11 @@ function NewPurchase() {
   const [discount, setDiscount] = useState("");
   const [otherCharges, setOtherCharges] = useState("");
   const [updatePrices, setUpdatePrices] = useState(true);
-  const [paidAmount, setPaidAmount] = useState("");
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>("CASH");
-  const [paymentReference, setPaymentReference] = useState("");
-  const [notes, setNotes] = useState("");
+  // Payment now and Notes are hidden for now: the purchase is saved on credit (the vendor is paid later from Payments)
+  // const [paidAmount, setPaidAmount] = useState("");
+  // const [paymentMode, setPaymentMode] = useState<PaymentMode>("CASH");
+  // const [paymentReference, setPaymentReference] = useState("");
+  // const [notes, setNotes] = useState("");
   const [preloading, setPreloading] = useState(!!presetVendorId);
   const [preloadError, setPreloadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -161,7 +162,7 @@ function NewPurchase() {
   const raw = subtotal + taxAmount - disc + other;
   const total = Math.round(raw);
   const roundOff = round2(total - raw);
-  const paid = Number(paidAmount) || 0;
+  // const paid = Number(paidAmount) || 0;
   const totalQty = lines.reduce((s, l) => s + (Number(l.quantity) || 0) + (Number(l.freeQty) || 0), 0);
 
   async function submit() {
@@ -176,7 +177,7 @@ function NewPurchase() {
         return toast.error(`Expiry date is before the manufacturing date for ${l.product.name}`);
     }
     if (total < 0) return toast.error("Bill discount is more than the bill value");
-    if (paid > total) return toast.error(`Amount paid can't exceed the bill total ${inr(total)}`);
+    // if (paid > total) return toast.error(`Amount paid can't exceed the bill total ${inr(total)}`);
 
     const warnings: string[] = [];
     const noExpiry = lines.filter((l) => l.product.trackBatch && !l.expiryDate).map((l) => l.product.name);
@@ -207,11 +208,11 @@ function NewPurchase() {
         })),
         discount: disc || undefined,
         otherCharges: other || undefined,
-        paidAmount: paid || undefined,
-        paymentMode: paid ? paymentMode : undefined,
-        paymentReference: paid ? paymentReference.trim() || undefined : undefined,
+        // paidAmount: paid || undefined,
+        // paymentMode: paid ? paymentMode : undefined,
+        // paymentReference: paid ? paymentReference.trim() || undefined : undefined,
         updateProductPrices: updatePrices,
-        notes: notes.trim() || undefined,
+        // notes: notes.trim() || undefined,
       };
       const saved = await api.post<Purchase>("/purchases", body);
       toast.success(`Purchase ${saved.purchaseNo} saved · stock updated`);
@@ -222,7 +223,7 @@ function NewPurchase() {
     }
   }
 
-  if (preloading) return <Spinner />;
+  if (preloading) return <Spinner page />;
 
   return (
     <>
@@ -499,6 +500,7 @@ function NewPurchase() {
       </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* Payment now and Notes — hidden for now; the purchase is saved on credit
         <Card title="Payment now" className="lg:col-span-1">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Amount paid (₹)" className="col-span-2" hint={paid > 0 && paid < total ? `${inr(total - paid)} will stay payable` : undefined}>
@@ -536,7 +538,9 @@ function NewPurchase() {
           <Textarea rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Transport, LR no., remarks…" />
         </Card>
 
-        <Card title="Bill total" className="lg:col-span-1">
+        */}
+
+        <Card title="Bill total" className="lg:col-span-1 lg:col-start-3">
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
               <dt className="text-slate-500">Taxable value</dt>
@@ -573,12 +577,13 @@ function NewPurchase() {
               <dt>Total</dt>
               <dd className="num">{inr(total)}</dd>
             </div>
+            {/* Balance payable (only with Payment now)
             {paid > 0 && (
               <div className="flex justify-between text-sm">
                 <dt className="text-slate-500">Balance payable</dt>
                 <dd className="num font-medium text-amber-700">{inr(Math.max(total - paid, 0))}</dd>
               </div>
-            )}
+            )} */}
           </dl>
           <Button className="mt-4 w-full" onClick={submit} loading={saving} disabled={!vendor || !lines.length || needBranch.blocked}>
             Save purchase · {inr(total)}

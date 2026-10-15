@@ -96,7 +96,7 @@ export function ChartTab() {
         </Button>
       </div>
       {loading && !data ? (
-        <Spinner />
+        <Spinner page />
       ) : (
         <div className="space-y-4">
           {TYPE_ORDER.map((t) => {
@@ -422,7 +422,7 @@ function EntryModalBody({ id, onClose, onChanged }: { id: string; onClose: () =>
       {error ? (
         <ErrorBox message={error} />
       ) : loading && !e ? (
-        <Spinner />
+        <Spinner page />
       ) : e ? (
         <div className="space-y-3 text-sm">
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600 sm:grid-cols-4">
@@ -1136,7 +1136,7 @@ export function TallyTab({ range, rangeBar }: { range: Range; rangeBar: ReactNod
       {error ? (
         <ErrorBox message={error} onRetry={reload} />
       ) : loading && !data ? (
-        <Spinner />
+        <Spinner page />
       ) : data ? (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card title={`What will be exported · ${periodLabel(range)}`}>

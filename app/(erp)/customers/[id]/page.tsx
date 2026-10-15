@@ -63,7 +63,7 @@ export default function CustomerDetailPage() {
   const { data: settings } = useApi<StoreSettings>("/settings");
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
-  if (loading && !c) return <Spinner />;
+  if (loading && !c) return <Spinner page />;
   if (!c) return null;
 
   const balance = n(c.balance);

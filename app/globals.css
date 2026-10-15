@@ -77,7 +77,8 @@ input[type="number"] {
   }
   /* Receipt / label printing: only the portal under <body> is printed (see components/PrintPortal.tsx) */
   body[data-print="thermal"] > *:not(.thermal-host),
-  body[data-print="labels"] > *:not(.label-host) {
+  body[data-print="labels"] > *:not(.label-host),
+  body[data-print="sheet"] > *:not(.sheet-host) {
     display: none !important;
   }
   body[data-print="thermal"] .thermal-area {
@@ -86,4 +87,16 @@ input[type="number"] {
   body[data-print="labels"] .label-sheet {
     display: grid !important;
   }
+  body[data-print="sheet"] .po-print {
+    display: block !important;
+  }
+}
+
+/* Scrolls with wheel, touch and keyboard, but without the visible scrollbar (e.g. the sidebar menu) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

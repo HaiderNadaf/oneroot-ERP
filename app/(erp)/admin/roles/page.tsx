@@ -58,7 +58,7 @@ function Roles() {
   }
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
-  if (loading && !data) return <Spinner />;
+  if (loading && !data) return <Spinner page />;
 
   return (
     <>

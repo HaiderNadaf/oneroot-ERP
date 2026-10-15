@@ -1,6 +1,15 @@
 "use client";
 
-import { Hourglass, IndianRupee, Package, Pin, Plus, Receipt, Truck, X } from "lucide-react";
+import {
+  Hourglass,
+  IndianRupee,
+  Package,
+  Pin,
+  Plus,
+  Receipt,
+  Truck,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
@@ -19,15 +28,29 @@ const STORAGE_KEY = "oneroot.quickActions";
 
 /** Shown until the user pins their own */
 const DEFAULT_ACTIONS: Action[] = [
-  { href: "/purchases", label: "Purchase", icon: <Truck />, perms: ["purchases.view"] },
+  {
+    href: "/purchases",
+    label: "Purchase",
+    icon: <Truck />,
+    perms: ["purchases.view"],
+  },
   { href: "/inventory", label: "Inventory", icon: <Package /> },
   { href: "/sales", label: "Sales", icon: <Receipt /> },
   { href: "/payments", label: "Receive Payment", icon: <IndianRupee /> },
-  { href: "/inventory?status=expiring", label: "Expiry Items", icon: <Hourglass /> },
+  {
+    href: "/inventory?status=expiring",
+    label: "Expiry Items",
+    icon: <Hourglass />,
+  },
 ];
 
-/** Every page that can be pinned: the defaults plus all sidebar pages */
-const CATALOG: Action[] = (() => {
+/**
+ * Every page that can be pinned: the defaults plus all sidebar pages. Built on first use, not at import:
+ * AppShell imports this file, so NAV isn't defined yet while it loads.
+ */
+let catalog: Action[] | null = null;
+function getCatalog(): Action[] {
+  if (catalog) return catalog;
   const seen = new Set<string>();
   const all: Action[] = [];
   for (const a of [...DEFAULT_ACTIONS, ...NAV.flatMap((g) => g.items)]) {
@@ -35,14 +58,15 @@ const CATALOG: Action[] = (() => {
     seen.add(a.href);
     all.push({ href: a.href, label: a.label, icon: a.icon, perms: a.perms });
   }
-  return all;
-})();
+  return (catalog = all);
+}
 
 function loadPinned(): string[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const list = raw ? (JSON.parse(raw) as unknown) : null;
-    if (Array.isArray(list) && list.every((x) => typeof x === "string")) return list;
+    if (Array.isArray(list) && list.every((x) => typeof x === "string"))
+      return list;
   } catch {
     /* storage unavailable */
   }
@@ -71,7 +95,8 @@ export function QuickActions() {
   useEffect(() => {
     if (!open) return;
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    const close = (e: MouseEvent) => !panel.current?.contains(e.target as Node) && setOpen(false);
+    const close = (e: MouseEvent) =>
+      !panel.current?.contains(e.target as Node) && setOpen(false);
     window.addEventListener("keydown", esc);
     document.addEventListener("mousedown", close);
     return () => {
@@ -81,11 +106,15 @@ export function QuickActions() {
   }, [open]);
 
   const allowed = (a: Action) => !a.perms || can(...a.perms);
-  const shown = pinned.map((h) => CATALOG.find((a) => a.href === h)).filter((a): a is Action => !!a && allowed(a));
+  const shown = pinned
+    .map((h) => getCatalog().find((a) => a.href === h))
+    .filter((a): a is Action => !!a && allowed(a));
 
   function toggle(href: string) {
     setPinned((list) => {
-      const next = list.includes(href) ? list.filter((h) => h !== href) : [...list, href];
+      const next = list.includes(href)
+        ? list.filter((h) => h !== href)
+        : [...list, href];
       savePinned(next);
       return next;
     });
@@ -99,7 +128,12 @@ export function QuickActions() {
 
   // Group the catalog like the sidebar; the default shortcuts that aren't sidebar pages go under "Shortcuts"
   const groups = [
-    { section: "Shortcuts", items: DEFAULT_ACTIONS.filter((a) => !NAV.some((g) => g.items.some((i) => i.href === a.href))) },
+    {
+      section: "Shortcuts",
+      items: DEFAULT_ACTIONS.filter(
+        (a) => !NAV.some((g) => g.items.some((i) => i.href === a.href)),
+      ),
+    },
     ...NAV.map((g) => ({ section: g.section || "General", items: g.items })),
   ]
     .map((g) => ({ ...g, items: g.items.filter(allowed) }))
@@ -121,7 +155,9 @@ export function QuickActions() {
         title="All pages"
         className={cx(
           "inline-flex size-[38px] items-center justify-center rounded-[9px] border border-dashed transition-colors",
-          open ? "border-brand-500 bg-[#e3f1e3] text-brand-700" : "border-[#c9d1c0] bg-white text-[#5f6e60] hover:border-brand-500 hover:text-brand-700",
+          open
+            ? "border-brand-500 bg-[#e3f1e3] text-brand-700"
+            : "border-[#c9d1c0] bg-white text-[#5f6e60] hover:border-brand-500 hover:text-brand-700",
         )}
       >
         <Plus className="size-4" />
@@ -135,13 +171,30 @@ export function QuickActions() {
           <div className="flex items-center justify-between gap-3 border-b border-[#e1e6d8] px-4 py-3">
             <div>
               <p className="text-sm font-bold text-[#1d2a1f]">All pages</p>
-              <p className="text-xs text-[#5f6e60]">Click a page to open it · use the pin to add or remove it from your shortcuts</p>
+              <p className="text-xs text-[#5f6e60]">
+                Click a page to open it · use the pin to add or remove it from
+                your shortcuts
+              </p>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={reset} className="text-xs font-medium text-[#5f6e60] hover:text-[#1d2a1f]">
+              <button
+                onClick={reset}
+                className="text-xs font-medium text-[#5f6e60]
+    border border-transparent
+    hover:bg-[#B91C1C]
+    hover:border-[#7F1D1D]
+    hover:text-white
+    p-1 rounded-md
+    transition-colors duration-200"
+              >
                 Reset shortcuts
               </button>
-              <button onClick={() => setOpen(false)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100" aria-label="Close">
+
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-md p-1 text-slate-400 hover:bg-slate-100"
+                aria-label="Close"
+              >
                 <X className="size-4" />
               </button>
             </div>
@@ -149,12 +202,17 @@ export function QuickActions() {
           <div className="grid max-h-[65vh] grid-cols-1 gap-x-6 gap-y-4 overflow-y-auto p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {groups.map((g) => (
               <div key={g.section}>
-                <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[#8a9a8b]">{g.section}</p>
+                <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[#8a9a8b]">
+                  {g.section}
+                </p>
                 <ul className="space-y-0.5">
                   {g.items.map((a) => {
                     const isPinned = pinned.includes(a.href);
                     return (
-                      <li key={a.href} className="group flex items-center gap-1">
+                      <li
+                        key={a.href}
+                        className="group flex items-center gap-1"
+                      >
                         <Link
                           href={a.href}
                           onClick={() => setOpen(false)}
@@ -166,14 +224,29 @@ export function QuickActions() {
                         <button
                           type="button"
                           onClick={() => toggle(a.href)}
-                          aria-label={isPinned ? `Remove ${a.label} from shortcuts` : `Add ${a.label} to shortcuts`}
-                          title={isPinned ? "Remove from shortcuts" : "Add to shortcuts"}
+                          aria-label={
+                            isPinned
+                              ? `Remove ${a.label} from shortcuts`
+                              : `Add ${a.label} to shortcuts`
+                          }
+                          title={
+                            isPinned
+                              ? "Remove from shortcuts"
+                              : "Add to shortcuts"
+                          }
                           className={cx(
                             "rounded-md p-1.5 transition-colors",
-                            isPinned ? "text-brand-600 hover:bg-red-50 hover:text-red-600" : "text-slate-300 hover:bg-[#e3f1e3] hover:text-brand-600",
+                            isPinned
+                              ? "text-brand-600 hover:bg-red-50 hover:text-red-600"
+                              : "text-slate-300 hover:bg-[#e3f1e3] hover:text-brand-600",
                           )}
                         >
-                          <Pin className={cx("size-3.5", isPinned && "fill-current")} />
+                          <Pin
+                            className={cx(
+                              "size-3.5",
+                              isPinned && "fill-current",
+                            )}
+                          />
                         </button>
                       </li>
                     );

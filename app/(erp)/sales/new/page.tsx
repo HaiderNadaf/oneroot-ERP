@@ -34,7 +34,7 @@ import { CustomerPicker } from "@/components/pickers";
 import { PrintPortal } from "@/components/PrintPortal";
 import { SerialPicker } from "@/components/SerialPicker";
 import { ThermalReceipt, receiptFromSale, type ReceiptData } from "@/components/ThermalReceipt";
-import { Button, Checkbox, Input, Modal, Select, Spinner, Textarea, cx, errMsg, useConfirm, useToast } from "@/components/ui";
+import { Button, Checkbox, Input, Modal, PageHeaderExtraSlot, Select, Spinner, Textarea, cx, errMsg, useConfirm, useToast } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
@@ -816,6 +816,9 @@ export default function PosPage() {
           </Link>
         </div>
       </div>
+
+      {/* Quick actions, as under every page heading */}
+      <PageHeaderExtraSlot className="-mt-1" />
 
       {needBranch.notice && <div className="mb-4">{needBranch.notice}</div>}
       {vanTripId && (

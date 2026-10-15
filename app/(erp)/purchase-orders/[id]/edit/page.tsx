@@ -22,7 +22,7 @@ function EditPurchaseOrder() {
   const { data: po, error, loading, reload } = useApi<PurchaseOrder>(`/purchase-orders/${id}`);
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
-  if (loading || !po) return <Spinner />;
+  if (loading || !po) return <Spinner page />;
 
   return (
     <>

@@ -97,7 +97,7 @@ function NewGrn() {
     );
   }
   if (error) return <ErrorBox message={error} onRetry={reload} />;
-  if (loading || !po) return <Spinner />;
+  if (loading || !po) return <Spinner page />;
   if (po.status !== "APPROVED" && po.status !== "PARTIALLY_RECEIVED") {
     return (
       <>
@@ -130,8 +130,8 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const items = po.items ?? [];
 
   const [vehicleNo, setVehicleNo] = useState("");
+  const [supplierInvoiceNo, setSupplierInvoiceNo] = useState("");
   const [receivedAt, setReceivedAt] = useState(today());
-  const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Record<string, Line>>(() =>
     Object.fromEntries(
       items.map((i) => [
@@ -176,6 +176,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   async function submit() {
     if (wrongBranch) return toast.error(`This PO is delivered to ${po.branch?.name ?? "another branch"} — switch to that branch to receive it`);
     setSubmitted(true);
+    if (!supplierInvoiceNo.trim()) return toast.error("Enter the supplier's invoice number");
     if (!receivedAt) return toast.error("Enter the received date");
     if (receivedAt > today()) return toast.error("Received date can't be in the future");
     if (!anyQty) return toast.error("Enter at least one received quantity");
@@ -184,21 +185,23 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
       if (errs.length) return toast.error(`${i.product.name}: ${errs[0]!.msg}`);
     }
 
-    const parts = [`${qty(totals.passed)} into stock`];
+    const received = totals.passed + totals.rejected + totals.damaged + totals.expired;
+    const parts = [`${qty(received)} received in total`, `${qty(totals.passed)} into stock`];
     if (totals.rejected) parts.push(`${qty(totals.rejected)} rejected (a debit note will be drafted to ${po.vendor?.name ?? "the vendor"})`);
     if (totals.damaged) parts.push(`${qty(totals.damaged)} written off as damaged`);
     if (totals.expired) parts.push(`${qty(totals.expired)} expired, kept out of stock`);
     const balance = shortLines.length
       ? ` ${shortLines.length} line${shortLines.length === 1 ? "" : "s"} will stay open for the balance.`
       : " The PO will be marked fully received.";
-    if (!(await confirm(`Post goods inward for ${po.poNo}? ${parts.join(", ")}.${balance}`, { confirmLabel: "Post GRN" }))) return;
+    const invoiceNote = totals.passed > 0 ? ` The purchase invoice will be booked under ${supplierInvoiceNo.trim()}.` : "";
+    if (!(await confirm(`Post goods inward for ${po.poNo}? ${parts.join(", ")}.${balance}${invoiceNote}`, { confirmLabel: "Post GRN" }))) return;
 
     setSaving(true);
     try {
-      const grn = await api.post<Grn>(`/purchase-orders/${po.id}/grn`, {
+      const grn = await api.post<Grn & { invoiceError?: string | null }>(`/purchase-orders/${po.id}/grn`, {
         vehicleNo: vehicleNo.trim() || undefined,
+        supplierInvoiceNo: supplierInvoiceNo.trim() || undefined,
         receivedAt,
-        notes: notes.trim() || undefined,
         items: open.map((i) => {
           const l = lines[i.id];
           return {
@@ -215,7 +218,11 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
           };
         }),
       });
-      toast.success(`${grn.grnNo} posted · stock updated${totals.rejected > 0 ? " · debit note drafted" : ""}`);
+      // The purchase invoice is booked automatically when anything passed inspection
+      toast.success(
+        `${grn.grnNo} posted · stock updated${grn.purchase ? ` · invoice ${grn.purchase.purchaseNo} booked` : ""}${totals.rejected > 0 ? " · debit note drafted" : ""}`,
+      );
+      if (grn.invoiceError) toast.warn(`Purchase invoice not booked: ${grn.invoiceError}. Book it from the GRN.`);
       counts.refresh();
       router.push(`/goods-inward/${grn.id}`);
     } catch (e) {
@@ -272,7 +279,16 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
           </Info>
           <Info label="Received so far">{po.receivedPct}%</Info>
         </dl>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Field label="Supplier invoice no." required hint="As printed on the bill; the purchase invoice is booked under it">
+            <Input
+              value={supplierInvoiceNo}
+              onChange={(e) => setSupplierInvoiceNo(e.target.value)}
+              maxLength={50}
+              placeholder="e.g. SLA/2026/0458"
+              className={cx(!supplierInvoiceNo.trim() && (submitted ? "border-red-400" : "border-amber-400 bg-amber-50"))}
+            />
+          </Field>
           <Field label="Vehicle no.">
             <Input value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value.toUpperCase())} placeholder="KA 01 AB 1234" />
           </Field>
@@ -281,9 +297,6 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
           </Field>
           <Field label="Received by">
             <Input value={user?.name ?? ""} readOnly disabled />
-          </Field>
-          <Field label="Notes" className="sm:col-span-3">
-            <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="LR no., transporter, condition on arrival…" />
           </Field>
         </div>
       </Card>

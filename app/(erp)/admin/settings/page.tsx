@@ -67,7 +67,7 @@ export default function SettingsPage() {
 
 function Settings() {
   const { data, error, loading, reload, setData } = useApi<StoreSettings>("/settings");
-  if (loading && !data) return <Spinner />;
+  if (loading && !data) return <Spinner page />;
   if (error) return <ErrorBox message={error} onRetry={reload} />;
   if (!data) return null;
   return <SettingsForm key={data.id} initial={data} onSaved={setData} />;

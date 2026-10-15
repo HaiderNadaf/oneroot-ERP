@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { useCounts } from "@/components/Notifications";
-import { CASH_MODES, modeLabel } from "@/components/PartyPaymentForm";
+// Payment now (hidden for now): import { CASH_MODES, modeLabel } from "@/components/PartyPaymentForm";
 import {
   Button,
   Card,
@@ -15,11 +15,11 @@ import {
   Info,
   Input,
   PageHeader,
-  Select,
+  // Select, // Payment mode (hidden for now)
   Spinner,
   Table,
   Td,
-  Textarea,
+  // Textarea, // Notes (hidden for now)
   Th,
   cx,
   errMsg,
@@ -29,7 +29,7 @@ import { api } from "@/lib/api";
 import { placeOfSupply } from "@/lib/gst";
 import { date, inr, n, qty, round2, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import type { Grn, GrnItem, PaymentMode, Purchase, StoreSettings, Vendor } from "@/lib/types";
+import type { Grn, GrnItem, /* PaymentMode, */ Purchase, StoreSettings, Vendor } from "@/lib/types";
 
 type GrnDetail = Grn & { vendor: Vendor; items: GrnItem[] };
 
@@ -65,7 +65,7 @@ function BookInvoice() {
   const { data: grn, error, loading, reload } = useApi<GrnDetail>(`/grns/${id}`);
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
-  if (loading || !grn) return <Spinner />;
+  if (loading || !grn) return <Spinner page />;
 
   const back = (
     <div className="mb-2">
@@ -112,19 +112,22 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
   const v = grn.vendor;
   const items = grn.items.filter((i) => n(i.passedQty) > 0);
 
-  const [vendorInvoiceNo, setVendorInvoiceNo] = useState("");
+  // Starts from the supplier invoice no. noted at goods inward
+  const [vendorInvoiceNo, setVendorInvoiceNo] = useState(grn.supplierInvoiceNo ?? "");
   const [invoiceDate, setInvoiceDate] = useState(today());
   const [dueDate, setDueDate] = useState(addDays(today(), v.paymentTermsDays ?? 0));
   const [dueTouched, setDueTouched] = useState(false);
   const [lines, setLines] = useState<Record<string, Line>>(() =>
-    Object.fromEntries(items.map((i) => [i.id, { rate: String(n(i.rate)), discountPct: "" }])),
+    // Start from the PO's rate and discount on each line
+    Object.fromEntries(items.map((i) => [i.id, { rate: String(n(i.rate)), discountPct: n(i.poItem.discountPct) ? String(n(i.poItem.discountPct)) : "" }])),
   );
   const [discount, setDiscount] = useState("");
   const [otherCharges, setOtherCharges] = useState("");
-  const [paidAmount, setPaidAmount] = useState("");
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>("CASH");
-  const [paymentReference, setPaymentReference] = useState("");
-  const [notes, setNotes] = useState("");
+  // Payment now and Notes are hidden for now: the invoice is booked on credit (the vendor is paid later from Payments)
+  // const [paidAmount, setPaidAmount] = useState("");
+  // const [paymentMode, setPaymentMode] = useState<PaymentMode>("CASH");
+  // const [paymentReference, setPaymentReference] = useState("");
+  // const [notes, setNotes] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -154,7 +157,7 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
   const raw = subtotal + taxAmount - disc + other;
   const total = Math.round(raw);
   const roundOff = round2(total - raw);
-  const paid = Number(paidAmount) || 0;
+  // const paid = Number(paidAmount) || 0;
 
   async function submit() {
     setSubmitted(true);
@@ -165,8 +168,8 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
     if (bad) return toast.error(`${bad.i.product.name}: ${bad.badRate ? "enter a valid invoice rate" : "discount must be 0–100%"}`);
     if (disc < 0 || other < 0) return toast.error("Discount and charges can't be negative");
     if (total < 0) return toast.error("Bill discount is more than the invoice value");
-    if (paid < 0) return toast.error("Amount paid can't be negative");
-    if (paid > total) return toast.error(`Amount paid can't exceed the invoice total ${inr(total)}`);
+    // if (paid < 0) return toast.error("Amount paid can't be negative");
+    // if (paid > total) return toast.error(`Amount paid can't exceed the invoice total ${inr(total)}`);
 
     setSaving(true);
     try {
@@ -177,10 +180,10 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
         items: rows.map((r) => ({ grnItemId: r.i.id, rate: r.rate, discountPct: r.disc || undefined })),
         discount: disc || undefined,
         otherCharges: other || undefined,
-        paidAmount: paid || undefined,
-        paymentMode: paid ? paymentMode : undefined,
-        paymentReference: paid ? paymentReference.trim() || undefined : undefined,
-        notes: notes.trim() || undefined,
+        // paidAmount: paid || undefined,
+        // paymentMode: paid ? paymentMode : undefined,
+        // paymentReference: paid ? paymentReference.trim() || undefined : undefined,
+        // notes: notes.trim() || undefined,
       });
       toast.success(`Invoice ${purchase.purchaseNo} booked${purchase.rateMismatch ? " · rate difference flagged to the manager" : ""}`);
       counts.refresh();
@@ -338,6 +341,7 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
       </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* Payment now and Notes — hidden for now; the invoice is booked on credit
         <Card title="Payment now">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Amount paid (₹)" className="col-span-2" hint={paid > 0 && paid < total ? `${inr(total - paid)} will stay payable` : undefined}>
@@ -375,7 +379,9 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
           <Textarea rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Remarks about this bill…" />
         </Card>
 
-        <Card title="Invoice total">
+        */}
+
+        <Card title="Invoice total" className="lg:col-start-3">
           <dl className="space-y-2 text-sm">
             <SumRow label="Taxable value" value={inr(subtotal)} />
             {interState ? (
@@ -416,12 +422,13 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
               <dt>Total</dt>
               <dd className="num">{inr(total)}</dd>
             </div>
+            {/* Balance payable (only with Payment now)
             {paid > 0 && (
               <div className="flex justify-between text-sm">
                 <dt className="text-slate-500">Balance payable</dt>
                 <dd className="num font-medium text-amber-700">{inr(Math.max(total - paid, 0))}</dd>
               </div>
-            )}
+            )} */}
           </dl>
           <Button className="mt-4 w-full" icon={<FileText className="size-4" />} onClick={submit} loading={saving}>
             Book invoice · {inr(total)}

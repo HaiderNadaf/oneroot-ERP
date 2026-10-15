@@ -657,6 +657,8 @@ export interface Purchase {
   purchaseNo: string;
   vendorId: string;
   vendor?: Vendor;
+  /** Branch the goods were received into (detail only) */
+  branch?: { id: string; code: string; name: string; address?: string | null; city?: string | null } | null;
   poId?: string | null;
   po?: { id: string; poNo: string } | null;
   grnId?: string | null;
@@ -697,8 +699,10 @@ export interface PoItem {
   productId: string;
   quantity: Dec;
   rate: Dec; // excl. GST
+  /** Trade discount, % of quantity x rate (before GST) */
+  discountPct?: Dec;
   gstRate: Dec;
-  amount: Dec; // incl. GST
+  amount: Dec; // incl. GST, after the discount
   passedQty: Dec;
   rejectedQty: Dec;
   damagedQty: Dec;
@@ -727,7 +731,10 @@ export interface PurchaseOrder {
   expiryDays?: number | null;
   /** Freight and other charges, already included in totalAmount */
   transportCharges?: Dec;
+  /** GST % on the transportation / other charges (18 by default) */
+  transportGstRate?: Dec;
   otherCharges?: Dec;
+  otherChargesGstRate?: Dec;
   otherChargesNote?: string | null;
   /** Brings totalAmount to whole rupees (.49 down, .50 up) */
   roundOff?: Dec;
@@ -806,7 +813,7 @@ export interface GrnItem {
   batchId?: string | null;
   rate: Dec; // PO rate excl. GST
   product: { name: string; sku: string; unit: string; hsnCode?: string | null; barcode?: string | null; mrp?: Dec; salePrice?: Dec; packSize?: string | null };
-  poItem: { rate: Dec; gstRate: Dec; quantity: Dec };
+  poItem: { rate: Dec; gstRate: Dec; quantity: Dec; discountPct?: Dec };
 }
 
 export interface Grn {
@@ -819,9 +826,13 @@ export interface Grn {
   /** Branch the goods were received into */
   branchId?: string | null;
   vehicleNo?: string | null;
+  /** Number on the supplier's invoice / challan that came with the goods */
+  supplierInvoiceNo?: string | null;
   notes?: string | null;
   purchase?: { id: string; purchaseNo: string; status?: DocStatus } | null;
   // list only: totals per GRN
+  /** Everything that arrived: passed + rejected + damaged + expired */
+  received?: number;
   passed?: number;
   rejected?: number;
   damaged?: number;

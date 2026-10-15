@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, FileText, ListPlus, PackagePlus, Route, Send, Save, Trash2 } from "lucide-react";
+import { AlertTriangle, FileText, ListPlus, Lock, PackagePlus, Route, Send, Save, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useBranchOptions } from "@/components/BranchNotice";
@@ -10,9 +10,10 @@ import { PoTermsModal } from "@/components/PoTermsModal";
 import { Button, Card, Field, Input, Select, Spinner, Table, Td, Textarea, Th, cx, errMsg, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useBranch } from "@/lib/branch";
-import { placeOfSupply } from "@/lib/gst";
-import { inr, inr0, n, qty, round2, today } from "@/lib/format";
+import { CHARGES_GST_RATE, gstSlabs, halfRate, placeOfSupply } from "@/lib/gst";
+import { date, inr, inr0, n, qty, round2, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { GST_RATES } from "@/lib/types";
 import type { ApprovalConfig, Product, PurchaseOrder, StoreSettings, Vendor } from "@/lib/types";
 
 interface LowStockRow {
@@ -36,11 +37,16 @@ interface PoLine {
   gstRate: number;
   quantity: string;
   rate: string;
+  /** Trade discount %, "" = none */
+  discountPct: string;
 }
 
 let lineSeq = 0;
 
-const lineTaxable = (l: PoLine) => round2((Number(l.quantity) || 0) * (Number(l.rate) || 0));
+const lineGross = (l: PoLine) => round2((Number(l.quantity) || 0) * (Number(l.rate) || 0));
+const clampPct = (v: string) => Math.min(100, Math.max(0, Number(v) || 0));
+// Same as the backend: the discount comes off quantity x rate, GST is charged on the rest
+const lineTaxable = (l: PoLine) => round2(lineGross(l) * (1 - clampPct(l.discountPct) / 100));
 const lineAmount = (l: PoLine) => round2(lineTaxable(l) * (1 + l.gstRate / 100));
 
 /** Same rule as the backend's chainFor: first band that covers the value, then that many leading steps */
@@ -73,6 +79,8 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
   const [orderDate, setOrderDate] = useState(po ? today(new Date(po.orderDate)) : today());
   const [expectedDate, setExpectedDate] = useState(po?.expectedDate ? today(new Date(po.expectedDate)) : "");
   const [expiryDays, setExpiryDays] = useState(po?.expiryDays ? String(po.expiryDays) : "");
+  // Expected delivery is fixed once the PO is created (older POs without one may set it once)
+  const expectedLocked = !!po?.expectedDate;
   const [lines, setLines] = useState<PoLine[]>(() =>
     // Negative keys for loaded lines so they never clash with lines added later
     (po?.items ?? []).map((i, idx) => ({
@@ -84,12 +92,15 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
       gstRate: n(i.gstRate),
       quantity: String(n(i.quantity)),
       rate: String(n(i.rate)),
+      discountPct: n(i.discountPct) ? String(n(i.discountPct)) : "",
     })),
   );
   const [notes, setNotes] = useState(po?.notes ?? "");
   const [termsOpen, setTermsOpen] = useState(false);
   const [transportCharges, setTransportCharges] = useState(po && n(po.transportCharges) ? String(n(po.transportCharges)) : "");
   const [otherCharges, setOtherCharges] = useState(po && n(po.otherCharges) ? String(n(po.otherCharges)) : "");
+  const [transportGstRate, setTransportGstRate] = useState(String(po?.transportGstRate != null ? n(po.transportGstRate) : CHARGES_GST_RATE));
+  const [otherChargesGstRate, setOtherChargesGstRate] = useState(String(po?.otherChargesGstRate != null ? n(po.otherChargesGstRate) : CHARGES_GST_RATE));
   const [otherChargesNote, setOtherChargesNote] = useState(po?.otherChargesNote ?? "");
   // Deliver-to branch: where the goods are received (GRN) and stocked
   const { currentId } = useBranch();
@@ -138,6 +149,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
           gstRate: n(p.gstRate),
           quantity: "1",
           rate: n(p.purchasePrice) ? String(n(p.purchasePrice)) : "",
+          discountPct: "",
         },
       ];
     });
@@ -165,6 +177,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
           gstRate: n(r.gstRate),
           quantity: String(Math.ceil(Math.max(n(r.reorderLevel) * 2 - n(r.stock), 1))),
           rate: n(r.purchasePrice) ? String(n(r.purchasePrice)) : "",
+          discountPct: "",
         })),
       ]);
       toast.success(`Added ${todo.length} low-stock item${todo.length === 1 ? "" : "s"}`);
@@ -178,17 +191,24 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
   const update = (key: number, patch: Partial<PoLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
   const subtotal = round2(lines.reduce((s, l) => s + lineTaxable(l), 0));
-  const itemsTotal = round2(lines.reduce((s, l) => s + lineAmount(l), 0));
-  const tax = round2(itemsTotal - subtotal);
-  const charges = round2(Math.max(0, Number(transportCharges) || 0) + Math.max(0, Number(otherCharges) || 0));
+  const discountTotal = round2(lines.reduce((s, l) => s + lineGross(l) - lineTaxable(l), 0));
+  const transport = round2(Math.max(0, Number(transportCharges) || 0));
+  const other = round2(Math.max(0, Number(otherCharges) || 0));
+  // Same as the backend: each item is taxed at its own GST rate, and each charge at its own rate (18% by default)
+  const slabs = gstSlabs([
+    ...lines.map((l) => ({ taxable: lineTaxable(l), gstRate: l.gstRate, tax: round2(lineAmount(l) - lineTaxable(l)) })),
+    { taxable: transport, gstRate: Number(transportGstRate) },
+    { taxable: other, gstRate: Number(otherChargesGstRate) },
+  ]);
+  const taxable = round2(subtotal + transport + other);
+  const tax = round2(slabs.reduce((s, x) => s + x.tax, 0));
   // Charges count towards the PO value, and so towards the approval route
-  const raw = round2(itemsTotal + charges);
+  const raw = round2(taxable + tax);
   // Whole rupees, as the backend saves it: up to .49 goes down, .50 and above goes up
   const total = Math.round(raw);
   const roundOff = round2(total - raw);
   const igst = isInterState(vendor, store);
   const pos = placeOfSupply(vendor, store);
-  const cgst = round2(tax / 2);
   const route = rules ? chainForValue(rules, total) : null;
 
   const hadApprovals = !!po && (po.level > 0 || po.status === "APPROVED");
@@ -201,8 +221,11 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
     for (const l of lines) {
       if (!(Number(l.quantity) > 0)) return toast.error(`Enter a quantity for ${l.name}`);
       if (!(Number(l.rate) > 0)) return toast.error(`Enter the rate for ${l.name}`);
+      const d = Number(l.discountPct || 0);
+      if (!(d >= 0 && d <= 100)) return toast.error(`Discount on ${l.name} must be between 0 and 100%`);
     }
-    if (expectedDate && expectedDate < orderDate) return toast.error("Expected delivery is before the invoice date");
+    if (!expectedDate) return toast.error("Choose the expected delivery date");
+    if (!expectedLocked && expectedDate < orderDate) return toast.error("Expected delivery is before the invoice date");
     if (!expiryDays) return toast.error("Choose the expiry days");
     if (Number(transportCharges) < 0 || Number(otherCharges) < 0) return toast.error("Charges can't be negative");
     setSaving(submit ? "submit" : "draft");
@@ -212,10 +235,17 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
       orderDate,
       expectedDate: expectedDate || undefined,
       expiryDays: Number(expiryDays),
-      items: lines.map((l) => ({ productId: l.productId, quantity: Number(l.quantity), rate: Number(l.rate) })),
+      items: lines.map((l) => ({
+        productId: l.productId,
+        quantity: Number(l.quantity),
+        rate: Number(l.rate),
+        discountPct: clampPct(l.discountPct) || undefined,
+      })),
       notes: notes.trim() || undefined,
       transportCharges: Number(transportCharges) || 0,
+      transportGstRate: Number(transportGstRate),
       otherCharges: Number(otherCharges) || 0,
+      otherChargesGstRate: Number(otherChargesGstRate),
       otherChargesNote: otherChargesNote.trim() || undefined,
       submit,
     };
@@ -238,7 +268,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
     }
   }
 
-  if (preloading) return <Spinner />;
+  if (preloading) return <Spinner page />;
 
   return (
     <>
@@ -270,8 +300,22 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
           <Field label="Invoice date" required>
             <Input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} required />
           </Field>
-          <Field label="Expected delivery">
-            <Input type="date" value={expectedDate} min={orderDate} onChange={(e) => setExpectedDate(e.target.value)} />
+          <Field label="Expected delivery" required hint={expectedLocked ? "Fixed when the PO was created" : undefined}>
+            {expectedLocked ? (
+              <div className="flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-800">
+                <Lock className="size-3.5 text-slate-400" />
+                {date(expectedDate)}
+              </div>
+            ) : (
+              <Input
+                type="date"
+                value={expectedDate}
+                min={orderDate}
+                onChange={(e) => setExpectedDate(e.target.value)}
+                className={cx(!expectedDate && "border-amber-400 bg-amber-50")}
+                required
+              />
+            )}
           </Field>
           {showBranch && (
             <Field label="Deliver to branch" required>
@@ -335,6 +379,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
               <Th right>Qty</Th>
               <Th>UOM</Th>
               <Th right>Rate (excl. GST)</Th>
+              <Th right>Disc. %</Th>
               <Th right>GST</Th>
               <Th right>Amount (incl. GST)</Th>
               <Th />
@@ -343,7 +388,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
           <tbody>
             {!lines.length ? (
               <tr>
-                <td colSpan={8} className="px-3 py-12 text-center text-sm text-slate-400">
+                <td colSpan={9} className="px-3 py-12 text-center text-sm text-slate-400">
                   <PackagePlus className="mx-auto mb-2 size-7 text-slate-300" />
                   Search above to add products, or add everything that&apos;s below its reorder level
                 </td>
@@ -380,6 +425,22 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
                       onChange={(e) => update(l.key, { rate: e.target.value })}
                       aria-label={`Rate of ${l.name}`}
                     />
+                  </Td>
+                  <Td right>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      placeholder="0"
+                      className={cx("num ml-auto h-8 w-20 text-right", Number(l.discountPct) > 100 && "border-red-400")}
+                      value={l.discountPct}
+                      onChange={(e) => update(l.key, { discountPct: e.target.value })}
+                      aria-label={`Discount % on ${l.name}`}
+                    />
+                    {clampPct(l.discountPct) > 0 && (
+                      <span className="mt-0.5 block text-[11px] text-emerald-700">−{inr(round2(lineGross(l) - lineTaxable(l)))}</span>
+                    )}
                   </Td>
                   <Td right className="text-slate-500">
                     {l.gstRate}%
@@ -462,18 +523,25 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
 
         <Card className="h-fit lg:sticky lg:top-4">
           <dl className="space-y-1.5 text-sm">
-            <TotalRow label="Taxable value" value={inr(subtotal)} />
-            {igst ? (
-              <TotalRow label="IGST" value={inr(tax)} />
-            ) : (
-              <>
-                <TotalRow label="CGST" value={inr(cgst)} />
-                <TotalRow label="SGST" value={inr(round2(tax - cgst))} />
-              </>
-            )}
-            <div className="space-y-2 border-t border-dashed border-slate-200 pt-2">
-              <ChargeInput label="Transportation charges" value={transportCharges} onChange={setTransportCharges} />
-              <ChargeInput label="Other charges" value={otherCharges} onChange={setOtherCharges} />
+            {discountTotal > 0 && <TotalRow label="Gross value" value={inr(round2(subtotal + discountTotal))} />}
+            {discountTotal > 0 && <TotalRow label="Discount" value={`−${inr(discountTotal)}`} />}
+            <TotalRow label="Items value" value={inr(subtotal)} />
+            {/* Charges come before GST: each is taxed at its own rate (18% by default) */}
+            <div className="space-y-2 border-y border-dashed border-slate-200 py-2">
+              <ChargeInput
+                label="Transportation (excl. GST)"
+                value={transportCharges}
+                onChange={setTransportCharges}
+                gstRate={transportGstRate}
+                onGstRate={setTransportGstRate}
+              />
+              <ChargeInput
+                label="Other charges (excl. GST)"
+                value={otherCharges}
+                onChange={setOtherCharges}
+                gstRate={otherChargesGstRate}
+                onGstRate={setOtherChargesGstRate}
+              />
               {Number(otherCharges) > 0 && (
                 <Input
                   value={otherChargesNote}
@@ -484,6 +552,19 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
                 />
               )}
             </div>
+            <TotalRow label="Taxable value" value={inr(taxable)} />
+            {/* Rate-wise GST: items at their own rates, charges at theirs */}
+            {slabs.map((x) =>
+              igst ? (
+                <TotalRow key={x.rate} label={`IGST ${x.rate}% on ${inr(x.taxable)}`} value={inr(x.tax)} />
+              ) : (
+                <div key={x.rate} className="space-y-1.5">
+                  <TotalRow label={`CGST ${halfRate(x.rate)} on ${inr(x.taxable)}`} value={inr(round2(x.tax / 2))} />
+                  <TotalRow label={`SGST ${halfRate(x.rate)} on ${inr(x.taxable)}`} value={inr(round2(x.tax - round2(x.tax / 2)))} />
+                </div>
+              ),
+            )}
+            {slabs.length > 1 && <TotalRow label="Total GST" value={inr(tax)} />}
             {roundOff !== 0 && <TotalRow label="Round off" value={`${roundOff > 0 ? "+" : "−"}${inr(Math.abs(roundOff))}`} />}
             <div className="flex items-baseline justify-between border-t border-slate-200 pt-2">
               <dt className="font-semibold text-slate-900">PO total</dt>
@@ -523,11 +604,30 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
 }
 
 /** Amount box for a PO charge, laid out like a total row */
-function ChargeInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function ChargeInput({
+  label,
+  value,
+  onChange,
+  gstRate,
+  onGstRate,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  gstRate: string;
+  onGstRate: (v: string) => void;
+}) {
   return (
     <div className="flex items-center justify-between gap-3">
       <dt className="text-slate-500">{label}</dt>
-      <dd>
+      <dd className="flex items-center gap-1.5">
+        <Select value={gstRate} onChange={(e) => onGstRate(e.target.value)} className="h-8 w-20 text-xs" aria-label={`GST on ${label}`} title="GST %">
+          {GST_RATES.map((r) => (
+            <option key={r} value={r}>
+              {r}%
+            </option>
+          ))}
+        </Select>
         <Input
           type="number"
           step="0.01"

@@ -101,7 +101,7 @@ function GovtMatchView() {
       {error ? (
         <ErrorBox message={error} onRetry={reload} />
       ) : loading && !data ? (
-        <Spinner />
+        <Spinner page />
       ) : data ? (
         <div className="space-y-4">
           {data.subsidisedProducts === 0 && (

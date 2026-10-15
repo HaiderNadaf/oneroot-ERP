@@ -3,8 +3,7 @@
 import { KeyRound, LogOut } from "lucide-react";
 import { useState } from "react";
 import { Button, Card, Field, Info, Input, PageHeader, StatusBadge, useToast } from "@/components/ui";
-import { API_URL, getToken } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
+import { changePassword, useAuth } from "@/lib/auth";
 import type { Role } from "@/lib/types";
 
 const ROLE_INFO: Record<Role, string> = {
@@ -13,24 +12,6 @@ const ROLE_INFO: Record<Role, string> = {
   CASHIER: "Billing, customers and receipts.",
   ACCOUNTANT: "Purchases, payments, expenses and reports.",
 };
-
-/**
- * The API answers a wrong current password with 401, which the shared client treats as an expired
- * session (and signs the user out). Call it directly so a typo only shows an error.
- */
-async function changePassword(currentPassword: string, newPassword: string) {
-  const token = getToken();
-  const res = await fetch(`${API_URL}/auth/change-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: JSON.stringify({ currentPassword, newPassword }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    const msg = Array.isArray(data?.message) ? data.message.join(", ") : data?.message;
-    throw new Error(msg || `Could not change password (${res.status})`);
-  }
-}
 
 export default function AccountPage() {
   const { user, logout } = useAuth();

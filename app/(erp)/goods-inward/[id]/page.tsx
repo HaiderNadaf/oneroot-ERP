@@ -29,12 +29,15 @@ function GrnView() {
   const [labelsOpen, setLabelsOpen] = useState(false);
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
-  if (loading && !g) return <Spinner />;
+  if (loading && !g) return <Spinner page />;
   if (!g) return null;
 
   const items = g.items;
   const sum = (k: "passedQty" | "rejectedQty" | "damagedQty" | "expiredQty") => items.reduce((s, i) => s + n(i[k]), 0);
   const totals = { passed: sum("passedQty"), rejected: sum("rejectedQty"), damaged: sum("damagedQty"), expired: sum("expiredQty") };
+  // Everything that arrived, whatever the inspection outcome
+  const received = totals.passed + totals.rejected + totals.damaged + totals.expired;
+  const receivedOf = (it: (typeof items)[number]) => n(it.passedQty) + n(it.rejectedQty) + n(it.damagedQty) + n(it.expiredQty);
   const passedValue = round2(items.reduce((s, i) => s + n(i.passedQty) * n(i.rate), 0));
   const invoiced = !!g.purchase && g.purchase.status !== "CANCELLED";
   const v = g.vendor;
@@ -103,8 +106,14 @@ function GrnView() {
                 {g.po.poNo}
               </Link>
             </dd>
+            <dt className="text-slate-500">Supplier invoice no.</dt>
+            <dd className="font-medium text-slate-900">{g.supplierInvoiceNo || "—"}</dd>
             <dt className="text-slate-500">Received</dt>
             <dd>{dateTime(g.receivedAt)}</dd>
+            <dt className="text-slate-500">Total received</dt>
+            <dd className="font-semibold text-slate-900">
+              {qty(received)} <span className="text-xs font-normal text-slate-500">units · {qty(totals.passed)} passed</span>
+            </dd>
             <dt className="text-slate-500">Received by</dt>
             <dd>{g.receivedBy?.name ?? "—"}</dd>
             <dt className="text-slate-500">Vehicle no.</dt>
@@ -121,6 +130,7 @@ function GrnView() {
               <Th>Mfg</Th>
               <Th>Expiry</Th>
               <Th right>PO rate</Th>
+              <Th right>Received</Th>
               <Th right>Passed</Th>
               <Th right>Rejected</Th>
               <Th right>Damaged</Th>
@@ -142,6 +152,9 @@ function GrnView() {
                 <Td className="whitespace-nowrap text-xs">{date(it.mfgDate)}</Td>
                 <Td className="whitespace-nowrap text-xs">{date(it.expiryDate)}</Td>
                 <Td right>{inr(it.rate)}</Td>
+                <Td right className="font-semibold text-slate-900">
+                  {qty(receivedOf(it))} <span className="text-xs font-normal text-slate-500">{it.product.unit}</span>
+                </Td>
                 <Td right className="font-semibold text-brand-700">
                   {qty(it.passedQty)} <span className="text-xs font-normal text-slate-500">{it.product.unit}</span>
                 </Td>
@@ -156,6 +169,9 @@ function GrnView() {
               <Td colSpan={6} className="text-right text-xs uppercase tracking-wide text-slate-500">
                 Total · passed value {inr(passedValue)} excl. GST
               </Td>
+              <Td right className="font-semibold text-slate-900">
+                {qty(received)}
+              </Td>
               <Td right className="font-semibold text-brand-700">
                 {qty(totals.passed)}
               </Td>
@@ -166,12 +182,6 @@ function GrnView() {
           </tfoot>
         </Table>
 
-        {g.notes && (
-          <div className="border-t border-slate-100 p-4 text-sm">
-            <p className="text-xs text-slate-500">Notes</p>
-            <p className="mt-0.5 whitespace-pre-line text-slate-700">{g.notes}</p>
-          </div>
-        )}
         <div className="hidden grid-cols-2 gap-8 px-4 pb-4 pt-12 text-center text-xs text-slate-600 print:grid">
           <p className="border-t border-slate-400 pt-1">Received by</p>
           <p className="border-t border-slate-400 pt-1">Checked by</p>

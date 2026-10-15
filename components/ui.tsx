@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Search, X } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Search, X, XCircle } from "lucide-react";
 import {
   Children,
   createContext,
@@ -22,7 +22,7 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import { createPortal } from "react-dom";
-
+import Image from "next/image";
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
 // ───────────────────────── Buttons ─────────────────────────
@@ -149,6 +149,37 @@ export function Select({
       title={title}
       id={id}
     />
+  );
+}
+
+/**
+ * The full OneRoot.farm logo (black wordmark, green infinity on white) in a rounded white card.
+ * `framed` adds a shadow and soft ring so the card lifts off a dark background (the sidebar);
+ * leave it off where the logo already sits on white (the login card).
+ * `className` sizes and places the card; `imageClassName` sets the logo width (default 176px).
+ */
+export function Logo({
+  className,
+  imageClassName = "w-[176px]",
+  framed = false,
+  priority,
+}: {
+  className?: string;
+  imageClassName?: string;
+  framed?: boolean;
+  /** Load eagerly (above-the-fold logos: sidebar, login) */
+  priority?: boolean;
+}) {
+  return (
+    <div
+      className={cx(
+        "inline-flex items-center justify-center overflow-hidden rounded-xl bg-white",
+        framed && "shadow-lg shadow-black/25 ring-1 ring-white/40",
+        className,
+      )}
+    >
+      <Image src="/full_logo.png" alt="OneRoot.farm" width={1630} height={640} priority={priority} className={cx("h-auto", imageClassName)} />
+    </div>
   );
 }
 
@@ -371,8 +402,8 @@ export function Dropdown({
             {isSearch && (
               <div className="relative shrink-0 border-b border-slate-100 p-1.5">
                 <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                {/* Focused only when clicked; the list opens with focus left on the button (arrow keys still move through it) */}
                 <input
-                  autoFocus
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);
@@ -526,23 +557,42 @@ export function SearchInput({
 
 // ───────────────────────── Layout ─────────────────────────
 
+/**
+ * Shown under every PageHeader. The app shell fills it with the quick-actions bar (passed in through context
+ * rather than imported here, which would loop: QuickActions → AppShell → ui).
+ */
+const PageHeaderExtra = createContext<ReactNode>(null);
+export const PageHeaderExtraProvider = PageHeaderExtra.Provider;
+
+/** The quick-actions bar on its own, for pages with a custom heading instead of PageHeader (e.g. the POS) */
+export function PageHeaderExtraSlot({ className }: { className?: string }) {
+  const extra = useContext(PageHeaderExtra);
+  return extra ? <div className={cx("no-print mb-5", className)}>{extra}</div> : null;
+}
+
 export function PageHeader({
   title,
   subtitle,
   actions,
+  quickActions = true,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
+  /** false hides the quick-actions bar under the header on this page */
+  quickActions?: boolean;
 }) {
   return (
-    <div className="no-print mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
+    <>
+      <div className="no-print mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900">{title}</h1>
+          {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
+        </div>
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
-    </div>
+      {quickActions && <PageHeaderExtraSlot className="-mt-1" />}
+    </>
   );
 }
 
@@ -723,7 +773,21 @@ export function LoadingRow({ colSpan, text = "Loading…" }: { colSpan: number; 
   );
 }
 
-export function Spinner({ className, text = "Loading…" }: { className?: string; text?: ReactNode }) {
+/**
+ * Loading indicator. `page` = a whole page (or the app) is loading: it sits in the exact centre of the screen,
+ * whatever scrolls or sits around it. Without it, it fills the spot it is placed in (a card, a table cell).
+ */
+export function Spinner({ className, text = "Loading…", page = false }: { className?: string; text?: ReactNode; page?: boolean }) {
+  if (page) {
+    return (
+      <div className={cx("pointer-events-none fixed inset-0 z-40 flex items-center justify-center", className)} role="status" aria-live="polite">
+        <div className="flex flex-col items-center gap-2 rounded-xl bg-white/90 px-6 py-4 shadow-lg ring-1 ring-slate-200 backdrop-blur-sm">
+          <Loader2 className="size-7 animate-spin text-brand-600" />
+          {text && <span className="text-sm font-medium text-slate-600">{text}</span>}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={cx("flex flex-col items-center justify-center gap-2 py-16", className)} role="status">
       <Loader2 className="size-6 animate-spin text-brand-600" />
@@ -906,40 +970,128 @@ export const useConfirm = () => useContext(ConfirmContext);
 
 // ───────────────────────── Toasts ─────────────────────────
 
-type Toast = { id: number; message: string; tone: "success" | "error" };
-const ToastContext = createContext<{ success: (m: string) => void; error: (m: string) => void }>({
-  success: () => {},
-  error: () => {},
-});
+type ToastTone = "success" | "error" | "warn";
+type Toast = { id: number; message: string; tone: ToastTone };
 
+/** How long a toast stays up; the progress bar under it runs down over the same time */
+const TOAST_MS = 3000;
+
+const TOAST_STYLE: Record<ToastTone, { box: string; icon: ReactNode; bar: string; title: string }> = {
+  success: {
+    box: "border-emerald-200 bg-emerald-50 text-emerald-900",
+    icon: <CheckCircle2 className="size-5 text-emerald-600" />,
+    bar: "bg-emerald-500",
+    title: "Success",
+  },
+  error: {
+    box: "border-red-200 bg-red-50 text-red-900",
+    icon: <XCircle className="size-5 text-red-600" />,
+    bar: "bg-red-500",
+    title: "Error",
+  },
+  warn: {
+    box: "border-amber-200 bg-amber-50 text-amber-900",
+    icon: <AlertTriangle className="size-5 text-amber-600" />,
+    bar: "bg-amber-500",
+    title: "Warning",
+  },
+};
+
+type ToastApi = {
+  /** Green: something worked */
+  success: (m: string) => void;
+  /** Green: same look as success, for plain information */
+  info: (m: string) => void;
+  /** Red: something failed */
+  error: (m: string) => void;
+  /** Yellow: worked, but needs attention */
+  warn: (m: string) => void;
+};
+const ToastContext = createContext<ToastApi>({ success: () => {}, info: () => {}, error: () => {}, warn: () => {} });
+
+/**
+ * Toasts in the top-right corner: green / red / yellow, with a close button and a bar that runs from
+ * full to empty over 3 s; the toast closes itself when the time is up (or at once on the close button).
+ */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const push = useCallback((message: string, tone: Toast["tone"]) => {
+  const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
+  const push = useCallback((message: string, tone: ToastTone) => {
     const id = Date.now() + Math.random();
-    setToasts((t) => [...t, { id, message, tone }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), tone === "error" ? 6000 : 3000);
+    // Newest on top; at most 5 on screen
+    setToasts((t) => [{ id, message, tone }, ...t].slice(0, 5));
   }, []);
-  const value = {
-    success: useCallback((m: string) => push(m, "success"), [push]),
-    error: useCallback((m: string) => push(m, "error"), [push]),
-  };
+  const success = useCallback((m: string) => push(m, "success"), [push]);
+  const error = useCallback((m: string) => push(m, "error"), [push]);
+  const warn = useCallback((m: string) => push(m, "warn"), [push]);
+  const value: ToastApi = { success, info: success, error, warn };
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="no-print pointer-events-none fixed bottom-4 right-4 z-[60] flex w-80 flex-col gap-2">
+      <div
+        aria-live="polite"
+        className="no-print pointer-events-none fixed inset-x-4 top-4 z-[80] flex flex-col items-end gap-2 sm:inset-x-auto sm:right-4 sm:w-96"
+      >
         {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={cx(
-              "pointer-events-auto rounded-lg px-4 py-3 text-sm shadow-lg",
-              t.tone === "success" ? "bg-slate-900 text-white" : "bg-red-600 text-white",
-            )}
-          >
-            {t.message}
-          </div>
+          <ToastItem key={t.id} toast={t} onClose={() => dismiss(t.id)} />
         ))}
       </div>
     </ToastContext.Provider>
+  );
+}
+
+/** One toast: closes after TOAST_MS, its bar shrinking from 100% to 0% over the same time */
+function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
+  const st = TOAST_STYLE[toast.tone];
+  // false on the first paint (bar full, slid in from the right), then true: the bar and slide transitions run
+  const [running, setRunning] = useState(false);
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  });
+  useEffect(() => {
+    // Two frames, so the full-width bar is painted before it starts shrinking
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => setRunning(true)));
+    const timer = setTimeout(() => close.current(), TOAST_MS);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, []);
+
+  return (
+    <div
+      role={toast.tone === "error" ? "alert" : "status"}
+      className={cx("pointer-events-auto relative w-full overflow-hidden rounded-xl border shadow-lg shadow-slate-900/10", st.box)}
+      style={{
+        opacity: running ? 1 : 0,
+        transform: running ? "translateX(0)" : "translateX(24px)",
+        transition: "opacity 200ms ease-out, transform 200ms ease-out",
+      }}
+    >
+      <div className="flex items-start gap-3 px-4 pb-3.5 pt-3">
+        <span className="mt-0.5 shrink-0">{st.icon}</span>
+        <div className="min-w-0 flex-1">
+          {/* <p className="text-[13px] font-semibold leading-5">{st.title}</p> */}
+          <p className="break-words text-sm leading-5 opacity-90">{toast.message}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="-mr-1 -mt-0.5 shrink-0 rounded-md p-1 opacity-60 transition hover:bg-black/5 hover:opacity-100"
+          aria-label="Close notification"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+      {/* Time left: 100% → 0% over TOAST_MS, in the toast's colour */}
+      <div className="absolute inset-x-0 bottom-0 h-1 bg-black/10">
+        <div
+          className={cx("h-full", st.bar)}
+          style={{ width: running ? "0%" : "100%", transition: running ? `width ${TOAST_MS}ms linear` : "none" }}
+        />
+      </div>
+    </div>
   );
 }
 

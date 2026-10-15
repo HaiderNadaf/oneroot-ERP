@@ -87,7 +87,7 @@ function PurchaseDetail() {
   }
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
-  if (loading && !p) return <Spinner />;
+  if (loading && !p) return <Spinner page />;
   if (!p) return null;
 
   const cancelled = p.status === "CANCELLED";
@@ -176,24 +176,37 @@ function PurchaseDetail() {
           <p className="mt-1 text-sm font-medium uppercase tracking-wide">Purchase bill / Goods receipt{cancelled && " — CANCELLED"}</p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 border-b border-slate-100 p-4 sm:grid-cols-2">
-          <div>
+        {/* Vendor, billing and delivery addresses */}
+        <div className="grid grid-cols-1 gap-3 border-b border-slate-100 p-4 sm:grid-cols-3">
+          <div className="rounded-lg border border-slate-200 p-3">
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Vendor</p>
             {v ? (
               <>
                 <Link href={`/vendors/${v.id}`} className="mt-1 block font-semibold text-slate-900 hover:text-brand-700">
                   {v.name}
                 </Link>
-                <p className="text-sm text-slate-600">{[v.address, v.city, v.state, v.pincode].filter(Boolean).join(", ")}</p>
-                <p className="text-sm text-slate-600">
-                  {[v.phone, v.gstin && `GSTIN ${v.gstin}`].filter(Boolean).join(" · ")}
-                </p>
+                <p className="text-sm text-slate-600">{[v.address, v.city, v.state, v.pincode].filter(Boolean).join(", ") || "No address on file"}</p>
+                <p className="text-sm text-slate-600">{[v.phone, v.gstin && `GSTIN ${v.gstin}`].filter(Boolean).join(" · ")}</p>
               </>
             ) : (
               <p className="mt-1 text-sm text-slate-500">—</p>
             )}
           </div>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <div className="rounded-lg border border-slate-200 p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Billed to</p>
+            <p className="mt-1 font-semibold text-slate-900">{store?.storeName ?? "—"}</p>
+            <p className="text-sm text-slate-600">{[store?.address, store?.city, store?.state, store?.pincode].filter(Boolean).join(", ") || "—"}</p>
+            {store?.gstin && <p className="text-sm text-slate-600">GSTIN {store.gstin}</p>}
+          </div>
+          <div className="rounded-lg border border-slate-200 p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Delivered to</p>
+            <p className="mt-1 font-semibold text-slate-900">{p.branch ? `${p.branch.name} (${p.branch.code})` : store?.storeName ?? "—"}</p>
+            <p className="text-sm text-slate-600">{[p.branch?.address, p.branch?.city].filter(Boolean).join(", ") || "—"}</p>
+          </div>
+        </div>
+
+        <div className="border-b border-slate-100 p-4">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
             <dt className="text-slate-500">Bill no.</dt>
             <dd className="font-medium text-slate-900">{p.purchaseNo}</dd>
             <dt className="text-slate-500">Vendor invoice</dt>
@@ -375,6 +388,7 @@ function PurchaseDetail() {
             vendor: { id: v.id, name: v.name },
             purchase: { id: p.id, purchaseNo: p.purchaseNo, vendorInvoiceNo: p.vendorInvoiceNo },
             po: p.po ?? undefined,
+            grn: p.grn ?? undefined,
           }}
           onChanged={() => void reload()}
         />

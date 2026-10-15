@@ -1,11 +1,39 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, getToken, setToken } from "./api";
+import { API_URL, api, getToken, setToken } from "./api";
 import { clearApiCache } from "./hooks";
 import { isNetworkError, persistClear, persistGet, persistSet } from "./offline";
 import { hasPerm, type Permission } from "./permissions";
 import type { Role } from "./types";
+
+/**
+ * POSTs to the API directly: it answers a wrong password with 401, which the shared client treats as an
+ * expired session (and signs the user out). Here a typo only throws an error to show.
+ */
+async function postAuth<T>(path: string, body: unknown, token: string | null = getToken()): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const msg = Array.isArray(data?.message) ? data.message.join(", ") : data?.message;
+    throw new Error(msg || `Request failed (${res.status})`);
+  }
+  return data as T;
+}
+
+/** Changes the signed-in user's password */
+export async function changePassword(currentPassword: string, newPassword: string) {
+  await postAuth("/auth/change-password", { currentPassword, newPassword });
+}
+
+/** Changes a password from the sign-in screen in one call (no session; nothing is signed in) */
+export async function forgotPassword(email: string, currentPassword: string, newPassword: string) {
+  await postAuth("/auth/forgot-password", { email, currentPassword, newPassword }, null);
+}
 
 export interface SessionUser {
   id: string;

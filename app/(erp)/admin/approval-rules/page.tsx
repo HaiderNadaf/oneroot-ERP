@@ -45,7 +45,7 @@ function ApprovalRules() {
       {error || usersError ? (
         <ErrorBox message={error ?? usersError ?? ""} onRetry={reload} />
       ) : !config || !users ? (
-        <Spinner />
+        <Spinner page />
       ) : (
         <RulesEditor
           key={`${config.steps.map((s) => s.id).join()}#${version}`}

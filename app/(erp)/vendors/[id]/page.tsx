@@ -72,7 +72,7 @@ export default function VendorDetailPage() {
   );
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
-  if (loading && !v) return <Spinner />;
+  if (loading && !v) return <Spinner page />;
   if (!v) return null;
 
   const bal = n(v.balance);

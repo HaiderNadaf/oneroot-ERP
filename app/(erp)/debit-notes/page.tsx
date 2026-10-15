@@ -210,8 +210,10 @@ function Notes() {
               ))}
             </div>
             <div className="w-full sm:w-80">
+              <p className="mb-1 text-xs font-medium text-slate-600">Filter by vendor</p>
               <VendorPicker
                 value={vendor}
+                placeholder="All vendors — search to filter…"
                 onChange={(v) => {
                   setVendor(v);
                   setPage(1);

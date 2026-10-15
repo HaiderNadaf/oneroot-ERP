@@ -12,11 +12,13 @@ import {
   type Batch,
   type DebitNote,
   type DebitNoteStatus,
+  type Grn,
   type NoteReason,
   type NoteType,
   type Paged,
   type Product,
   type Purchase,
+  type PurchaseOrder,
   type Vendor,
 } from "@/lib/types";
 import { BranchBadge, BranchNotice } from "./BranchNotice";
@@ -105,6 +107,7 @@ export interface NotePreset {
   vendor?: { id: string; name: string };
   purchase?: { id: string; purchaseNo: string; vendorInvoiceNo?: string | null };
   po?: { id: string; poNo: string };
+  grn?: { id: string; grnNo: string };
 }
 
 interface ReturnLine {
@@ -157,6 +160,8 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
   const vendor = preset?.vendor ?? pickedVendor;
   const [reasonType, setReasonType] = useState<NoteReason>(reasons[0]);
   const [purchaseId, setPurchaseId] = useState(preset?.purchase?.id ?? "");
+  const [pickedPoId, setPickedPoId] = useState("");
+  const [pickedGrnId, setPickedGrnId] = useState("");
   const [vendorRef, setVendorRef] = useState("");
   const [noteDate, setNoteDate] = useState(today());
   const [reason, setReason] = useState("");
@@ -177,7 +182,14 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
     status: "COMPLETED",
     pageSize: 100,
   });
-  const invoiceOptions = (invoices.data?.items ?? []).filter((p) => !preset?.po || p.poId === preset.po.id);
+  // Every note is against a purchase order and one of its goods inwards (GRN): the vendor's received POs
+  const pos = useApi<Paged<PurchaseOrder>>(vendor && !preset?.po ? "/purchase-orders" : null, { vendorId: vendor?.id, pageSize: 100 });
+  const poOptions = (pos.data?.items ?? []).filter((p) => ["PARTIALLY_RECEIVED", "RECEIVED"].includes(p.status));
+  const poId = preset?.po?.id ?? pickedPoId;
+  const grns = useApi<Paged<Grn>>(poId && !preset?.grn ? "/grns" : null, { poId, pageSize: 100 });
+  const grnOptions = grns.data?.items ?? [];
+  const grnId = preset?.grn?.id ?? pickedGrnId;
+  const invoiceOptions = (invoices.data?.items ?? []).filter((p) => !poId || p.poId === poId);
   // The chosen invoice's lines, to add a product line straight from the bill
   const invoice = useApi<Purchase>(purchaseId && !isReturn ? `/purchases/${purchaseId}` : null);
   const chosenInvoice = preset?.purchase ?? invoiceOptions.find((p) => p.id === purchaseId) ?? null;
@@ -185,6 +197,24 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
   function changeVendor(v: Vendor | null) {
     setPickedVendor(v);
     setPurchaseId("");
+    setPickedPoId("");
+    setPickedGrnId("");
+  }
+
+  function changePo(id: string) {
+    setPickedPoId(id);
+    setPickedGrnId("");
+    // Keep the invoice only if it belongs to the newly chosen PO
+    if (!preset?.purchase && invoiceOptions.find((p) => p.id === purchaseId)?.poId !== id) setPurchaseId("");
+  }
+
+  function changeInvoice(id: string) {
+    setPurchaseId(id);
+    // An invoice raised against a PO fills that PO in
+    const inv = invoiceOptions.find((p) => p.id === id);
+    if (inv?.poId && !preset?.po) setPickedPoId(inv.poId);
+    // …and the goods inward it was booked from
+    if (inv?.grnId && !preset?.grn) setPickedGrnId(inv.grnId);
   }
 
   function changeReason(r: NoteReason) {
@@ -302,6 +332,8 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
     if (branchBlocked) return toast.error("Pick a branch in the top bar to return stock from");
     setSubmitted(true);
     if (!vendor) return toast.error("Choose the vendor");
+    if (!poId) return toast.error("Choose the purchase order this note is against");
+    if (!grnId) return toast.error("Choose the goods inward (GRN) this note is against");
     if (!reason.trim()) return toast.error(isDebit ? "Enter the reason for the debit note" : "Enter what the credit note is for");
     let items: Record<string, unknown>[];
     if (isReturn) {
@@ -343,7 +375,8 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
         reasonType,
         vendorId: vendor.id,
         purchaseId: purchaseId || undefined,
-        poId: preset?.po?.id,
+        poId,
+        grnId,
         vendorRef: vendorRef.trim() || undefined,
         noteDate,
         reason: reason.trim(),
@@ -420,13 +453,63 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
             <span className="mt-1 block text-xs text-slate-500">{REASON_HELP[noteType][reasonType]}</span>
           </Field>
 
+          <Field label="Purchase order" required>
+            {preset?.po ? (
+              <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-800">
+                {preset.po.poNo}
+              </div>
+            ) : (
+              <Select
+                value={pickedPoId}
+                onChange={(e) => changePo(e.target.value)}
+                disabled={!vendor || pos.loading}
+                className={submitted && !poId ? "border-red-400" : undefined}
+              >
+                <option value="">
+                  {!vendor ? "Choose the vendor first" : pos.loading ? "Loading purchase orders…" : poOptions.length ? "Choose a purchase order" : "No received POs for this vendor"}
+                </option>
+                {poOptions.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.poNo} · {date(p.orderDate)} · {inr(p.totalAmount)}
+                  </option>
+                ))}
+              </Select>
+            )}
+            {pos.error && <span className="mt-1 block text-xs text-red-600">{pos.error}</span>}
+          </Field>
+
+          <Field label="Goods inward (GRN)" required>
+            {preset?.grn ? (
+              <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-800">
+                {preset.grn.grnNo}
+              </div>
+            ) : (
+              <Select
+                value={pickedGrnId}
+                onChange={(e) => setPickedGrnId(e.target.value)}
+                disabled={!poId || grns.loading}
+                className={submitted && !grnId ? "border-red-400" : undefined}
+              >
+                <option value="">
+                  {!poId ? "Choose the purchase order first" : grns.loading ? "Loading goods inwards…" : grnOptions.length ? "Choose a goods inward" : "No goods received on this PO yet"}
+                </option>
+                {grnOptions.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.grnNo} · {date(g.receivedAt)}
+                  </option>
+                ))}
+              </Select>
+            )}
+            {grns.error && <span className="mt-1 block text-xs text-red-600">{grns.error}</span>}
+          </Field>
+
           <Field label="Against invoice" hint={preset?.purchase ? undefined : "Optional — posting settles this invoice's due first"}>
             {preset?.purchase ? (
               <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-800">
                 {invoiceLabel}
               </div>
             ) : (
-              <Select value={purchaseId} onChange={(e) => setPurchaseId(e.target.value)} disabled={!vendor || invoices.loading}>
+              <Select value={purchaseId} onChange={(e) => changeInvoice(e.target.value)} disabled={!vendor || invoices.loading}>
                 <option value="">{!vendor ? "Choose the vendor first" : invoices.loading ? "Loading invoices…" : "Not against a specific invoice"}</option>
                 {invoiceOptions.map((p) => {
                   const due = round2(n(p.totalAmount) - n(p.paidAmount));

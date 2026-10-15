@@ -42,6 +42,18 @@ export const PO_TERMS: { title: string; text: string }[] = [
   },
 ];
 
+/** One-line version of the terms for the printed PO */
+export const PO_TERMS_SHORT: string[] = [
+  "Valid only for the expiry days shown, from the PO date.",
+  "Supply only the ordered products, pack sizes and quantities.",
+  "Rates are fixed and exclude GST; charges only as shown.",
+  "Deliver by the expected date with an invoice quoting this PO no.",
+  "Every pack must show batch, mfg and expiry dates; under 6 months' shelf life may be rejected.",
+  "Damaged or sub-standard goods are returned at the vendor's cost.",
+  "Payment as per agreed credit terms, for quantity accepted at goods inward.",
+  "Disputes are subject to the jurisdiction of the ordering branch.",
+];
+
 /**  for purchase orders, opened from the PO form */
 export function PoTermsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (

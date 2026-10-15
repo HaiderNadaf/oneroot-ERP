@@ -1,9 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Button, Field, Input, errMsg } from "@/components/ui";
+import { Button, Field, Input, errMsg, Logo } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 
 export default function LoginPage() {
@@ -33,54 +32,80 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-900 via-brand-800 to-brand-700 p-4">
-      <form onSubmit={submit} className="w-full max-w-sm">
-        {/* White logo sits on the green background, above the card */}
-        <Image
-          src="/logo-trimmed.png"
-          alt="OneRoot.farm"
-          width={480}
-          height={138}
-          priority
-          className="mx-auto mb-6 h-auto w-60"
-        />
-        <div className="rounded-2xl bg-white p-8 shadow-2xl">
-          <div className="mb-6 flex flex-col items-center justify-center text-center">
-            <h1 className="text-lg font-semibold text-slate-900">Sign in</h1>
-            <p className="text-xs text-slate-500">
-              Agri Inputs ERP — use your store account
+    // Light mint page with soft green and wheat-gold glows; the card's deep-green header frames the white logo tile
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#f6faf2] via-brand-50 to-[#dcefe3] p-4">
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-32 -top-32 size-[28rem] rounded-full bg-brand-500/25 blur-3xl" />
+        <div className="absolute -bottom-40 -right-24 size-[30rem] rounded-full bg-amber-300/30 blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(#16634114_1px,transparent_1px)] [background-size:22px_22px]" />
+      </div>
+      <form onSubmit={submit} className="relative w-full max-w-sm">
+        <div className="overflow-hidden rounded-3xl bg-white shadow-2xl shadow-brand-900/20 ring-1 ring-brand-900/5">
+          <div className="relative overflow-hidden bg-gradient-to-br from-brand-900 via-brand-800 to-brand-600  p-4 pb-1 text-center">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-brand-400/20 blur-2xl"
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-20 -left-10 size-44 rounded-full bg-amber-300/15 blur-2xl"
+            />
+            <Logo priority framed className="relative" imageClassName="w-56" />
+            <p className="relative text-[11px] font-medium uppercase tracking-[0.18em] text-brand-100/80">
+              Agri Inputs ERP
             </p>
           </div>
-          <div className="space-y-4">
-            <Field label="Email">
-              <Input
-                type="email"
-                autoComplete="username"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoFocus
-              />
-            </Field>
-            <Field label="Password">
-              <Input
-                isPassword
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </Field>
-            {error && (
-              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-                {error}
-              </p>
-            )}
-            <Button type="submit" loading={busy} className="w-full">
-              Sign in
-            </Button>
+          <div className="h-1 bg-gradient-to-r from-brand-500 via-brand-400 to-amber-400" />
+          <div className="px-6 py-4">
+            <div className="mb-2 text-center">
+              <h1 className="text-lg font-semibold text-slate-900">Sign in</h1>
+              <p className="text-xs text-slate-500">Use your store account</p>
+            </div>
+            <div className="space-y-4">
+              <Field label="Email">
+                <Input
+                  type="email"
+                  autoComplete="username"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </Field>
+              <Field label="Password">
+                <Input
+                  isPassword
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </Field>
+              <div className="flex justify-end -mt-2">
+                <button
+                  type="button"
+                  onClick={() => router.push("/forgot-password")}
+                  className="text-xs font-medium text-brand-700 hover:text-brand-900 hover:underline transition-colors"
+                >
+                  Forgot password ?
+                </button>
+              </div>
+              {error && (
+                <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" loading={busy} className="w-full">
+                Sign in
+              </Button>
+            </div>
+           
           </div>
+          
         </div>
+         <p className="mt-6 text-center text-xs text-brand-800/60">
+              © {new Date().getFullYear()} OneRoot Agri Inputs
+            </p>
       </form>
     </div>
   );

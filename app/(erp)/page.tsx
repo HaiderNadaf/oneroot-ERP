@@ -114,7 +114,7 @@ const AXIS = "#5f6e60";
 
 function greeting() {
   const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  return h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";
 }
 
 /** Indian cropping season for the subtitle */
@@ -443,7 +443,7 @@ export default function DashboardPage() {
   const [expTab, setExpTab] = useState<7 | 30 | 60>(30);
   const { data, error, loading, reload } = useApi<Dashboard>("/dashboard", { period });
 
-  if (loading && !data) return <Spinner />;
+  if (loading && !data) return <Spinner page />;
   if (error && !data) return <ErrorBox message={error} onRetry={reload} />;
   if (!data) return null;
 
@@ -467,7 +467,7 @@ export default function DashboardPage() {
       {/* Heading + period switch */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[12.5px] text-[#5f6e60]">Dashboard</p>
+          <p className="text-[16x] font-bold text-[#5f6e60]">Dashboard</p>
           <h1 className="text-[26px] font-bold tracking-tight text-[#1d2a1f]">
             {greeting()}, {data.greetingName}
           </h1>

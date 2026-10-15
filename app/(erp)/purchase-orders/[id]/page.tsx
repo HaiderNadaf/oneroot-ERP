@@ -15,12 +15,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { ApprovalChain } from "@/components/ApprovalChain";
 import { NotesPanel } from "@/components/NotesPanel";
+import { PrintPortal } from "@/components/PrintPortal";
 import { useCounts } from "@/components/Notifications";
 import { isInterState } from "@/components/PoForm";
-import { placeOfSupply } from "@/lib/gst";
+import { PO_TERMS_SHORT } from "@/components/PoTermsModal";
+import { CHARGES_GST_RATE, gstSlabs, halfRate, placeOfSupply } from "@/lib/gst";
 import {
   Badge,
   Button,
@@ -43,6 +45,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { amountInWords, date, dateTime, daysUntil, inr, n, qty, round2 } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { printAs } from "@/lib/print";
 import type { ChainStep, PoHistory, PurchaseOrder, StoreSettings } from "@/lib/types";
 
 type Decision = "approve" | "send_back" | "reject";
@@ -80,7 +83,7 @@ export default function PurchaseOrderDetailPage() {
   }
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
-  if (loading && !po) return <Spinner />;
+  if (loading && !po) return <Spinner page />;
   if (!po) return null;
 
   const v = po.vendor;
@@ -92,7 +95,7 @@ export default function PurchaseOrderDetailPage() {
   const igst = isInterState(v, store);
   const pos = placeOfSupply(v, store);
   const tax = n(po.taxAmount);
-  const cgst = round2(tax / 2);
+  const slabs = poGstSlabs(po);
   const late = receivable ? daysUntil(po.expectedDate) : null;
   const lastNote = (prefix: string) => history.find((h) => h.action.startsWith(prefix));
 
@@ -128,7 +131,10 @@ export default function PurchaseOrderDetailPage() {
         subtitle={`${v?.name ?? "Vendor"} · ${date(po.orderDate)} · ${inr(po.totalAmount)}`}
         actions={
           <>
-            <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => window.print()}>
+            <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => {
+                fitPoPrintToPages();
+                printAs("sheet", "size: A4; margin: 0 !important;", `Purchase Order - ${po.poNo}`);
+              }}>
               Print
             </Button>
             {po.canEdit && isBuyer && (
@@ -165,22 +171,12 @@ export default function PurchaseOrderDetailPage() {
 
       <StatusNotice po={po} lastNote={lastNote} />
 
-      <div className="print-area">
-        <div className="hidden pb-3 text-center print:block">
-          <p className="text-lg font-semibold">{store?.storeName ?? "Purchase order"}</p>
-          {store && (
-            <p className="text-xs text-slate-600">
-              {[store.address, store.city, store.state, store.pincode].filter(Boolean).join(", ")}
-              {store.gstin && ` · GSTIN ${store.gstin}`}
-              {store.phone && ` · ${store.phone}`}
-            </p>
-          )}
-          <p className="mt-1 text-sm font-medium uppercase tracking-wide">
-            Purchase order{po.status === "CANCELLED" && " — CANCELLED"}
-            {(po.status === "DRAFT" || pending || po.status === "SENT_BACK") && " — NOT YET APPROVED"}
-          </p>
-        </div>
+      {/* Printed on its own from under <body>, so nothing in the app layout can shift its pages */}
+      <PrintPortal className="sheet-host">
+        <PoPrint po={po} store={store} notApproved={po.status === "DRAFT" || pending || po.status === "SENT_BACK"} />
+      </PrintPortal>
 
+      <div className="print:hidden">
         <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-3 print:block">
           <Card title="Order details" className="lg:col-span-2 print:mb-3">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -251,6 +247,7 @@ export default function PurchaseOrderDetailPage() {
                 <Th>Product</Th>
                 <Th right>Ordered</Th>
                 <Th right>Rate</Th>
+                <Th right>Disc.</Th>
                 <Th right>GST</Th>
                 <Th right>Amount</Th>
                 <Th right className="print:hidden">Passed</Th>
@@ -276,6 +273,9 @@ export default function PurchaseOrderDetailPage() {
                     {qty(it.quantity)} <span className="text-xs text-slate-500">{it.product.unit}</span>
                   </Td>
                   <Td right>{inr(it.rate)}</Td>
+                  <Td right className={n(it.discountPct) ? "text-emerald-700" : "text-slate-400"}>
+                    {n(it.discountPct) ? `${n(it.discountPct)}%` : "—"}
+                  </Td>
                   <Td right className="text-slate-500">
                     {n(it.gstRate)}%
                   </Td>
@@ -299,8 +299,9 @@ export default function PurchaseOrderDetailPage() {
                   <Td right>{qty(sum("quantity"))}</Td>
                   <Td />
                   <Td />
+                  <Td />
                   <Td right className="text-slate-900">
-                    {inr(round2(n(po.subtotal) + n(po.taxAmount)))}
+                    {inr(round2(items.reduce((s, it) => s + n(it.amount), 0)))}
                   </Td>
                   <Td right className="print:hidden">{qty(sum("passedQty"))}</Td>
                   <Td right className="print:hidden">{qty(sum("rejectedQty"))}</Td>
@@ -323,29 +324,23 @@ export default function PurchaseOrderDetailPage() {
               )}
             </div>
             <dl className="space-y-1.5 text-sm sm:ml-auto sm:w-72">
-              <Row label="Taxable value" value={inr(po.subtotal)} />
-              {igst ? (
-                <Row label="IGST" value={inr(tax)} />
-              ) : (
-                <>
-                  <Row label="CGST" value={inr(cgst)} />
-                  <Row label="SGST" value={inr(round2(tax - cgst))} />
-                </>
-              )}
-              {n(po.transportCharges) > 0 && <Row label="Transportation charges" value={inr(po.transportCharges)} />}
+              {/* Charges come before GST: each is taxed at its own rate (18% by default) */}
+              <Row label="Items value" value={inr(po.subtotal)} />
+              {n(po.transportCharges) > 0 && <Row label={`Transportation charges (excl. GST ${chargeRate(po.transportGstRate)}%)`} value={inr(po.transportCharges)} />}
               {n(po.otherCharges) > 0 && (
-                <Row label={po.otherChargesNote ? `Other charges (${po.otherChargesNote})` : "Other charges"} value={inr(po.otherCharges)} />
+                <Row
+                  label={`${po.otherChargesNote ? `Other charges (${po.otherChargesNote})` : "Other charges"} (excl. GST ${chargeRate(po.otherChargesGstRate)}%)`}
+                  value={inr(po.otherCharges)}
+                />
               )}
+              <Row label="Taxable value" value={inr(round2(n(po.subtotal) + n(po.transportCharges) + n(po.otherCharges)))} />
+              <GstRows slabs={slabs} igst={igst} total={tax} />
               {n(po.roundOff) !== 0 && <Row label="Round off" value={`${n(po.roundOff) > 0 ? "+" : "−"}${inr(Math.abs(n(po.roundOff)))}`} />}
               <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold text-slate-900">
                 <dt>PO total</dt>
                 <dd className="num">{inr(po.totalAmount)}</dd>
               </div>
             </dl>
-          </div>
-          <div className="hidden grid-cols-2 gap-8 px-4 pb-4 pt-10 text-center text-xs text-slate-600 print:grid">
-            <p className="border-t border-slate-400 pt-1">Prepared by {po.createdBy?.name ?? ""}</p>
-            <p className="border-t border-slate-400 pt-1">Authorised signatory</p>
           </div>
         </Card>
       </div>
@@ -721,5 +716,291 @@ function DecisionModal({ po, action, onClose, onDone }: { po: PurchaseOrder; act
         />
       </label>
     </Modal>
+  );
+}
+
+/** A4 page and the margin kept on every printed page (mm) */
+const PAGE_MM = 297;
+const MARGIN_MM = 12;
+const PX_PER_MM = 96 / 25.4;
+
+/**
+ * Stretches the PO print body to fill whole pages, so the terms and the signature note sit at the bottom
+ * of the last page however many pages the items take. Measured off-screen at the printed width, just before printing.
+ */
+function fitPoPrintToPages() {
+  const body = document.getElementById("po-print-body");
+  const sheet = body?.closest<HTMLElement>(".po-print");
+  if (!body || !sheet) return;
+  body.style.minHeight = "";
+  // Lay the (screen-hidden) sheet out at A4 width, out of view, to measure it
+  const prev = sheet.getAttribute("style");
+  sheet.setAttribute("style", "display:block;position:absolute;left:-10000px;top:0;width:210mm;visibility:hidden");
+  const usableMm = PAGE_MM - 2 * MARGIN_MM;
+  // A few mm of slack for print font rounding, so a sheet that only just fits is treated as the next page count
+  const contentMm = body.scrollHeight / PX_PER_MM + 4;
+  if (prev === null) sheet.removeAttribute("style");
+  else sheet.setAttribute("style", prev);
+  const pages = Math.max(1, Math.ceil(contentMm / usableMm));
+  // A little short of the full height, so rounding never spills onto an empty extra page
+  body.style.minHeight = `${pages * usableMm - 3}mm`;
+}
+
+/** GST % on a charge; older POs without one were saved before the 18% default */
+const chargeRate = (rate: PurchaseOrder["transportGstRate"]) => (rate != null ? n(rate) : CHARGES_GST_RATE);
+
+/** Rate-wise GST of a saved PO: each item at its own rate (its amount less its taxable value), each charge at its rate */
+function poGstSlabs(po: PurchaseOrder) {
+  return gstSlabs([
+    ...(po.items ?? []).map((it) => {
+      const taxable = round2(n(it.quantity) * n(it.rate) * (1 - n(it.discountPct) / 100));
+      return { taxable, gstRate: n(it.gstRate), tax: round2(n(it.amount) - taxable) };
+    }),
+    { taxable: n(po.transportCharges), gstRate: chargeRate(po.transportGstRate) },
+    { taxable: n(po.otherCharges), gstRate: chargeRate(po.otherChargesGstRate) },
+  ]);
+}
+
+/** CGST + SGST (or IGST) per GST rate, then the total when there is more than one rate */
+function GstRows({ slabs, igst, total }: { slabs: ReturnType<typeof gstSlabs>; igst: boolean; total: number }) {
+  return (
+    <>
+      {slabs.map((x) =>
+        igst ? (
+          <Row key={x.rate} label={`IGST ${x.rate}% on ${inr(x.taxable)}`} value={inr(x.tax)} />
+        ) : (
+          <Fragment key={x.rate}>
+            <Row label={`CGST ${halfRate(x.rate)} on ${inr(x.taxable)}`} value={inr(round2(x.tax / 2))} />
+            <Row label={`SGST ${halfRate(x.rate)} on ${inr(x.taxable)}`} value={inr(round2(x.tax - round2(x.tax / 2)))} />
+          </Fragment>
+        ),
+      )}
+      {slabs.length > 1 && <Row label="Total GST" value={inr(total)} />}
+    </>
+  );
+}
+
+const Label = ({ children }: { children: ReactNode }) => (
+  <p className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-brand-700">{children}</p>
+);
+
+/** A4 print layout of the PO (hidden on screen): header, details, three addresses, items, totals, terms */
+function PoPrint({ po, store, notApproved }: { po: PurchaseOrder; store: StoreSettings | null | undefined; notApproved: boolean }) {
+  const v = po.vendor;
+  const items = po.items ?? [];
+  const igst = isInterState(v, store);
+  const tax = n(po.taxAmount);
+  const slabs = poGstSlabs(po);
+  const validUntil = po.expiryDays ? new Date(new Date(po.orderDate).getTime() + po.expiryDays * 86_400_000) : null;
+  const join = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join(", ");
+  // Items only, incl. their GST (the PO's GST also covers the charges)
+  const itemsTotal = round2(items.reduce((s, it) => s + n(it.amount), 0));
+  const gross = round2(items.reduce((s, it) => s + n(it.quantity) * n(it.rate), 0));
+  const discount = round2(gross - n(po.subtotal));
+
+  const details: [string, string][] = [
+    ["PO number", po.poNo],
+    ["PO date", date(po.orderDate)],
+    ["Expected delivery", date(po.expectedDate)],
+    ["Valid till", validUntil ? `${date(validUntil)} · ${po.expiryDays} days` : "—"],
+    ["Place of supply", placeOfSupply(v, store).label],
+    ["Vendor GSTIN", v?.gstin || "—"],
+    ["Raised by", po.createdBy?.name ?? "—"],
+    ["Status", po.status.toLowerCase().replace(/_/g, " ")],
+  ];
+  const addresses: { title: string; name?: string | null; lines: string[] }[] = [
+    { title: "Vendor", name: v?.name, lines: [join(v?.address, v?.city), join(v?.state, v?.pincode), v?.gstin ? `GSTIN: ${v.gstin}` : ""] },
+    {
+      title: "Billed to",
+      name: store?.storeName,
+      lines: [join(store?.address, store?.city), join(store?.state, store?.pincode), store?.gstin ? `GSTIN: ${store.gstin}` : ""],
+    },
+    { title: "Ship to", name: po.branch ? `${po.branch.name} (${po.branch.code})` : store?.storeName, lines: [po.branch?.address ?? "", po.branch?.city ?? ""] },
+  ];
+  const th = "px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide";
+  const td = "px-2.5 py-2 align-top";
+
+  return (
+    <div className="po-print hidden text-[11.5px] leading-[1.45] text-slate-800 [print-color-adjust:exact] [-webkit-print-color-adjust:exact] print:block">
+      {/* The empty header / footer rows repeat on every printed page: the same top and bottom margin on all pages */}
+      <table className="w-full border-collapse">
+        <thead>
+          <tr>
+            <td style={{ height: `${MARGIN_MM}mm` }} />
+          </tr>
+        </thead>
+        <tfoot>
+          <tr>
+            <td style={{ height: `${MARGIN_MM}mm` }} />
+          </tr>
+        </tfoot>
+        <tbody>
+          <tr>
+            <td style={{ paddingLeft: `${MARGIN_MM}mm`, paddingRight: `${MARGIN_MM}mm` }}>
+              <div id="po-print-body" className="flex flex-col">
+                {/* ── Header ── */}
+                <div className="flex items-center justify-between gap-6 border-b-[3px] border-brand-700 pb-3">
+                  <div className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- plain img prints reliably */}
+                    <img src="/full_logo.png" alt="OneRoot.farm" className="h-11 w-auto" />
+                    <div className="border-l border-slate-300 pl-3">
+                      <p className="text-[15px] font-bold leading-tight text-slate-900">{store?.storeName ?? "OneRoot"}</p>
+                      <p className="text-[10.5px] text-slate-500">{join(store?.address, store?.city, store?.state, store?.pincode)}</p>
+                      {store?.gstin && <p className="text-[10.5px] text-slate-500">GSTIN: {store.gstin}</p>}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[19px] font-extrabold uppercase leading-none tracking-[0.06em] text-brand-800">Purchase Order</p>
+                    <p className="mt-1.5 font-mono text-[12px] font-semibold text-slate-700">{po.poNo}</p>
+                    {(po.status === "CANCELLED" || notApproved) && (
+                      <p
+                        className={cx(
+                          "mt-1 inline-block rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wide",
+                          po.status === "CANCELLED" ? "bg-red-50 text-red-700 ring-1 ring-red-200" : "bg-amber-50 text-amber-800 ring-1 ring-amber-200",
+                        )}
+                      >
+                        {po.status === "CANCELLED" ? "Cancelled" : "Not yet approved"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Order details: four to a row ── */}
+                <section className="mt-4">
+                  <h2 className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-900">Order details</h2>
+                  <div className="grid grid-cols-4 overflow-hidden rounded-md border border-slate-200 bg-slate-50/70">
+                    {details.map(([label, value], i) => (
+                      <div key={label} className={cx("px-3 py-2", i % 4 !== 0 && "border-l border-slate-200", i >= 4 && "border-t border-slate-200")}>
+                        <Label>{label}</Label>
+                        <p className="mt-0.5 font-semibold text-slate-900 first-letter:uppercase">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {/* ── Vendor, billing and shipping addresses ── */}
+                <section className="mt-3 grid grid-cols-3 gap-3">
+                  {addresses.map((a) => (
+                    <div key={a.title} className="rounded-md border border-slate-200 border-t-[3px] border-t-brand-600 px-3 py-2.5">
+                      <Label>{a.title}</Label>
+                      <p className="mt-1 text-[12px] font-bold text-slate-900">{a.name || "—"}</p>
+                      {a.lines.filter(Boolean).map((l) => (
+                        <p key={l} className="text-[10.5px] text-slate-600">
+                          {l}
+                        </p>
+                      ))}
+                    </div>
+                  ))}
+                </section>
+
+                {/* ── Items ── */}
+                <section className="mt-4">
+                  <h2 className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-900">Items ({items.length})</h2>
+                  <table className="w-full border-collapse overflow-hidden rounded-md text-[11px]">
+                    <thead>
+                      <tr className="bg-brand-800 text-left text-white">
+                        <th className={cx(th, "w-8 rounded-tl-md")}>#</th>
+                        <th className={th}>Product</th>
+                        <th className={th}>HSN</th>
+                        <th className={cx(th, "text-right")}>Qty</th>
+                        <th className={cx(th, "text-right")}>Rate</th>
+                        <th className={cx(th, "text-right")}>Disc.</th>
+                        <th className={cx(th, "text-right")}>GST</th>
+                        <th className={cx(th, "rounded-tr-md text-right")}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((it, i) => (
+                        <tr key={it.id} className={cx("break-inside-avoid border-b border-slate-200", i % 2 === 1 && "bg-slate-50")}>
+                          <td className={cx(td, "text-slate-400")}>{i + 1}</td>
+                          <td className={td}>
+                            <p className="font-semibold text-slate-900">{it.product.name}</p>
+                            <p className="text-[9.5px] text-slate-500">
+                              SKU {it.product.sku}
+                              {it.product.packSize && ` · ${it.product.packSize}`}
+                            </p>
+                          </td>
+                          <td className={cx(td, "font-mono text-[10px]")}>{it.product.hsnCode || "—"}</td>
+                          <td className={cx(td, "num whitespace-nowrap text-right")}>
+                            {qty(it.quantity)} <span className="text-[9.5px] text-slate-500">{it.product.unit}</span>
+                          </td>
+                          <td className={cx(td, "num text-right")}>{inr(it.rate)}</td>
+                          <td className={cx(td, "num text-right")}>{n(it.discountPct) ? `${n(it.discountPct)}%` : "—"}</td>
+                          <td className={cx(td, "num text-right")}>{n(it.gstRate)}%</td>
+                          <td className={cx(td, "num text-right font-semibold text-slate-900")}>{inr(it.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-b-2 border-slate-300 font-semibold">
+                        <td colSpan={7} className={cx(td, "text-right text-slate-600")}>
+                          Items total (incl. GST)
+                        </td>
+                        <td className={cx(td, "num text-right text-slate-900")}>{inr(itemsTotal)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </section>
+
+                {/* ── Amount in words / notes beside the totals ── */}
+                <section className="mt-3 flex break-inside-avoid gap-5">
+                  <div className="flex-1 space-y-2.5">
+                    <div>
+                      <Label>Amount in words</Label>
+                      <p className="mt-0.5 font-semibold text-slate-900">{amountInWords(n(po.totalAmount))}</p>
+                    </div>
+                    {po.notes && (
+                      <div>
+                        <Label>Notes</Label>
+                        <p className="mt-0.5 whitespace-pre-line text-slate-700">{po.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                  <dl className="w-[68mm] overflow-hidden rounded-md border border-slate-200 text-[11px]">
+                    <div className="space-y-1 px-3 py-2">
+                      {discount > 0.004 && <Row label="Gross value" value={inr(gross)} />}
+                      {discount > 0.004 && <Row label="Discount" value={`−${inr(discount)}`} />}
+                      <Row label="Items value" value={inr(po.subtotal)} />
+                      {n(po.transportCharges) > 0 && <Row label={`Transportation (excl. GST ${chargeRate(po.transportGstRate)}%)`} value={inr(po.transportCharges)} />}
+                      {n(po.otherCharges) > 0 && (
+                        <Row
+                          label={`${po.otherChargesNote ? `Other (${po.otherChargesNote})` : "Other charges"} (excl. GST ${chargeRate(po.otherChargesGstRate)}%)`}
+                          value={inr(po.otherCharges)}
+                        />
+                      )}
+                      <Row label="Taxable value" value={inr(round2(n(po.subtotal) + n(po.transportCharges) + n(po.otherCharges)))} />
+                      <GstRows slabs={slabs} igst={igst} total={tax} />
+                      {n(po.roundOff) !== 0 && <Row label="Round off" value={`${n(po.roundOff) > 0 ? "+" : "−"}${inr(Math.abs(n(po.roundOff)))}`} />}
+                    </div>
+                    <div className="flex items-center justify-between bg-brand-800 px-3 py-2 text-white">
+                      <dt className="text-[10.5px] font-semibold uppercase tracking-wide">PO total</dt>
+                      <dd className="num text-[14px] font-bold">{inr(po.totalAmount)}</dd>
+                    </div>
+                  </dl>
+                </section>
+
+                {/* ── Terms and the signature note: pushed to the bottom of the last page ── */}
+                <div className="mt-auto break-inside-avoid pt-5">
+                  <section className="rounded-md border border-slate-300 px-3.5 py-3">
+                    <h2 className="border-b border-slate-200 pb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-900">
+                      Terms &amp; conditions
+                    </h2>
+                    <ol className="mt-2 grid list-decimal grid-cols-2 gap-x-6 gap-y-1 pl-4 text-[9.5px] leading-[1.4] text-slate-600 marker:font-semibold marker:text-slate-500">
+                      {PO_TERMS_SHORT.map((t) => (
+                        <li key={t}>{t}</li>
+                      ))}
+                    </ol>
+                  </section>
+                  <p className="mt-2.5 text-left text-[10px] italic text-slate-500">
+                    <span className="font-semibold not-italic text-red-600">*</span> This is a system-generated purchase order and does not require a
+                    signature.
+                  </p>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   );
 }

@@ -4,6 +4,7 @@ import {
   Boxes,
   ChevronDown,
   ClipboardList,
+  CornerDownLeft,
   KeyRound,
   Layers,
   Loader2,
@@ -17,6 +18,7 @@ import {
   Truck,
   UserRound,
   Users,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -30,84 +32,134 @@ import { NotificationBell } from "./Notifications";
 import { Dropdown, cx } from "./ui";
 
 interface SearchResults {
-  products: { id: string; name: string; sku: string; unit: string; stock: string; isActive: boolean }[];
+  products: {
+    id: string;
+    name: string;
+    sku: string;
+    unit: string;
+    stock: string;
+    isActive: boolean;
+    barcode: string | null;
+    brand: string | null;
+    technicalName: string | null;
+    hsnCode: string | null;
+  }[];
   customers: { id: string; name: string; phone: string | null; village: string | null; balance: string }[];
-  vendors: { id: string; name: string; phone: string | null; balance: string }[];
-  sales: { id: string; invoiceNo: string; customerName: string | null; totalAmount: string; saleDate: string; status: string }[];
-  purchases: { id: string; purchaseNo: string; vendorInvoiceNo: string | null; totalAmount: string; vendor: { name: string } }[];
-  purchaseOrders: { id: string; poNo: string; status: string; totalAmount: string; vendor: { name: string } }[];
+  vendors: { id: string; name: string; phone: string | null; gstin: string | null; balance: string }[];
+  sales: { id: string; invoiceNo: string; customerName: string | null; customerPhone: string | null; totalAmount: string; saleDate: string; status: string }[];
+  purchases: { id: string; purchaseNo: string; vendorInvoiceNo: string | null; totalAmount: string; purchaseDate: string; vendor: { name: string } }[];
+  purchaseOrders: { id: string; poNo: string; status: string; totalAmount: string; orderDate: string; vendor: { name: string } }[];
   batches: { id: string; batchNo: string; expiryDate: string | null; quantity: string; product: { id: string; name: string; unit: string } }[];
 }
 
+/** Result kinds, in the order they are listed and offered as filters */
+const KINDS = [
+  { key: "products", label: "Products", icon: <Package /> },
+  { key: "batches", label: "Batches", icon: <Layers /> },
+  { key: "customers", label: "Customers", icon: <Users /> },
+  { key: "vendors", label: "Vendors", icon: <Boxes /> },
+  { key: "sales", label: "Sales", icon: <Receipt /> },
+  { key: "purchaseOrders", label: "Purchase orders", icon: <ClipboardList /> },
+  { key: "purchases", label: "Purchase invoices", icon: <Truck /> },
+] as const;
+type Kind = (typeof KINDS)[number]["key"];
+
 interface Hit {
   key: string;
-  group: string;
-  icon: ReactNode;
+  kind: Kind;
   title: string;
   sub: string;
+  /** The field that matched when it isn't already shown, e.g. "Barcode: 8901…" */
+  matched?: string;
   href: string;
 }
 
-function toHits(r: SearchResults): Hit[] {
+/** First labelled field holding the term, for the "Matched …" line */
+function matchedOn(term: string, fields: [string, string | null | undefined][]) {
+  const t = term.toLowerCase();
+  const hit = fields.find(([, v]) => v?.toLowerCase().includes(t));
+  return hit ? `${hit[0]}: ${hit[1]}` : undefined;
+}
+
+const statusText = (s: string) => s.toLowerCase().replace(/_/g, " ");
+
+function toHits(r: SearchResults, term: string): Hit[] {
   return [
     ...r.products.map((p) => ({
       key: "p" + p.id,
-      group: "Products",
-      icon: <Package />,
+      kind: "products" as const,
       title: p.name,
-      sub: `${p.sku} · ${qty(p.stock)} ${p.unit} in stock${p.isActive ? "" : " · inactive"}`,
+      sub: `SKU ${p.sku} · ${qty(p.stock)} ${p.unit} in stock${p.isActive ? "" : " · inactive"}`,
+      matched: matchedOn(term, [["Barcode", p.barcode], ["Brand", p.brand], ["Technical name", p.technicalName], ["HSN", p.hsnCode]]),
       href: `/products/${p.id}`,
     })),
     ...r.batches.map((b) => ({
       key: "b" + b.id,
-      group: "Batches",
-      icon: <Layers />,
+      kind: "batches" as const,
       title: `Batch ${b.batchNo}`,
-      sub: `${b.product.name} · ${qty(b.quantity)} ${b.product.unit}${b.expiryDate ? ` · exp ${date(b.expiryDate)}` : ""}`,
+      sub: `${b.product.name} · ${qty(b.quantity)} ${b.product.unit}${b.expiryDate ? ` · expires ${date(b.expiryDate)}` : ""}`,
       href: `/products/${b.product.id}`,
     })),
     ...r.customers.map((c) => ({
       key: "c" + c.id,
-      group: "Customers",
-      icon: <Users />,
+      kind: "customers" as const,
       title: c.name,
-      sub: [c.phone, c.village, n(c.balance) > 0 ? `due ${inr(c.balance)}` : null].filter(Boolean).join(" · ") || "Customer",
+      sub: [c.phone, c.village, n(c.balance) > 0 ? `due ${inr(c.balance)}` : "no dues"].filter(Boolean).join(" · "),
       href: `/customers/${c.id}`,
     })),
     ...r.vendors.map((v) => ({
       key: "v" + v.id,
-      group: "Vendors",
-      icon: <Boxes />,
+      kind: "vendors" as const,
       title: v.name,
-      sub: [v.phone, n(v.balance) > 0 ? `payable ${inr(v.balance)}` : null].filter(Boolean).join(" · ") || "Vendor",
+      sub: [v.phone, n(v.balance) > 0 ? `payable ${inr(v.balance)}` : "nothing payable"].filter(Boolean).join(" · "),
+      matched: matchedOn(term, [["GSTIN", v.gstin]]),
       href: `/vendors/${v.id}`,
     })),
     ...r.sales.map((s) => ({
       key: "s" + s.id,
-      group: "Sales invoices",
-      icon: <Receipt />,
-      title: s.invoiceNo,
+      kind: "sales" as const,
+      title: `Invoice ${s.invoiceNo}`,
       sub: `${s.customerName || "Walk-in"} · ${inr(s.totalAmount)} · ${date(s.saleDate)}${s.status === "CANCELLED" ? " · cancelled" : ""}`,
+      matched: matchedOn(term, [["Phone", s.customerPhone]]),
       href: `/sales/${s.id}`,
     })),
     ...r.purchaseOrders.map((p) => ({
       key: "o" + p.id,
-      group: "Purchase orders",
-      icon: <ClipboardList />,
-      title: p.poNo,
-      sub: `${p.vendor.name} · ${inr(p.totalAmount)} · ${p.status.toLowerCase().replace(/_/g, " ")}`,
+      kind: "purchaseOrders" as const,
+      title: `PO ${p.poNo}`,
+      sub: `${p.vendor.name} · ${inr(p.totalAmount)} · ${date(p.orderDate)} · ${statusText(p.status)}`,
       href: `/purchase-orders/${p.id}`,
     })),
     ...r.purchases.map((p) => ({
       key: "i" + p.id,
-      group: "Purchase invoices",
-      icon: <Truck />,
-      title: p.purchaseNo,
-      sub: `${p.vendor.name}${p.vendorInvoiceNo ? ` · bill ${p.vendorInvoiceNo}` : ""} · ${inr(p.totalAmount)}`,
+      kind: "purchases" as const,
+      title: `Purchase ${p.purchaseNo}`,
+      sub: `${p.vendor.name}${p.vendorInvoiceNo ? ` · bill ${p.vendorInvoiceNo}` : ""} · ${inr(p.totalAmount)} · ${date(p.purchaseDate)}`,
       href: `/purchases/${p.id}`,
     })),
   ];
 }
+
+/** Marks every occurrence of the search term */
+function Highlight({ text, term }: { text: string; term: string }) {
+  if (!term) return <>{text}</>;
+  const parts = text.split(new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"));
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === term.toLowerCase() ? (
+          <mark key={i} className="rounded-sm bg-amber-100 px-0.5 font-semibold text-slate-900">
+            {part}
+          </mark>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
+const Key = ({ children }: { children: ReactNode }) => <kbd className="rounded border border-slate-200 bg-white px-1 font-sans">{children}</kbd>;
 
 /** Search bills, products, batches and parties from anywhere. Shortcut: "/" or Ctrl+K */
 function GlobalSearch() {
@@ -115,10 +167,12 @@ function GlobalSearch() {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  const [kind, setKind] = useState<Kind | "all">("all");
   const [results, setResults] = useState<{ for: string; hits: Hit[] } | null>(null);
   const debounced = useDebounced(q.trim(), 200);
   const input = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (debounced.length < 2) return;
@@ -127,7 +181,7 @@ function GlobalSearch() {
       .get<SearchResults>("/search", { q: debounced })
       .then((r) => {
         if (cancelled) return;
-        setResults({ for: debounced, hits: toHits(r) });
+        setResults({ for: debounced, hits: toHits(r, debounced) });
         setActive(0);
       })
       .catch(() => !cancelled && setResults({ for: debounced, hits: [] }));
@@ -154,20 +208,39 @@ function GlobalSearch() {
     };
   }, []);
 
+  useEffect(() => {
+    list.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [active]);
+
   const ready = debounced.length >= 2 && results?.for === debounced;
-  const hits = ready ? results.hits : [];
+  const all = ready ? results.hits : [];
+  const counts = new Map<Kind, number>();
+  for (const h of all) counts.set(h.kind, (counts.get(h.kind) ?? 0) + 1);
+  // A filter with nothing left in a new search falls back to everything
+  const scope = kind !== "all" && counts.get(kind) ? kind : "all";
+  const hits = scope === "all" ? all : all.filter((h) => h.kind === scope);
   const loading = debounced.length >= 2 && !ready;
+  const filters = [
+    { key: "all" as const, label: "All", n: all.length },
+    ...KINDS.filter((k) => counts.get(k.key)).map((k) => ({ key: k.key, label: k.label, n: counts.get(k.key) ?? 0 })),
+  ];
 
   function go(h: Hit) {
     setOpen(false);
     setQ("");
+    setKind("all");
     input.current?.blur();
     router.push(h.href);
   }
 
+  function pickKind(k: Kind | "all") {
+    setKind(k);
+    setActive(0);
+  }
+
   return (
-    <div ref={box} className="relative min-w-0 flex-1 sm:max-w-md">
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+    <div ref={box} className="relative min-w-0 flex-1 sm:w-[24rem] sm:flex-none lg:w-[28rem]">
+      <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
       <input
         ref={input}
         value={q}
@@ -191,42 +264,130 @@ function GlobalSearch() {
             input.current?.blur();
           }
         }}
-        placeholder="Search bills, products, batches, parties…"
+        placeholder="Search products, bills, parties…"
         aria-label="Search"
-        className="h-10 w-full rounded-[9px] border border-[#e1e6d8] bg-[#f7f9f3] pl-9 pr-12 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+        className="h-10 w-full rounded-full border border-[#e1e6d8] bg-[#f7f9f3] pl-10 pr-16 text-sm transition-colors placeholder:text-slate-400 hover:border-brand-300 focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-500/15"
       />
-      {loading ? (
-        <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-slate-400" />
-      ) : (
-        <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border border-slate-200 bg-white px-1.5 text-[10px] font-medium text-slate-400 sm:block">
-          Ctrl K
-        </kbd>
-      )}
-      {open && debounced.length >= 2 && (ready || loading) && (
-        <div className="absolute left-0 right-0 z-50 mt-1.5 max-h-[70vh] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
-          {ready && hits.length === 0 && <p className="px-4 py-6 text-center text-sm text-slate-400">No matches for “{debounced}”</p>}
-          {hits.map((h, i) => (
-            <div key={h.key}>
-              {(i === 0 || hits[i - 1].group !== h.group) && (
-                <p className="px-4 pb-1 pt-2.5 text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">{h.group}</p>
-              )}
-              <button
-                type="button"
-                onMouseEnter={() => setActive(i)}
-                onClick={() => go(h)}
-                className={cx(
-                  "flex w-full items-center gap-3 px-4 py-2 text-left [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-brand-600",
-                  i === active ? "bg-brand-50" : "hover:bg-slate-50",
-                )}
-              >
-                {h.icon}
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-slate-800">{h.title}</span>
-                  <span className="block truncate text-xs text-slate-500">{h.sub}</span>
-                </span>
-              </button>
+      <span className="absolute right-2.5 top-1/2 flex -translate-y-1/2 items-center gap-1">
+        {loading && <Loader2 className="size-4 animate-spin text-slate-400" />}
+        {q ? (
+          <button
+            type="button"
+            onClick={() => {
+              setQ("");
+              input.current?.focus();
+            }}
+            className="rounded-full p-1 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700"
+            aria-label="Clear search"
+          >
+            <X className="size-3.5" />
+          </button>
+        ) : (
+          <kbd className="pointer-events-none hidden rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-400 sm:block">Ctrl K</kbd>
+        )}
+      </span>
+
+      {open && (
+        <div className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10">
+          {debounced.length < 2 ? (
+            <div className="px-4 py-4">
+              <p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">Search across</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {KINDS.map((k) => (
+                  <span key={k.key} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600 [&>svg]:size-3.5 [&>svg]:text-brand-600">
+                    {k.icon}
+                    {k.label}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-slate-400">
+                By name, SKU, barcode, brand, batch no, phone, village, GSTIN or bill / PO number. Type at least 2 characters.
+              </p>
             </div>
-          ))}
+          ) : (
+            <>
+              {/* Filter by kind, with how many matches each has */}
+              {ready && all.length > 0 && (
+                <div className="flex gap-1.5 overflow-x-auto border-b border-slate-100 px-3 py-2.5">
+                  {filters.map((f) => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => pickKind(f.key)}
+                      className={cx(
+                        "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                        scope === f.key ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                      )}
+                    >
+                      {f.label}
+                      <span className={cx("num rounded-full px-1.5 text-[10px]", scope === f.key ? "bg-white/20" : "bg-white text-slate-500")}>{f.n}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div ref={list} className="max-h-[60vh] overflow-y-auto py-1">
+                {loading && (
+                  <p className="flex items-center justify-center gap-2 px-4 py-6 text-sm text-slate-400">
+                    <Loader2 className="size-4 animate-spin" /> Searching…
+                  </p>
+                )}
+                {ready && all.length === 0 && (
+                  <div className="px-4 py-8 text-center">
+                    <Search className="mx-auto size-6 text-slate-300" />
+                    <p className="mt-2 text-sm font-medium text-slate-600">No matches for “{debounced}”</p>
+                    <p className="mt-0.5 text-xs text-slate-400">Try a name, SKU, barcode, phone or bill number</p>
+                  </div>
+                )}
+                {hits.map((h, i) => {
+                  const k = KINDS.find((x) => x.key === h.kind)!;
+                  return (
+                    <div key={h.key}>
+                      {scope === "all" && (i === 0 || hits[i - 1].kind !== h.kind) && (
+                        <p className="px-4 pb-1 pt-2.5 text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">{k.label}</p>
+                      )}
+                      <button
+                        type="button"
+                        data-index={i}
+                        onMouseEnter={() => setActive(i)}
+                        onClick={() => go(h)}
+                        className={cx("flex w-full items-center gap-3 px-3 py-2 text-left", i === active ? "bg-brand-50" : "hover:bg-slate-50")}
+                      >
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700 ring-1 ring-brand-100 [&>svg]:size-4">
+                          {k.icon}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-slate-800">
+                            <Highlight text={h.title} term={debounced} />
+                          </span>
+                          <span className="block truncate text-xs text-slate-500">
+                            <Highlight text={h.sub} term={debounced} />
+                          </span>
+                          {h.matched && (
+                            <span className="mt-0.5 block truncate text-[11px] text-amber-700">
+                              Matched <Highlight text={h.matched} term={debounced} />
+                            </span>
+                          )}
+                        </span>
+                        {i === active && <CornerDownLeft className="size-3.5 shrink-0 text-slate-400" />}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+          <div className="hidden items-center gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-2 text-[11px] text-slate-400 sm:flex">
+            <span>
+              <Key>↑</Key> <Key>↓</Key> move
+            </span>
+            <span>
+              <Key>Enter</Key> open
+            </span>
+            <span>
+              <Key>Esc</Key> close
+            </span>
+          </div>
         </div>
       )}
     </div>
@@ -269,7 +430,7 @@ function UserMenu() {
         <ChevronDown className="hidden size-4 text-slate-400 md:block" />
       </button>
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+        <div className="absolute right-0 z-50 mt-2 w-50 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
           <div className="border-b border-slate-100 px-4 py-2.5">
             <p className="truncate text-sm font-semibold text-slate-900">{user.name}</p>
             <p className="truncate text-xs text-slate-500">{user.email}</p>
@@ -343,8 +504,9 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
         <Menu className="size-5" />
       </button>
       <BranchPicker />
-      <GlobalSearch />
+      {/* Search sits at the right end, beside POS, notifications and the user menu */}
       <div className="hidden flex-1 sm:block" />
+      <GlobalSearch />
       <Link
         href="/sales/new"
         className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[9px] bg-brand-600 px-3.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"

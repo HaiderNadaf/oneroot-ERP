@@ -60,7 +60,7 @@ export default function NotificationsPage() {
       {error ? (
         <ErrorBox message={error} onRetry={reload} />
       ) : loading && !data ? (
-        <Spinner />
+        <Spinner page />
       ) : (
         <Card bodyClassName="p-0">
           {!data?.items.length ? (

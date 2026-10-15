@@ -54,9 +54,9 @@ export default function SaleReturnsPage() {
 
       <Card bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
-          <Input type="date" value={from} max={to || undefined} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="w-38" aria-label="From date" />
+          <Input type="date" value={from} max={to || undefined} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="From date" />
           <span className="text-xs text-slate-400">to</span>
-          <Input type="date" value={to} min={from || undefined} onChange={(e) => (setTo(e.target.value), setPage(1))} className="w-38" aria-label="To date" />
+          <Input type="date" value={to} min={from || undefined} onChange={(e) => (setTo(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="To date" />
           <p className="ml-auto text-xs text-slate-500">
             Returns are created from an invoice&apos;s <span className="font-medium">Return items</span> button.
           </p>

@@ -140,13 +140,16 @@ export function QuickActions() {
     .filter((g) => g.items.length);
 
   return (
-    <div className="relative flex flex-wrap items-center gap-2">
-      {shown.map((a) => (
-        <Link key={a.href} href={a.href} className={chip}>
-          {a.icon}
-          {a.label}
-        </Link>
-      ))}
+    <div className="relative flex items-center gap-2">
+      {/* Phones: one row that scrolls sideways; wider screens: the chips wrap */}
+      <div className="-mx-3 flex min-w-0 flex-1 gap-2 overflow-x-auto px-3 pb-0.5 [scrollbar-width:none] sm:mx-0 sm:flex-none sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&::-webkit-scrollbar]:hidden">
+        {shown.map((a) => (
+          <Link key={a.href} href={a.href} className={cx(chip, "shrink-0")}>
+            {a.icon}
+            {a.label}
+          </Link>
+        ))}
+      </div>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -154,7 +157,7 @@ export function QuickActions() {
         aria-expanded={open}
         title="All pages"
         className={cx(
-          "inline-flex size-[38px] items-center justify-center rounded-[9px] border border-dashed transition-colors",
+          "inline-flex size-[38px] shrink-0 items-center justify-center rounded-[9px] border border-dashed transition-colors",
           open
             ? "border-brand-500 bg-[#e3f1e3] text-brand-700"
             : "border-[#c9d1c0] bg-white text-[#5f6e60] hover:border-brand-500 hover:text-brand-700",

@@ -162,7 +162,7 @@ export default function ProductDetailPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title="Details" className="lg:col-span-2">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-            <Info label="Technical name / composition">{p.technicalName}</Info>
+            <Info label="Technical Name/Composition/Serial No/Chasis No">{p.technicalName}</Info>
             <Info label="Brand">{p.brand}</Info>
             <Info label="Manufacturer">{p.manufacturer}</Info>
             <Info label="Category">{p.category?.name}</Info>

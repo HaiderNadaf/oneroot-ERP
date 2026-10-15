@@ -135,8 +135,8 @@ function TransferForm({ onClose, onSaved }: { onClose: () => void; onSaved?: (t:
           <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_auto_1fr_160px]">
             <Field label="From">
               <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-800">
-                {current.name}
-                <span className="ml-1.5 font-mono text-[11px] text-slate-500">{current.code}</span>
+                <span className="truncate">{current.name}</span>
+                <span className="ml-1.5 shrink-0 font-mono text-[11px] text-slate-500">{current.code}</span>
               </div>
             </Field>
             <ArrowRight className="mx-auto mb-2.5 hidden size-4 text-slate-400 sm:block" />
@@ -187,7 +187,7 @@ function TransferForm({ onClose, onSaved }: { onClose: () => void; onSaved?: (t:
               <tbody>
                 {rows.map(({ l, batch, available, error }) => (
                   <tr key={l.key} className="align-top">
-                    <Td className="min-w-48">
+                    <Td className="min-w-40 sm:min-w-48">
                       <p className="font-medium text-slate-900">{l.product.name}</p>
                       <p className="text-xs text-slate-500">
                         {l.product.sku} · {l.product.unit}
@@ -203,7 +203,7 @@ function TransferForm({ onClose, onSaved }: { onClose: () => void; onSaved?: (t:
                           value={l.batchId}
                           onChange={(e) => update(l.key, { batchId: e.target.value })}
                           disabled={!l.batches.length}
-                          className="w-72"
+                          className="w-56 sm:w-72"
                           aria-label={`Batch for ${l.product.name}`}
                         >
                           {!l.batches.length && <option value="">No stock</option>}

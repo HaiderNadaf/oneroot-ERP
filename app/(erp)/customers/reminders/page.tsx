@@ -144,8 +144,8 @@ export default function RemindersPage() {
 
       <Card bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search name, phone, village…" className="min-w-60 flex-1" />
-          <Select value={minDays} onChange={(e) => setMinDays(e.target.value)} className="w-40" aria-label="Minimum days overdue">
+          <SearchInput value={search} onChange={setSearch} placeholder="Search name, phone, village…" className="w-full flex-1 sm:w-auto sm:min-w-60" />
+          <Select value={minDays} onChange={(e) => setMinDays(e.target.value)} className="w-full sm:w-40" aria-label="Minimum days overdue">
             <option value="0">Any overdue</option>
             <option value="15">15+ days</option>
             <option value="30">30+ days</option>
@@ -314,7 +314,7 @@ function LogBody({ row, onClose, onSaved }: { row: OverdueRow; onClose: () => vo
             <Copy className="size-3.5" /> Copy
           </button>
         </div>
-        <p className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600">{row.message}</p>
+        <p className="break-words rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600">{row.message}</p>
         <p className="text-[11px] text-slate-400">Oldest due date {row.overdue.oldestDue ? date(row.overdue.oldestDue) : "—"}</p>
         <Input type="hidden" value="" readOnly />
       </form>

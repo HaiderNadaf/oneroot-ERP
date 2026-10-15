@@ -773,14 +773,14 @@ export default function PosPage() {
     <div className="pb-20 xl:pb-0">
       {/* Heading */}
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-[12.5px] text-[#5f6e60]">
             <Link href="/sales" className="text-brand-700 hover:underline">
               Sales
             </Link>{" "}
             / POS
           </p>
-          <h1 className="text-[26px] font-bold tracking-tight text-[#1d2a1f]">POS · {current?.name ?? "All branches"}</h1>
+          <h1 className="break-words text-[22px] font-bold tracking-tight text-[#1d2a1f] sm:text-[26px]">POS · {current?.name ?? "All branches"}</h1>
           <p className="text-[13px] text-[#5f6e60]">
             {needBranch.blocked ? "Choose a branch in the top bar to bill from it. " : ""}
             Scan a barcode or tap a product. The earliest-expiring batch is picked automatically; expired stock can&apos;t be billed.
@@ -997,7 +997,7 @@ export default function PosPage() {
 
           {/* Customer */}
           <div className="space-y-2 border-b border-[#e1e6d8] p-4">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
               <Input
                 type="tel"
                 inputMode="numeric"
@@ -1010,7 +1010,7 @@ export default function PosPage() {
               {customer ? (
                 <div className="flex h-11 items-center justify-between gap-1 rounded-lg border border-brand-300 bg-brand-50 px-2.5">
                   <span className="truncate text-sm font-semibold text-slate-800">{customer.name}</span>
-                  <button onClick={() => pickCustomer(null)} className="text-slate-400 hover:text-slate-700" aria-label="Back to walk-in">
+                  <button onClick={() => pickCustomer(null)} className="shrink-0 text-slate-400 hover:text-slate-700" aria-label="Back to walk-in">
                     <X className="size-4" />
                   </button>
                 </div>
@@ -1158,28 +1158,28 @@ export default function PosPage() {
                       </div>
                       <div className="mt-2 flex items-center justify-between gap-2">
                         <div className="inline-flex items-center rounded-lg border border-[#e1e6d8]">
-                          <button onClick={() => step(l.key, -1)} className="flex size-8 items-center justify-center text-slate-600 hover:bg-slate-50" aria-label="Less">
+                          <button onClick={() => step(l.key, -1)} className="flex size-10 items-center sm:size-8 justify-center text-slate-600 hover:bg-slate-50" aria-label="Less">
                             <Minus className="size-3.5" />
                           </button>
                           <input
                             value={l.quantity}
                             onChange={(e) => update(l.key, { quantity: e.target.value.replace(/[^\d.]/g, "") })}
                             inputMode="decimal"
-                            className="num h-8 w-12 border-x border-[#e1e6d8] text-center text-sm outline-none"
+                            className="num h-10 w-12 border-x border-[#e1e6d8] text-center text-sm outline-none sm:h-8"
                             aria-label={`Quantity of ${l.product.name}`}
                           />
-                          <button onClick={() => step(l.key, 1)} className="flex size-8 items-center justify-center text-slate-600 hover:bg-slate-50" aria-label="More">
+                          <button onClick={() => step(l.key, 1)} className="flex size-10 items-center sm:size-8 justify-center text-slate-600 hover:bg-slate-50" aria-label="More">
                             <Plus className="size-3.5" />
                           </button>
                         </div>
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => setEditing(open ? null : l.key)}
-                            className="rounded-md px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                            className="rounded-md px-3 py-2.5 text-xs font-medium text-brand-700 hover:bg-brand-50 sm:px-2 sm:py-1"
                           >
                             {open ? "Done" : "Edit"}
                           </button>
-                          <button onClick={() => remove(l.key)} className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Remove ${l.product.name}`}>
+                          <button onClick={() => remove(l.key)} className="rounded-md p-2.5 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:p-1.5" aria-label={`Remove ${l.product.name}`}>
                             <Trash2 className="size-4" />
                           </button>
                         </div>
@@ -1321,7 +1321,7 @@ export default function PosPage() {
               <div className="space-y-2 rounded-lg bg-[#f7f9f3] p-2">
                 {parts.map((p) => (
                   <div key={p.key} className="flex items-center gap-1.5">
-                    <Select value={p.mode} onChange={(e) => updatePart(p.key, { mode: e.target.value as PaymentMode, reference: "" })} className="h-8 w-32 text-xs" aria-label="Payment mode">
+                    <Select value={p.mode} onChange={(e) => updatePart(p.key, { mode: e.target.value as PaymentMode, reference: "" })} className="h-8 w-28 shrink-0 text-xs sm:w-32" aria-label="Payment mode">
                       {MONEY_MODES.map((m) => (
                         <option key={m} value={m}>
                           {modeLabel(m)}
@@ -1336,7 +1336,7 @@ export default function PosPage() {
                       value={p.amount}
                       onChange={(e) => updatePart(p.key, { amount: e.target.value })}
                       onFocus={(e) => e.target.select()}
-                      className="num h-8 w-24 text-right"
+                      className="num h-8 w-20 shrink-0 text-right sm:w-24"
                       aria-label="Amount"
                     />
                     {p.mode !== "CASH" && p.mode !== "CREDIT_NOTE" ? (
@@ -1344,7 +1344,7 @@ export default function PosPage() {
                     ) : (
                       <span className="min-w-0 flex-1 truncate text-[11px] text-[#5f6e60]">{p.mode === "CREDIT_NOTE" ? `of ${inr(availableCredit)} available` : ""}</span>
                     )}
-                    <button type="button" onClick={() => removePart(p.key)} className="rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove payment line">
+                    <button type="button" onClick={() => removePart(p.key)} className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove payment line">
                       <X className="size-4" />
                     </button>
                   </div>
@@ -1427,7 +1427,7 @@ export default function PosPage() {
               {lines.length ? ` · ${inr(summary.total)}` : ""}
             </Button>
             {lines.length > 0 && (
-              <button onClick={newSale} className="w-full text-center text-sm font-medium text-[#5f6e60] hover:text-[#1d2a1f]">
+              <button onClick={newSale} className="w-full py-2 text-center text-sm font-medium text-[#5f6e60] hover:text-[#1d2a1f] sm:py-0">
                 Clear cart
               </button>
             )}
@@ -1438,10 +1438,10 @@ export default function PosPage() {
       {/* Phone: bottom bar to jump to the bill */}
       {lines.length > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t border-[#e1e6d8] bg-white px-4 py-3 shadow-[0_-4px_14px_rgba(20,40,25,.08)] xl:hidden">
-          <b className="num text-sm">
+          <b className="num min-w-0 truncate text-sm">
             {qty(summary.count)} item{summary.count === 1 ? "" : "s"} · {inr(summary.total)}
           </b>
-          <Button className="bg-[#c9932a] hover:bg-[#b07b1c]" onClick={() => billRef.current?.scrollIntoView({ behavior: "smooth" })}>
+          <Button className="h-10 shrink-0 bg-[#c9932a] hover:bg-[#b07b1c]" onClick={() => billRef.current?.scrollIntoView({ behavior: "smooth" })}>
             View bill
           </Button>
         </div>

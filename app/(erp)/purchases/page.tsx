@@ -126,9 +126,9 @@ function Purchases() {
           <SearchInput value={search} onChange={reset(setSearch)} placeholder="Bill no., vendor invoice, vendor…" />
           <VendorPicker value={vendor} onChange={reset(setVendor)} />
           <div className="flex items-center gap-1.5">
-            <Input type="date" value={from} onChange={(e) => reset(setFrom)(e.target.value)} className="w-38" aria-label="From date" />
-            <span className="text-xs text-slate-400">to</span>
-            <Input type="date" value={to} onChange={(e) => reset(setTo)(e.target.value)} className="w-38" aria-label="To date" />
+            <Input type="date" value={from} onChange={(e) => reset(setFrom)(e.target.value)} className="min-w-0 flex-1 lg:w-38 lg:flex-none" aria-label="From date" />
+            <span className="shrink-0 text-xs text-slate-400">to</span>
+            <Input type="date" value={to} onChange={(e) => reset(setTo)(e.target.value)} className="min-w-0 flex-1 lg:w-38 lg:flex-none" aria-label="To date" />
           </div>
           <Select value={paymentStatus} onChange={(e) => reset(setPaymentStatus)(e.target.value)} className="lg:w-36" aria-label="Payment status">
             <option value="">Any payment</option>
@@ -156,16 +156,17 @@ function Purchases() {
         </div>
 
         {data && (
-          <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100 text-center">
-            <div className="px-3 py-2.5">
+          // Phones: one row per figure; wider: three columns side by side
+          <div className="grid grid-cols-1 divide-y divide-slate-100 border-b border-slate-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:text-center">
+            <div className="flex items-center justify-between gap-3 px-3 py-2 sm:block sm:py-2.5">
               <p className="text-xs text-slate-500">Bill value</p>
               <p className="num font-semibold text-slate-900">{inr(total)}</p>
             </div>
-            <div className="px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3 px-3 py-2 sm:block sm:py-2.5">
               <p className="text-xs text-slate-500">Paid</p>
               <p className="num font-semibold text-brand-700">{inr(paid)}</p>
             </div>
-            <div className="px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3 px-3 py-2 sm:block sm:py-2.5">
               <p className="text-xs text-slate-500">Outstanding</p>
               <p className={cx("num font-semibold", total - paid > 0 ? "text-amber-700" : "text-slate-900")}>
                 {inr(status === "CANCELLED" ? 0 : total - paid)}
@@ -185,7 +186,7 @@ function Purchases() {
                 <Th>Bill</Th>
                 <Th>Date</Th>
                 <Th>Vendor</Th>
-                <Th right>Items</Th>
+                <Th right className="hidden md:table-cell">Items</Th>
                 <Th right>Total</Th>
                 <Th right>Balance</Th>
                 <Th>Due</Th>
@@ -210,7 +211,7 @@ function Purchases() {
                   return (
                     <tr key={p.id} className={cx("hover:bg-slate-50", cancelled && "opacity-60")}>
                       <Td>
-                        <Link href={`/purchases/${p.id}`} className="font-medium text-slate-900 hover:text-brand-700">
+                        <Link href={`/purchases/${p.id}`} className="whitespace-nowrap font-medium text-slate-900 hover:text-brand-700">
                           {p.purchaseNo}
                         </Link>
                         {p.vendorInvoiceNo && <p className="text-xs text-slate-500">Inv {p.vendorInvoiceNo}</p>}
@@ -226,7 +227,7 @@ function Purchases() {
                         )}
                       </Td>
                       <Td className="whitespace-nowrap">{date(p.purchaseDate)}</Td>
-                      <Td>
+                      <Td className="min-w-36">
                         {p.vendor ? (
                           <Link href={`/vendors/${p.vendor.id}`} className="hover:text-brand-700">
                             {p.vendor.name}
@@ -235,7 +236,7 @@ function Purchases() {
                           "—"
                         )}
                       </Td>
-                      <Td right className="text-slate-500">
+                      <Td right className="hidden text-slate-500 md:table-cell">
                         {p._count?.items ?? "—"}
                       </Td>
                       <Td right className="font-medium">

@@ -182,7 +182,7 @@ function PurchaseDetail() {
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Vendor</p>
             {v ? (
               <>
-                <Link href={`/vendors/${v.id}`} className="mt-1 block font-semibold text-slate-900 hover:text-brand-700">
+                <Link href={`/vendors/${v.id}`} className="mt-1 block break-words font-semibold text-slate-900 hover:text-brand-700">
                   {v.name}
                 </Link>
                 <p className="text-sm text-slate-600">{[v.address, v.city, v.state, v.pincode].filter(Boolean).join(", ") || "No address on file"}</p>
@@ -269,7 +269,8 @@ function PurchaseDetail() {
               return (
                 <tr key={it.id}>
                   <Td className="text-slate-400">{i + 1}</Td>
-                  <Td>
+                  {/* Keeps the name readable when the table scrolls sideways on phones; no effect on paper */}
+                  <Td className="min-w-40 print:min-w-0">
                     <p className="font-medium text-slate-900">{it.product?.name ?? "—"}</p>
                     <p className="text-xs text-slate-500">
                       {it.product?.sku}
@@ -348,7 +349,7 @@ function PurchaseDetail() {
               <Th>Date</Th>
               <Th>Mode</Th>
               <Th>Reference</Th>
-              <Th>Notes</Th>
+              <Th className="hidden md:table-cell">Notes</Th>
               <Th right>Amount</Th>
             </tr>
           </thead>
@@ -364,11 +365,11 @@ function PurchaseDetail() {
             ) : (
               p.payments.map((pay) => (
                 <tr key={pay.id}>
-                  <Td className="font-medium text-slate-900">{pay.paymentNo}</Td>
+                  <Td className="whitespace-nowrap font-medium text-slate-900">{pay.paymentNo}</Td>
                   <Td className="whitespace-nowrap">{date(pay.paymentDate)}</Td>
                   <Td>{modeLabel(pay.mode)}</Td>
                   <Td className="text-slate-500">{pay.reference || "—"}</Td>
-                  <Td className="text-xs text-slate-500">{pay.notes || ""}</Td>
+                  <Td className="hidden text-xs text-slate-500 md:table-cell">{pay.notes || ""}</Td>
                   <Td right className="font-medium">
                     {inr(pay.amount)}
                   </Td>

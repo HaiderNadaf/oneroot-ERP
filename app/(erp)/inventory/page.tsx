@@ -219,7 +219,7 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
           value={search}
           onChange={(v) => (setSearch(v), setPage(1))}
           placeholder="Search product, SKU or batch no.…"
-          className="min-w-60 flex-1"
+          className="w-full sm:w-auto sm:min-w-60 sm:flex-1"
         />
         <Select
           value={status}
@@ -229,7 +229,7 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
             if (e.target.value === "expiring" || e.target.value === "expired") setExpiry("");
             setPage(1);
           }}
-          className="w-40"
+          className="w-[calc(50%-0.25rem)] sm:w-40"
           aria-label="Stock status"
         >
           <option value="">In stock</option>
@@ -244,7 +244,7 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
             if (e.target.value && (status === "expiring" || status === "expired")) setStatus("");
             setPage(1);
           }}
-          className={cx("w-48", expiry && "border-brand-500 bg-brand-50")}
+          className={cx("w-[calc(50%-0.25rem)] sm:w-48", expiry && "border-brand-500 bg-brand-50")}
           aria-label="Expires in"
         >
           <option value="">Expires in: any time</option>
@@ -269,11 +269,11 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
               <Th>Product</Th>
               {showBranch && <Th>Branch</Th>}
               <Th>Batch</Th>
-              <Th>Location</Th>
-              <Th>Mfg date</Th>
+              <Th className="hidden md:table-cell">Location</Th>
+              <Th className="hidden md:table-cell">Mfg date</Th>
               <Th>Expiry</Th>
               <Th right>Qty</Th>
-              <Th right>Cost</Th>
+              <Th right className="hidden md:table-cell">Cost</Th>
               <Th right>Value</Th>
               <Th />
             </tr>
@@ -313,8 +313,8 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
                       </Td>
                     )}
                     <Td className="font-medium">{b.batchNo}</Td>
-                    <Td className="text-xs text-slate-600">{b.location ?? b.product?.location ?? "—"}</Td>
-                    <Td className="text-xs">{date(b.mfgDate)}</Td>
+                    <Td className="hidden text-xs text-slate-600 md:table-cell">{b.location ?? b.product?.location ?? "—"}</Td>
+                    <Td className="hidden text-xs md:table-cell">{date(b.mfgDate)}</Td>
                     <Td className="whitespace-nowrap">
                       <span className="mr-2 text-xs">{date(b.expiryDate)}</span>
                       <ExpiryBadge expiry={b.expiryDate} />
@@ -322,7 +322,7 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
                     <Td right className={n(b.quantity) <= 0 ? "text-slate-400" : "font-medium"}>
                       {qty(b.quantity)} <span className="text-xs font-normal text-slate-500">{b.product?.unit}</span>
                     </Td>
-                    <Td right>{inr(b.costPrice)}</Td>
+                    <Td right className="hidden md:table-cell">{inr(b.costPrice)}</Td>
                     <Td right>{inr(n(b.quantity) * n(b.costPrice))}</Td>
                     <Td right>
                       {isExpired && n(b.quantity) > 0 && can("inventory.adjust") && (
@@ -455,7 +455,7 @@ function MovementsTab({ version }: { version: number }) {
   return (
     <Card bodyClassName="p-0">
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
-        <Select value={type} onChange={(e) => (setType(e.target.value), setPage(1))} className="w-48">
+        <Select value={type} onChange={(e) => (setType(e.target.value), setPage(1))} className="w-full sm:w-48">
           <option value="">All movement types</option>
           {MOVEMENT_TYPES.map((t) => (
             <option key={t} value={t}>
@@ -463,9 +463,9 @@ function MovementsTab({ version }: { version: number }) {
             </option>
           ))}
         </Select>
-        <Input type="date" value={from} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="w-40" aria-label="From date" />
+        <Input type="date" value={from} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="w-[calc(50%-1.25rem)] sm:w-40" aria-label="From date" />
         <span className="text-sm text-slate-400">to</span>
-        <Input type="date" value={to} onChange={(e) => (setTo(e.target.value), setPage(1))} className="w-40" aria-label="To date" />
+        <Input type="date" value={to} onChange={(e) => (setTo(e.target.value), setPage(1))} className="w-[calc(50%-1.25rem)] sm:w-40" aria-label="To date" />
         {(type || from || to) && (
           <Button variant="ghost" size="sm" onClick={() => (setType(""), setFrom(""), setTo(""), setPage(1))}>
             Clear
@@ -489,10 +489,10 @@ function MovementsTab({ version }: { version: number }) {
               <Th>Product</Th>
               <Th>Type</Th>
               <Th>Reference</Th>
-              <Th>Batch</Th>
+              <Th className="hidden md:table-cell">Batch</Th>
               <Th right>Qty</Th>
-              <Th right>Balance</Th>
-              <Th>Note</Th>
+              <Th right className="hidden md:table-cell">Balance</Th>
+              <Th className="hidden md:table-cell">Note</Th>
             </tr>
           </thead>
           <tbody>
@@ -520,12 +520,12 @@ function MovementsTab({ version }: { version: number }) {
                   <Td className="whitespace-nowrap">
                     <MovementRef m={m} />
                   </Td>
-                  <Td className="text-xs">{m.batch?.batchNo ?? "—"}</Td>
+                  <Td className="hidden text-xs md:table-cell">{m.batch?.batchNo ?? "—"}</Td>
                   <Td right>
                     <SignedQty value={m.quantity} unit={m.product?.unit} />
                   </Td>
-                  <Td right>{qty(m.balanceAfter)}</Td>
-                  <Td className="max-w-56 truncate text-xs text-slate-500">{m.note || "—"}</Td>
+                  <Td right className="hidden md:table-cell">{qty(m.balanceAfter)}</Td>
+                  <Td className="hidden max-w-56 truncate text-xs text-slate-500 md:table-cell">{m.note || "—"}</Td>
                 </tr>
               ))
             )}
@@ -570,7 +570,7 @@ function TransfersTab({ version, onNew }: { version: number; onNew: () => void }
               <Th>Date</Th>
               <Th>From → To</Th>
               <Th>Items</Th>
-              <Th>Notes</Th>
+              <Th className="hidden md:table-cell">Notes</Th>
             </tr>
           </thead>
           <tbody>
@@ -605,13 +605,13 @@ function TransfersTab({ version, onNew }: { version: number; onNew: () => void }
                         {t.fromBranch.name} → {t.toBranch.name}
                       </p>
                     </Td>
-                    <Td className="max-w-96">
+                    <Td className="min-w-48 max-w-96">
                       <p className="text-sm text-slate-700" title={labels.join("\n")}>
                         {labels.slice(0, 2).join(", ")}
                       </p>
                       {labels.length > 2 && <p className="text-xs text-slate-500">+{labels.length - 2} more</p>}
                     </Td>
-                    <Td className="max-w-56 truncate text-xs text-slate-500">{t.notes || "—"}</Td>
+                    <Td className="hidden max-w-56 truncate text-xs text-slate-500 md:table-cell">{t.notes || "—"}</Td>
                   </tr>
                 );
               })

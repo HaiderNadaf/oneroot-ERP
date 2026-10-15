@@ -6,7 +6,7 @@ import { clearApiCache, useApi } from "@/lib/hooks";
 import { normalizePermissions, type Permission } from "@/lib/permissions";
 import type { Department, Role, RoleTemplate } from "@/lib/types";
 import { PermissionPicker } from "./PermissionPicker";
-import { Button, Checkbox, Field, Input, Modal, Select, errMsg, useToast } from "./ui";
+import { Button, Field, Input, Modal, Select, errMsg, useToast } from "./ui";
 
 /** Which built-in role's money limits (Roles & Limits) this role shares */
 const LIMIT_ROLES: { value: Role; label: string; hint: string }[] = [
@@ -42,7 +42,6 @@ export function RoleTemplateForm({
   const [baseRole, setBaseRole] = useState<Role>(template?.baseRole ?? "CASHIER");
   // A new role starts empty: tick exactly what it may do
   const [permissions, setPermissions] = useState<Permission[]>(() => (template ? normalizePermissions(template.permissions) : []));
-  const [applyToUsers, setApplyToUsers] = useState(true);
   const [saving, setSaving] = useState(false);
   const inUse = (template?.userCount ?? 0) > 0;
   const departmentName = departments.data?.find((d) => d.id === departmentId)?.name ?? template?.department?.name;
@@ -60,7 +59,6 @@ export function RoleTemplateForm({
         departmentId,
         baseRole,
         permissions,
-        applyToUsers: editing && inUse ? applyToUsers : undefined,
       };
       const saved = editing ? await api.put<RoleTemplate>(`/roles/custom/${template.id}`, body) : await api.post<RoleTemplate>("/roles/custom", body);
       clearApiCache("/roles/custom");
@@ -68,7 +66,7 @@ export function RoleTemplateForm({
       clearApiCache("/users");
       toast.success(
         editing
-          ? `${saved.name} updated${inUse && applyToUsers ? ` for ${template.userCount} user${template.userCount > 1 ? "s" : ""}` : ""}`
+          ? `${saved.name} updated${inUse ? ` for ${template.userCount} user${template.userCount > 1 ? "s" : ""}` : ""}`
           : `Role "${saved.name}" created${departmentName ? ` in ${departmentName}` : ""}`,
       );
       onSaved(saved);
@@ -134,13 +132,10 @@ export function RoleTemplateForm({
           </Select>
         </Field>
         {editing && inUse && (
-          <div className="sm:col-span-2">
-            <Checkbox
-              label={`Also update the ${template.userCount} user${template.userCount > 1 ? "s" : ""} who have this role to these ticks`}
-              checked={applyToUsers}
-              onChange={setApplyToUsers}
-            />
-          </div>
+          <p className="text-xs text-slate-500 sm:col-span-2">
+            The {template.userCount} user{template.userCount > 1 ? "s" : ""} with this role follow the change; anything ticked or unticked for one
+            of them personally stays as it is.
+          </p>
         )}
       </form>
     </Modal>

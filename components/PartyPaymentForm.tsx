@@ -142,7 +142,7 @@ function PartyPaymentFormBody({ open, onClose, onSaved, fixed, defaultType = "CU
                     setMode(defaultMode(t));
                   }}
                   className={cx(
-                    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                    "rounded-md px-2 py-2 text-sm font-medium transition-colors sm:px-3 sm:py-1.5",
                     partyType === t ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800",
                   )}
                 >

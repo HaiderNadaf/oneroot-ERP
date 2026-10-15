@@ -212,6 +212,12 @@ export const NAV: NavGroup[] = [
 /** Pages under a gated sidebar item that any signed-in user may open (e.g. a named PO approver) */
 const OPEN_ROUTES = ["/purchase-orders/approvals"];
 
+/**
+ * Detail pages a named approver opens from their queue without holding the section's permission. The API decides
+ * who may see each record (a 403 shows as the page's error); /purchase-orders/new and …/edit keep their own guards.
+ */
+const OPEN_DETAIL_ROUTES = [/^\/purchase-orders\/(?!new$|approvals$)[^/]+$/];
+
 /** Most specific nav item wins, so /sales/new doesn't also light up /sales */
 function activeHref(pathname: string) {
   let best = "";
@@ -460,7 +466,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <BranchProvider fallback={<Spinner page />}>
       <CountsProvider>
-        <div className="min-h-screen lg:pl-64">
+        <div className="min-h-screen overflow-x-clip lg:pl-64">
           <aside className="no-print fixed inset-y-0 left-0 hidden w-64 lg:block">
             <Sidebar />
           </aside>
@@ -503,7 +509,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <TopBar onMenu={openDrawer} />
 
-          <main className="mx-auto max-w-[1440px] p-4 lg:p-6">
+          <main className="mx-auto w-full min-w-0 max-w-[1440px] p-3 sm:p-4 lg:p-6">
             <BranchScope>
               {/* Every PageHeader shows the quick-actions bar under it (the dashboard places its own) */}
               <PageHeaderExtraProvider value={<QuickActions />}>
@@ -548,6 +554,7 @@ function RouteGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { can } = useAuth();
   if (OPEN_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"))) return <>{children}</>;
+  if (OPEN_DETAIL_ROUTES.some((r) => r.test(pathname))) return <>{children}</>;
   const href = activeHref(pathname);
   const item = NAV.flatMap((g) => g.items).find((i) => i.href === href);
   if (item?.perms && !can(...item.perms)) return <NoAccess />;

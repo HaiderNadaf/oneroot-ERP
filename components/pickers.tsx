@@ -174,7 +174,7 @@ function PartySlot<T extends { id: string; name: string }>({
         <span className="font-medium text-slate-800">{value.name}</span>
         <span className="ml-2 text-xs text-slate-500">{describe(value)}</span>
       </div>
-      <button type="button" onClick={onClear} className="text-slate-400 hover:text-slate-700" aria-label="Clear">
+      <button type="button" onClick={onClear} className="-mr-1.5 shrink-0 rounded p-1.5 text-slate-400 hover:text-slate-700" aria-label="Clear">
         <X className="size-4" />
       </button>
     </div>

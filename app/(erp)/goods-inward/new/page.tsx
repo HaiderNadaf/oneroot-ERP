@@ -250,7 +250,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
       />
 
       {wrongBranch && (
-        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800 sm:px-4">
           <AlertTriangle className="size-4 shrink-0" />
           <span className="flex-1">
             This PO is delivered to <strong>{po.branch?.name ?? "another branch"}</strong>
@@ -266,7 +266,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
       )}
 
       <Card className="mb-4">
-        <dl className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <dl className="mb-4 grid grid-cols-2 gap-4 break-words sm:grid-cols-4">
           <Info label="Purchase order">
             <Link href={`/purchase-orders/${po.id}`} className="text-brand-700 hover:underline">
               {po.poNo}
@@ -301,7 +301,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
         </div>
       </Card>
 
-      <div className="mb-4 flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+      <div className="mb-4 flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 sm:px-4 text-sm text-sky-800">
         <InfoIcon className="mt-0.5 size-4 shrink-0" />
         <p>
           Count every item and split it: <b>Passed</b> goes into sellable stock · <b>Rejected</b> is returned and a debit note is drafted to
@@ -319,8 +319,8 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
           const p = item.product;
           if (pending <= 0) {
             return (
-              <Card key={item.id} bodyClassName="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-                <div>
+              <Card key={item.id} bodyClassName="flex flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-4">
+                <div className="min-w-0">
                   <p className="font-medium text-slate-500">{p.name}</p>
                   <p className="text-xs text-slate-400">
                     {[p.sku, p.packSize, p.unit].filter(Boolean).join(" · ")} · ordered {qty(item.quantity)}
@@ -344,13 +344,13 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
             <Card className={cx(over && "border-red-300", scanned === item.id && "ring-2 ring-brand-500")}>
               <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="font-semibold text-slate-900">{p.name}</p>
+                  <p className="break-words font-semibold text-slate-900">{p.name}</p>
                   <p className="text-xs text-slate-500">
                     {[p.sku, p.packSize, `per ${p.unit}`].filter(Boolean).join(" · ")} · PO rate {inr(item.rate)} · ordered {qty(item.quantity)}
                     {p.trackBatch && " · batch tracked"}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={cx(
                       "num rounded-full px-2.5 py-0.5 text-xs font-medium",
@@ -449,11 +449,11 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
             <Total label="Expired" value={qty(totals.expired)} className={totals.expired ? "text-amber-700" : undefined} />
             <Total label="Passed value (PO rate)" value={inr(passedValue)} />
           </dl>
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => router.push("/goods-inward")}>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <Button variant="secondary" className="flex-1 sm:flex-none" onClick={() => router.push("/goods-inward")}>
               Cancel
             </Button>
-            <Button icon={<PackageCheck className="size-4" />} onClick={submit} loading={saving} disabled={!anyQty || wrongBranch}>
+            <Button className="flex-1 sm:flex-none" icon={<PackageCheck className="size-4" />} onClick={submit} loading={saving} disabled={!anyQty || wrongBranch}>
               Post GRN
             </Button>
           </div>

@@ -61,7 +61,9 @@ export default function AccountPage() {
         <Card title="Profile">
           <dl className="space-y-4">
             <Info label="Name">{user.name}</Info>
-            <Info label="Email">{user.email}</Info>
+            <Info label="Email">
+              <span className="break-all">{user.email}</span>
+            </Info>
             <Info label="Role">
               <StatusBadge status={user.role} />
               {user.roleTemplate && <span className="ml-1.5 text-sm font-medium text-slate-700">{user.roleTemplate.name}</span>}

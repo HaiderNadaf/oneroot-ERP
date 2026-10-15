@@ -38,10 +38,12 @@ export function periodLabel(r: Range) {
 
 export function RangeBar({ value, onChange }: { value: Range; onChange: (r: Range) => void }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Input type="date" value={value.from} max={value.to} onChange={(e) => onChange({ ...value, from: e.target.value })} className="w-40" aria-label="From date" />
-      <span className="text-sm text-slate-400">to</span>
-      <Input type="date" value={value.to} min={value.from} onChange={(e) => onChange({ ...value, to: e.target.value })} className="w-40" aria-label="To date" />
+    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+      <div className="flex w-full items-center gap-2 sm:w-auto">
+        <Input type="date" value={value.from} max={value.to} onChange={(e) => onChange({ ...value, from: e.target.value })} className="min-w-0 flex-1 sm:w-40 sm:flex-none" aria-label="From date" />
+        <span className="text-sm text-slate-400">to</span>
+        <Input type="date" value={value.to} min={value.from} onChange={(e) => onChange({ ...value, to: e.target.value })} className="min-w-0 flex-1 sm:w-40 sm:flex-none" aria-label="To date" />
+      </div>
       <div className="flex flex-wrap gap-1">
         {PRESETS.map((p) => {
           const r = p.range();

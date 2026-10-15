@@ -64,7 +64,7 @@ function GoodsInward() {
       />
 
       {waitingTotal > 0 && (
-        <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 sm:px-4 text-sm text-amber-800">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <div className="min-w-0">
             <p className="font-medium">
@@ -106,7 +106,7 @@ function GoodsInward() {
               <tr>
                 <Th>PO</Th>
                 <Th>Vendor</Th>
-                <Th>Products</Th>
+                <Th className="hidden md:table-cell">Products</Th>
                 <Th>Expected</Th>
                 <Th className="min-w-36">Received</Th>
                 <Th />
@@ -121,7 +121,7 @@ function GoodsInward() {
                 pending.data.map((po) => (
                   <tr key={po.id} className="hover:bg-slate-50">
                     <Td>
-                      <Link href={`/purchase-orders/${po.id}`} className="font-medium text-slate-900 hover:text-brand-700">
+                      <Link href={`/purchase-orders/${po.id}`} className="whitespace-nowrap font-medium text-slate-900 hover:text-brand-700">
                         {po.poNo}
                       </Link>
                       {showBranch && po.branch && (
@@ -131,12 +131,12 @@ function GoodsInward() {
                       )}
                       <p className="text-xs text-slate-500">Ordered {date(po.orderDate)}</p>
                     </Td>
-                    <Td>
+                    <Td className="min-w-36">
                       <Link href={`/vendors/${po.vendor.id}`} className="hover:text-brand-700">
                         {po.vendor.name}
                       </Link>
                     </Td>
-                    <Td className="max-w-80">
+                    <Td className="hidden max-w-80 md:table-cell">
                       <p className="truncate text-slate-700" title={po.products.join(", ")}>
                         {po.products.slice(0, 3).join(", ")}
                       </p>
@@ -221,12 +221,12 @@ function GoodsInward() {
                 <Th>GRN</Th>
                 <Th>PO</Th>
                 <Th>Vendor</Th>
-                <Th>Received by</Th>
+                <Th className="hidden md:table-cell">Received by</Th>
                 <Th right>Received</Th>
                 <Th right>Passed</Th>
-                <Th right>Rejected</Th>
-                <Th right>Damaged</Th>
-                <Th right>Expired</Th>
+                <Th right className="hidden md:table-cell">Rejected</Th>
+                <Th right className="hidden md:table-cell">Damaged</Th>
+                <Th right className="hidden md:table-cell">Expired</Th>
                 <Th>Finance</Th>
                 <Th />
               </tr>
@@ -242,7 +242,7 @@ function GoodsInward() {
                 grns.data.items.map((g) => (
                   <tr key={g.id} className="hover:bg-slate-50">
                     <Td>
-                      <Link href={`/goods-inward/${g.id}`} className="font-medium text-slate-900 hover:text-brand-700">
+                      <Link href={`/goods-inward/${g.id}`} className="whitespace-nowrap font-medium text-slate-900 hover:text-brand-700">
                         {g.grnNo}
                       </Link>
                       {showBranch && branchOf(g.branchId) && (
@@ -254,16 +254,16 @@ function GoodsInward() {
                       {g.supplierInvoiceNo && <p className="text-xs text-slate-500">Inv. {g.supplierInvoiceNo}</p>}
                     </Td>
                     <Td>
-                      <Link href={`/purchase-orders/${g.po.id}`} className="text-brand-700 hover:underline">
+                      <Link href={`/purchase-orders/${g.po.id}`} className="whitespace-nowrap text-brand-700 hover:underline">
                         {g.po.poNo}
                       </Link>
                     </Td>
-                    <Td>
+                    <Td className="min-w-36">
                       <Link href={`/vendors/${g.vendor.id}`} className="hover:text-brand-700">
                         {g.vendor.name}
                       </Link>
                     </Td>
-                    <Td className="text-slate-600">{g.receivedBy?.name ?? "—"}</Td>
+                    <Td className="hidden text-slate-600 md:table-cell">{g.receivedBy?.name ?? "—"}</Td>
                     <Td right className="font-semibold text-slate-900">
                       {qty(g.received)}
                     </Td>
@@ -309,7 +309,7 @@ function GoodsInward() {
 
 function Qty({ v, tone }: { v?: number; tone: string }) {
   return (
-    <Td right className={v ? cx("font-medium", tone) : "text-slate-400"}>
+    <Td right className={cx("hidden md:table-cell", v ? cx("font-medium", tone) : "text-slate-400")}>
       {v ? qty(v) : "—"}
     </Td>
   );

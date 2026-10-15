@@ -1,14 +1,15 @@
 "use client";
 
 import { Plus, Save, Trash2 } from "lucide-react";
+import { PermissionPicker } from "@/components/PermissionPicker";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { RoleTemplateForm } from "@/components/RoleTemplateForm";
-import { ActionsTd, ActionsTh, Badge, Button, Card, Checkbox, EmptyRow, ErrorBox, Input, PageHeader, RowAction, Spinner, StatusBadge, Table, Td, Th, errMsg, useConfirm, useToast } from "@/components/ui";
+import { ActionsTd, ActionsTh, Badge, Button, Card, Checkbox, EmptyRow, ErrorBox, Input, Modal, PageHeader, RowAction, Spinner, StatusBadge, Table, Td, Th, errMsg, useConfirm, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { clearApiCache, useApi } from "@/lib/hooks";
-import { PERMISSIONS } from "@/lib/permissions";
-import type { Role, RoleLimit, RoleTemplate } from "@/lib/types";
+import { PERMISSIONS, normalizePermissions, type Permission } from "@/lib/permissions";
+import type { BuiltInRole, Role, RoleLimit, RoleTemplate } from "@/lib/types";
 
 type Draft = { maxDiscountPct: string; returnLimit: string; adjustmentLimit: string; seeCostPrice: boolean };
 const toDraft = (l: RoleLimit): Draft => ({
@@ -23,6 +24,7 @@ export default function RolesPage() {
   return (
     <RequirePerm perms={["admin.roles"]}>
       <Roles />
+      <BuiltInRoles />
       <CustomRoles />
     </RequirePerm>
   );
@@ -83,13 +85,13 @@ function Roles() {
                 <tr key={l.role} className="hover:bg-slate-50">
                   <Td>
                     <StatusBadge status={l.role} />
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500 max-sm:min-w-40">
                       {l.role === "ADMIN" ? "Owner — approves everyone, no limits" : l.role === "MANAGER" ? "Approves cashiers by PIN or from the inbox" : l.role === "CASHIER" ? "Counter billing and receipts" : "Books, payments, reports"}
                     </p>
                   </Td>
                   <Td right>{admin ? "Any" : <Input type="number" min="0" max="100" step="0.5" value={d.maxDiscountPct} placeholder="no limit" onChange={(e) => set(l, { maxDiscountPct: e.target.value })} className="num h-8 w-24 text-right" />}</Td>
-                  <Td right>{admin ? "Any" : <Input type="number" min="0" step="100" value={d.returnLimit} placeholder="no limit" onChange={(e) => set(l, { returnLimit: e.target.value })} className="num h-8 w-32 text-right" />}</Td>
-                  <Td right>{admin ? "Any" : <Input type="number" min="0" step="100" value={d.adjustmentLimit} placeholder="no limit" onChange={(e) => set(l, { adjustmentLimit: e.target.value })} className="num h-8 w-32 text-right" />}</Td>
+                  <Td right>{admin ? "Any" : <Input type="number" min="0" step="100" value={d.returnLimit} placeholder="no limit" onChange={(e) => set(l, { returnLimit: e.target.value })} className="num h-8 w-28 text-right sm:w-32" />}</Td>
+                  <Td right>{admin ? "Any" : <Input type="number" min="0" step="100" value={d.adjustmentLimit} placeholder="no limit" onChange={(e) => set(l, { adjustmentLimit: e.target.value })} className="num h-8 w-28 text-right sm:w-32" />}</Td>
                   <Td>{admin ? "Yes" : <Checkbox label="" checked={d.seeCostPrice} onChange={(v) => set(l, { seeCostPrice: v })} />}</Td>
                   <Td right>
                     {!admin && (
@@ -109,6 +111,162 @@ function Roles() {
         </div>
       </Card>
     </>
+  );
+}
+
+/** Short list of what a set of permissions covers, for a table cell */
+function PermissionSummary({ keys }: { keys: string[] }) {
+  const label = (k: string) => PERMISSIONS.find((p) => p.key === k)?.label ?? k;
+  return (
+    <>
+      <span className="num text-sm">
+        {keys.length} of {PERMISSIONS.length}
+      </span>
+      <p className="max-w-48 truncate text-xs text-slate-500 sm:max-w-md" title={keys.map(label).join(" · ")}>
+        {keys
+          .slice(0, 4)
+          .map((k) => label(k).split(" (")[0])
+          .join(" · ")}
+        {keys.length > 4 ? " …" : ""}
+      </p>
+    </>
+  );
+}
+
+/** What Manager / Accountant / Cashier may open: everyone on the role follows it, plus their own extras / removals */
+function BuiltInRoles() {
+  const { data, error, loading, reload } = useApi<BuiltInRole[]>("/roles/built-in");
+  const [editing, setEditing] = useState<BuiltInRole | null>(null);
+
+  return (
+    <Card title="Role permissions" className="mt-4" bodyClassName="p-0">
+      {error ? (
+        <div className="p-4">
+          <ErrorBox message={error} onRetry={reload} />
+        </div>
+      ) : (
+        <Table>
+          <thead>
+            <tr>
+              <Th>Role</Th>
+              <Th>Can open</Th>
+              <Th right>Users</Th>
+              <ActionsTh />
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="hover:bg-slate-50">
+              <Td>
+                <StatusBadge status="ADMIN" />
+              </Td>
+              <Td className="text-sm text-slate-600">Everything, always — cannot be limited</Td>
+              <Td right />
+              <ActionsTd />
+            </tr>
+            {loading && !data ? (
+              <tr>
+                <Td colSpan={4}>
+                  <Spinner />
+                </Td>
+              </tr>
+            ) : (
+              (data ?? []).map((r) => {
+                const changed = normalizePermissions(r.permissions).join() !== normalizePermissions(r.defaults).join();
+                return (
+                  <tr key={r.role} className="hover:bg-slate-50">
+                    <Td>
+                      <StatusBadge status={r.role} />
+                      {changed && (
+                        <span className="ml-1.5 align-middle">
+                          <Badge tone="amber">changed</Badge>
+                        </span>
+                      )}
+                    </Td>
+                    <Td>
+                      <PermissionSummary keys={r.permissions} />
+                    </Td>
+                    <Td right>{r.userCount ? <Badge tone="blue">{r.userCount}</Badge> : <span className="text-xs text-slate-400">none</span>}</Td>
+                    <ActionsTd>
+                      <RowAction kind="edit" title={`Edit ${roleName(r.role)} permissions`} onClick={() => setEditing(r)} />
+                    </ActionsTd>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </Table>
+      )}
+      <p className="px-4 py-3 text-xs text-slate-500">
+        The sidebar, every page and the API follow the role. Extra or removed permissions for one person are set in Users and stay with
+        them when the role changes.
+      </p>
+      {editing && (
+        <BuiltInRoleForm
+          role={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            void reload();
+          }}
+        />
+      )}
+    </Card>
+  );
+}
+
+function BuiltInRoleForm({ role, onClose, onSaved }: { role: BuiltInRole; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const [permissions, setPermissions] = useState<Permission[]>(() => normalizePermissions(role.permissions));
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (!permissions.length) return toast.error("Tick at least one thing this role may do");
+    setSaving(true);
+    try {
+      await api.put(`/roles/built-in/${role.role}`, { permissions });
+      clearApiCache("/roles/built-in");
+      clearApiCache("/users");
+      toast.success(`${roleName(role.role)} permissions saved${role.userCount ? ` for ${role.userCount} user${role.userCount > 1 ? "s" : ""}` : ""}`);
+      onSaved();
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`${roleName(role.role)} permissions`}
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={saving} onClick={save}>
+            Save role
+          </Button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <PermissionPicker
+          value={permissions}
+          onChange={setPermissions}
+          defaults={normalizePermissions(role.defaults)}
+          resetLabel={`Reset to standard ${roleName(role.role)}`}
+        />
+        <p className="text-xs text-slate-500 sm:col-span-2">
+          {role.userCount
+            ? `The ${role.userCount} user${role.userCount > 1 ? "s" : ""} on this role follow the change at their next page load; anything ticked or unticked for one of them personally stays.`
+            : "Nobody has this role yet."}{" "}
+          &ldquo;extra&rdquo; marks what the standard {roleName(role.role)} role does not include.
+        </p>
+      </div>
+    </Modal>
   );
 }
 
@@ -183,16 +341,7 @@ function CustomRoles() {
                     <StatusBadge status={t.baseRole} />
                   </Td>
                   <Td>
-                    <span className="num text-sm">
-                      {t.permissions.length} of {PERMISSIONS.length}
-                    </span>
-                    <p className="max-w-md truncate text-xs text-slate-500" title={t.permissions.map((k) => PERMISSIONS.find((p) => p.key === k)?.label ?? k).join(" · ")}>
-                      {t.permissions
-                        .slice(0, 4)
-                        .map((k) => PERMISSIONS.find((p) => p.key === k)?.label.split(" (")[0] ?? k)
-                        .join(" · ")}
-                      {t.permissions.length > 4 ? " …" : ""}
-                    </p>
+                    <PermissionSummary keys={t.permissions} />
                   </Td>
                   <Td right>{t.userCount ? <Badge tone="blue">{t.userCount}</Badge> : <span className="text-xs text-slate-400">none</span>}</Td>
                   <ActionsTd>

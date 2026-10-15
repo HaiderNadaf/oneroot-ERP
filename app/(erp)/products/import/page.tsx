@@ -263,7 +263,7 @@ function Importer() {
         }
       />
       {needBranch.notice && <div className="mb-4">{needBranch.notice}</div>}
-      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <Card title="1 · File">
           <input
             ref={fileRef}
@@ -289,7 +289,7 @@ function Importer() {
           >
             <FileUp className="size-6 text-slate-400" />
             {fileName ? (
-              <span>
+              <span className="break-all">
                 <b>{fileName}</b> · {rows.length} rows
               </span>
             ) : (
@@ -305,7 +305,7 @@ function Importer() {
             <Checkbox label="Update products that already exist (matched by SKU or barcode)" checked={updateExisting} onChange={setUpdateExisting} />
             <p className="text-xs text-slate-500">Opening stock is only added to new products, into the selected branch.</p>
           </div>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
             <Button variant="secondary" disabled={!rows.length} loading={busy && !result?.committed} onClick={() => run(false)}>
               Check
             </Button>
@@ -372,7 +372,7 @@ function Importer() {
                       return (
                         <tr key={i} className={cx(res?.action === "error" && "bg-red-50/60")}>
                           <Td className="text-xs text-slate-400">{String(r.line)}</Td>
-                          <Td className="font-medium">{String(r.name ?? "")}</Td>
+                          <Td className="min-w-40 font-medium">{String(r.name ?? "")}</Td>
                           <Td className="text-xs text-slate-600">{[r.category, r.subCategory].filter(Boolean).map(String).join(" › ")}</Td>
                           <Td className="whitespace-nowrap font-mono text-xs">
                             {res?.sku ?? String(r.sku ?? "")}
@@ -384,7 +384,7 @@ function Importer() {
                           <Td right className="num">
                             {String(r.openingQty ?? "")}
                           </Td>
-                          <Td className="text-xs">
+                          <Td className="min-w-48 text-xs">
                             {res ? (
                               <>
                                 {res.action === "create" && <Badge tone="green">{result?.committed ? "Created" : "Will create"}</Badge>}

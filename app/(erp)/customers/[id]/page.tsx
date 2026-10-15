@@ -126,7 +126,7 @@ export default function CustomerDetailPage() {
         }
       />
 
-      <div className="no-print mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="no-print mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard
           label="Balance due"
           value={<span className={balance > 0 ? "text-red-600" : undefined}>{balance < 0 ? `${inr(-balance)} adv` : inr(balance)}</span>}
@@ -155,7 +155,7 @@ export default function CustomerDetailPage() {
       </div>
 
       <Card className="no-print mb-4">
-        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6 [&_dd]:break-words">
           <Info label="Phone">{c.phone}</Info>
           <Info label="Email">{c.email}</Info>
           <Info label="GSTIN">{c.gstin}</Info>
@@ -484,7 +484,7 @@ function RemindersTab({ customer, onLogged }: { customer: Customer; onLogged: ()
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
       <Card bodyClassName="p-0">
         <Table>
           <thead>
@@ -604,8 +604,8 @@ function ReceivePaymentBody({ open, customer, onClose, onSaved }: ReceiveProps) 
         </>
       }
     >
-      <form id="customer-pay-form" onSubmit={save} className="grid grid-cols-2 gap-3">
-        <p className="col-span-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+      <form id="customer-pay-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <p className="sm:col-span-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
           Current balance due:{" "}
           <span className={due > 0 ? "num font-semibold text-red-600" : "num font-semibold text-slate-800"}>{inr(due)}</span>
           <span className="mt-0.5 block text-xs text-slate-500">Applied to the oldest unpaid invoices first.</span>
@@ -628,11 +628,11 @@ function ReceivePaymentBody({ open, customer, onClose, onSaved }: ReceiveProps) 
         <Field label="Reference" hint="UTR / cheque no.">
           <Input value={reference} onChange={(e) => setReference(e.target.value)} disabled={mode === "CASH"} />
         </Field>
-        <Field label="Notes" className="col-span-2">
+        <Field label="Notes" className="sm:col-span-2">
           <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
         {amt > due && amt > 0 && (
-          <p className="col-span-2 text-xs text-amber-700">
+          <p className="text-xs text-amber-700 sm:col-span-2">
             {due > 0 ? `${inr(amt - due)} more than the due` : "No dues pending"} — the excess will be kept as advance.
           </p>
         )}

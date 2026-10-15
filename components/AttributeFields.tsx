@@ -53,9 +53,9 @@ export function AttributeList({ fields, value }: { fields: FieldDef[] | null | u
   return (
     <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">
       {rows.map((f) => (
-        <div key={f.key}>
+        <div key={f.key} className="min-w-0">
           <dt className="text-xs text-slate-500">{f.label}</dt>
-          <dd className="font-medium text-slate-800">{f.type === "yesno" ? (value?.[f.key] ? "Yes" : "No") : String(value?.[f.key])}</dd>
+          <dd className="break-words font-medium text-slate-800">{f.type === "yesno" ? (value?.[f.key] ? "Yes" : "No") : String(value?.[f.key])}</dd>
         </div>
       ))}
     </dl>

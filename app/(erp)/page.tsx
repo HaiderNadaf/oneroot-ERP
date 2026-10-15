@@ -147,7 +147,7 @@ function Panel({
   return (
     <section className={cx("flex flex-col overflow-hidden rounded-[10px] border border-[#e1e6d8] bg-white shadow-[0_1px_2px_rgba(20,40,25,.06),0_4px_14px_rgba(20,40,25,.05)]", className)}>
       <header className="flex flex-wrap items-center justify-between gap-2.5 border-b border-[#e1e6d8] px-4 py-3">
-        <div>
+        <div className="min-w-0">
           <h3 className="text-[14.5px] font-bold text-[#1d2a1f]">{title}</h3>
           {sub && <p className="text-xs text-[#5f6e60]">{sub}</p>}
         </div>
@@ -466,9 +466,9 @@ export default function DashboardPage() {
     <div className={cx("space-y-[18px] transition-opacity", loading && "opacity-60")}>
       {/* Heading + period switch */}
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-[16x] font-bold text-[#5f6e60]">Dashboard</p>
-          <h1 className="text-[26px] font-bold tracking-tight text-[#1d2a1f]">
+          <h1 className="break-words text-[22px] font-bold tracking-tight text-[#1d2a1f] sm:text-[26px]">
             {greeting()}, {data.greetingName}
           </h1>
           <p className="text-[13px] text-[#5f6e60]">
@@ -847,15 +847,15 @@ export default function DashboardPage() {
             <div className="grid grid-cols-3 gap-2 rounded-lg bg-[#f7f9f3] p-3 text-center">
               <div>
                 <p className="text-[11px] text-[#5f6e60]">Output GST</p>
-                <p className="num font-display text-base font-bold">{inr0(data.gst.output)}</p>
+                <p className="num font-display text-sm font-bold sm:text-base">{inr0(data.gst.output)}</p>
               </div>
               <div>
                 <p className="text-[11px] text-[#5f6e60]">Input credit</p>
-                <p className="num font-display text-base font-bold">{inr0(data.gst.input)}</p>
+                <p className="num font-display text-sm font-bold sm:text-base">{inr0(data.gst.input)}</p>
               </div>
               <div>
                 <p className="text-[11px] text-[#5f6e60]">{data.gst.net >= 0 ? "Net payable" : "Credit carried"}</p>
-                <p className={cx("num font-display text-base font-bold", data.gst.net >= 0 ? "text-[#b7791f]" : "text-[#2e8b46]")}>
+                <p className={cx("num font-display text-sm font-bold sm:text-base", data.gst.net >= 0 ? "text-[#b7791f]" : "text-[#2e8b46]")}>
                   {inr0(Math.abs(data.gst.net))}
                 </p>
               </div>
@@ -973,8 +973,8 @@ export default function DashboardPage() {
             href={href}
             className="flex items-center gap-3 rounded-[10px] border border-[#e1e6d8] bg-white px-3.5 py-3 transition-colors hover:border-brand-500"
           >
-            <span className="rounded-lg bg-[#e3f1e3] p-2 text-[#2e8b46] [&>svg]:size-4">{icon}</span>
-            <span>
+            <span className="shrink-0 rounded-lg bg-[#e3f1e3] p-2 text-[#2e8b46] [&>svg]:size-4">{icon}</span>
+            <span className="min-w-0">
               <b className="num block font-display text-lg leading-tight text-[#1d2a1f]">{value.toLocaleString("en-IN")}</b>
               <span className="text-xs text-[#5f6e60]">{label}</span>
             </span>
@@ -1002,14 +1002,14 @@ function SplitPanel({ split, label }: { split: NonNullable<Dashboard["split"]>; 
         ) : (
           <ul className="space-y-2.5">
             {split.channels.map((c) => (
-              <li key={c.channel} className="grid grid-cols-[6rem_1fr_auto] items-center gap-2.5 text-[13px]">
+              <li key={c.channel} className="grid grid-cols-[5rem_1fr_auto] items-center gap-2.5 text-[13px] sm:grid-cols-[6rem_1fr_auto]">
                 <span className="text-[#1d2a1f]">{CHANNEL_LABEL[c.channel] ?? c.channel}</span>
                 <span className="h-2 rounded-full bg-[#eef1e8]">
                   <span className="block h-2 rounded-full" style={{ width: `${(c.total / totalSales) * 100}%`, background: c.channel === "VAN" ? "#3b82c4" : GREEN }} />
                 </span>
                 <span className="num text-right">
                   <b className="text-[#1d2a1f]">{inrCompact(c.total)}</b>
-                  <span className="ml-1 text-xs text-[#5f6e60]">
+                  <span className="block text-xs text-[#5f6e60] sm:ml-1 sm:inline">
                     {Math.round((c.total / totalSales) * 100)}% · {c.bills} bill{c.bills === 1 ? "" : "s"}
                   </span>
                 </span>
@@ -1029,7 +1029,7 @@ function SplitPanel({ split, label }: { split: NonNullable<Dashboard["split"]>; 
                 <span key={m.mode} title={`${modeLabel(m.mode)} ${inrCompact(m.amount)}`} style={{ width: `${(m.amount / totalModes) * 100}%`, background: m.mode === "CREDIT" ? "#d97706" : MODE_COLORS[i % MODE_COLORS.length] }} />
               ))}
             </div>
-            <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[13px]">
+            <ul className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-[13px] sm:grid-cols-2">
               {modes.map((m, i) => (
                 <li key={m.mode} className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 text-[#1d2a1f]">

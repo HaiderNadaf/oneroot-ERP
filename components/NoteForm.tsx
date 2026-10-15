@@ -589,13 +589,13 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
                   <div key={l.key} className={cx("rounded-lg border p-3", error ? "border-red-200" : "border-slate-200")}>
                     <div className="mb-2 flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="font-medium text-slate-900">{l.product.name}</p>
+                        <p className="break-words font-medium text-slate-900">{l.product.name}</p>
                         <p className="text-xs text-slate-500">{[l.product.sku, l.product.packSize, l.product.unit].filter(Boolean).join(" · ")}</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => setReturnLines((ls) => ls.filter((x) => x.key !== l.key))}
-                        className="rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        className="shrink-0 rounded-md p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:p-1"
                         aria-label={`Remove ${l.product.name}`}
                       >
                         <Trash2 className="size-4" />
@@ -607,7 +607,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
                       </p>
                     ) : (
                       <div className="flex flex-wrap items-end gap-3">
-                        <Field label="Batch" className="min-w-64 flex-1">
+                        <Field label="Batch" className="min-w-full flex-1 sm:min-w-64">
                           <Select value={l.batchId} onChange={(e) => updateReturn(l.key, { batchId: e.target.value })} disabled={!l.batches.length}>
                             {!l.batches.length && <option value="">No stock</option>}
                             {l.batches.map((b) => (
@@ -686,7 +686,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
                   ) : (
                     moneyRows.map(({ l, amount, error }) => (
                       <tr key={l.key} className="align-top">
-                        <Td className="min-w-64">
+                        <Td className="min-w-48 sm:min-w-64">
                           {l.product ? (
                             <div className="pt-1.5">
                               <p className="font-medium text-slate-900">{l.product.name}</p>
@@ -697,7 +697,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
                             </div>
                           ) : (
                             <Input
-                              className={cx("min-w-56", error && !l.description.trim() && "border-red-400")}
+                              className={cx("min-w-44 sm:min-w-56", error && !l.description.trim() && "border-red-400")}
                               value={l.description}
                               placeholder={
                                 reasonType === "SCHEME_INCENTIVE"
@@ -749,7 +749,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
                           <button
                             type="button"
                             onClick={() => setMoneyLines((ls) => ls.filter((x) => x.key !== l.key))}
-                            className="mt-1 rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                            className="mt-1 rounded-md p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:p-1"
                             aria-label={`Remove ${lineName(l)}`}
                           >
                             <Trash2 className="size-4" />

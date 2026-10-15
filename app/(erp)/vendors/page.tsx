@@ -117,7 +117,7 @@ export default function VendorsPage() {
               setPage(1);
             }}
             placeholder="Search name, phone, GSTIN…"
-            className="min-w-60 flex-1"
+            className="min-w-full flex-1 sm:min-w-60"
           />
           <Select value={status} onChange={(e) => (setStatus(e.target.value), setPage(1))} className="w-32">
             <option value="active">Active</option>
@@ -164,7 +164,7 @@ export default function VendorsPage() {
                   const bal = n(v.balance);
                   return (
                     <tr key={v.id} className="hover:bg-slate-50">
-                      <Td>
+                      <Td className="min-w-40">
                         <Link href={`/vendors/${v.id}`} className="font-medium text-slate-900 hover:text-brand-700">
                           {v.name}
                         </Link>
@@ -177,7 +177,7 @@ export default function VendorsPage() {
                       </Td>
                       <Td>{v.contactPerson || "—"}</Td>
                       <Td className="whitespace-nowrap">{v.phone ? <a href={`tel:${v.phone}`} className="hover:text-brand-700">{v.phone}</a> : "—"}</Td>
-                      <Td className="font-mono text-xs">{v.gstin || "—"}</Td>
+                      <Td className="whitespace-nowrap font-mono text-xs">{v.gstin || "—"}</Td>
                       <Td>
                         <VendorState vendor={v} store={store} />
                       </Td>

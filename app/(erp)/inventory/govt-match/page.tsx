@@ -173,12 +173,12 @@ function GovtMatchView() {
             </p>
           </Card>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card title="Govt POS receipts with no matching bill">
               <Field label="Paste receipt numbers from the govt device (one per line)">
                 <Textarea rows={4} value={receipts} onChange={(e) => setReceipts(e.target.value)} placeholder={"R2026100612345\nR2026100612346"} className="font-mono text-xs" />
               </Field>
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Button size="sm" variant="secondary" icon={<ScanLine className="size-4" />} onClick={checkReceipts}>
                   Check
                 </Button>
@@ -191,9 +191,9 @@ function GovtMatchView() {
               {checkResult && checkResult.unmatched.length > 0 && (
                 <ul className="mt-2 space-y-1 text-sm">
                   {checkResult.unmatched.map((r) => (
-                    <li key={r} className="flex items-center justify-between rounded-lg bg-red-50 px-3 py-1.5 font-mono text-xs text-red-700">
+                    <li key={r} className="flex items-center justify-between gap-2 break-all rounded-lg bg-red-50 px-3 py-1.5 font-mono text-xs text-red-700">
                       {r}
-                      <Link href={`/sales/new`} className="font-sans font-medium text-brand-700 hover:underline">
+                      <Link href={`/sales/new`} className="shrink-0 break-normal font-sans font-medium text-brand-700 hover:underline">
                         Bill it
                       </Link>
                     </li>

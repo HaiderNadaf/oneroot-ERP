@@ -33,7 +33,7 @@ export default function LoginPage() {
 
   return (
     // Light mint page with soft green and wheat-gold glows; the card's deep-green header frames the white logo tile
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#f6faf2] via-brand-50 to-[#dcefe3] p-4">
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-gradient-to-br from-[#f6faf2] via-brand-50 to-[#dcefe3] p-4">
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div className="absolute -left-32 -top-32 size-[28rem] rounded-full bg-brand-500/25 blur-3xl" />
         <div className="absolute -bottom-40 -right-24 size-[30rem] rounded-full bg-amber-300/30 blur-3xl" />
@@ -56,7 +56,7 @@ export default function LoginPage() {
             </p>
           </div>
           <div className="h-1 bg-gradient-to-r from-brand-500 via-brand-400 to-amber-400" />
-          <div className="px-6 py-4">
+          <div className="px-5 py-4 sm:px-6">
             <div className="mb-2 text-center">
               <h1 className="text-lg font-semibold text-slate-900">Sign in</h1>
               <p className="text-xs text-slate-500">Use your store account</p>
@@ -85,7 +85,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => router.push("/forgot-password")}
-                  className="text-xs font-medium text-brand-700 hover:text-brand-900 hover:underline transition-colors"
+                  className="py-1 text-xs font-medium text-brand-700 hover:text-brand-900 hover:underline transition-colors"
                 >
                   Forgot password ?
                 </button>
@@ -95,7 +95,7 @@ export default function LoginPage() {
                   {error}
                 </p>
               )}
-              <Button type="submit" loading={busy} className="w-full">
+              <Button type="submit" loading={busy} className="w-full max-sm:h-10!">
                 Sign in
               </Button>
             </div>

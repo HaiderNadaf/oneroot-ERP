@@ -2,6 +2,7 @@
 
 import {
   Boxes,
+  Check,
   ChevronDown,
   ClipboardList,
   CornerDownLeft,
@@ -21,15 +22,15 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
 import { date, inr, n, qty } from "@/lib/format";
 import { useDebounced } from "@/lib/hooks";
 import { NotificationBell } from "./Notifications";
-import { Dropdown, cx } from "./ui";
+import { cx } from "./ui";
 
 interface SearchResults {
   products: {
@@ -161,8 +162,11 @@ function Highlight({ text, term }: { text: string; term: string }) {
 
 const Key = ({ children }: { children: ReactNode }) => <kbd className="rounded border border-slate-200 bg-white px-1 font-sans">{children}</kbd>;
 
-/** Search bills, products, batches and parties from anywhere. Shortcut: "/" or Ctrl+K */
-function GlobalSearch() {
+/**
+ * Search bills, products, batches and parties from anywhere. Shortcut: "/" or Ctrl+K.
+ * On phones it is hidden behind the search button and opens as a full-width row (`mobileOpen`).
+ */
+function GlobalSearch({ mobileOpen, onMobileOpen, onMobileClose }: { mobileOpen: boolean; onMobileOpen: () => void; onMobileClose: () => void }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -195,7 +199,9 @@ function GlobalSearch() {
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target as HTMLElement)?.tagName ?? "");
       if ((e.key === "k" && (e.ctrlKey || e.metaKey)) || (e.key === "/" && !typing)) {
         e.preventDefault();
-        input.current?.focus();
+        onMobileOpen();
+        // The phone row may only now be shown: focus once it is laid out
+        requestAnimationFrame(() => input.current?.focus());
         setOpen(true);
       }
     };
@@ -206,7 +212,12 @@ function GlobalSearch() {
       window.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", close);
     };
-  }, []);
+  }, [onMobileOpen]);
+
+  // Opened from the phone search button: straight into typing
+  useEffect(() => {
+    if (mobileOpen) input.current?.focus();
+  }, [mobileOpen]);
 
   useEffect(() => {
     list.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
@@ -230,6 +241,7 @@ function GlobalSearch() {
     setQ("");
     setKind("all");
     input.current?.blur();
+    onMobileClose();
     router.push(h.href);
   }
 
@@ -239,7 +251,15 @@ function GlobalSearch() {
   }
 
   return (
-    <div ref={box} className="relative min-w-0 flex-1 sm:w-[24rem] sm:flex-none lg:w-[28rem]">
+    <div
+      ref={box}
+      className={cx(
+        "relative min-w-0",
+        // Phone: its own full-width row under the bar, only while opened; wider screens: inline, growing with the screen
+        mobileOpen ? "order-last basis-full" : "hidden",
+        "sm:order-none sm:block sm:w-56 sm:basis-auto md:w-72 lg:w-[22rem] xl:w-[28rem]",
+      )}
+    >
       <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
       <input
         ref={input}
@@ -262,6 +282,7 @@ function GlobalSearch() {
           } else if (e.key === "Escape") {
             setOpen(false);
             input.current?.blur();
+            onMobileClose();
           }
         }}
         placeholder="Search products, bills, parties…"
@@ -394,126 +415,303 @@ function GlobalSearch() {
   );
 }
 
-function UserMenu() {
-  const { user, logout } = useAuth();
+/** Open / close state for a top-bar panel: closes on an outside click, Esc or moving to another page */
+function usePanel() {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
-
+  const pathname = usePathname();
+  const [shownOn, setShownOn] = useState(pathname);
+  if (open && shownOn !== pathname) setOpen(false);
   useEffect(() => {
     if (!open) return;
-    const close = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    const click = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", click);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("mousedown", click);
+      document.removeEventListener("keydown", key);
+    };
   }, [open]);
+  const toggle = () => {
+    setShownOn(pathname);
+    setOpen((o) => !o);
+  };
+  return { open, setOpen, toggle, box };
+}
 
-  if (!user) return null;
-  const initials = user.name
+/**
+ * A top-bar panel: a bottom sheet with a backdrop on phones, a dropdown under its button from 640px up.
+ * Render it inside the `relative` box that holds the button.
+ */
+function Panel({
+  title,
+  align,
+  className,
+  onClose,
+  children,
+}: {
+  title: string;
+  align: "left" | "right";
+  className?: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-slate-900/30 sm:hidden" onClick={onClose} aria-hidden />
+      <div
+        role="dialog"
+        aria-label={title}
+        className={cx(
+          "fixed inset-x-0 bottom-0 z-50 flex max-h-[80vh] flex-col overflow-hidden rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl",
+          "sm:absolute sm:inset-x-auto sm:bottom-auto sm:top-full sm:mt-2 sm:max-h-[70vh] sm:rounded-xl sm:border sm:border-slate-200 sm:pb-0 sm:shadow-xl",
+          align === "right" ? "sm:right-0" : "sm:left-0",
+          className,
+        )}
+      >
+        {/* Phone: grab handle and a title row with a close button */}
+        <div className="shrink-0 sm:hidden">
+          <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-slate-300" />
+          <div className="flex items-center justify-between px-4 pb-1 pt-2">
+            <p className="text-sm font-semibold text-slate-900">{title}</p>
+            <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Close">
+              <X className="size-5" />
+            </button>
+          </div>
+        </div>
+        {children}
+      </div>
+    </>
+  );
+}
+
+const initialsOf = (name: string) =>
+  name
     .split(" ")
     .map((w) => w[0])
     .slice(0, 2)
     .join("")
     .toUpperCase();
 
+function UserMenu() {
+  const { user, logout } = useAuth();
+  const { current, locked } = useBranch();
+  const { open, setOpen, toggle, box } = usePanel();
+
+  if (!user) return null;
+  const roleLabel = user.roleTemplate?.name ?? user.role.charAt(0) + user.role.slice(1).toLowerCase();
+
   return (
-    <div ref={box} className="relative">
+    <div ref={box} className="relative shrink-0">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2.5 rounded-lg py-1 pl-1 pr-2 hover:bg-slate-100"
+        onClick={toggle}
+        className={cx(
+          "flex items-center gap-2.5 rounded-lg p-0.5 hover:bg-slate-100",
+          // Wider screens: a tinted, bordered chip that stands apart from the white bar (matches the search box)
+          "md:h-11 md:rounded-[10px] md:border md:border-[#e1e6d8] md:bg-[#f7f9f3] md:py-1 md:pl-1 md:pr-2.5 md:hover:border-brand-300 md:hover:bg-[#eef3e6]",
+          open && "bg-slate-100 md:border-brand-500 md:bg-white md:ring-4 md:ring-brand-500/15",
+        )}
         aria-label="Account menu"
+        aria-expanded={open}
       >
-        <span className="flex size-9 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-700">{initials}</span>
-        <span className="hidden text-left leading-tight md:block">
-          <span className="block text-[13px] font-semibold text-slate-800">{user.name}</span>
-          <span className={cx("block text-[11.5px] text-slate-500", !user.roleTemplate && "capitalize")}>{user.roleTemplate?.name ?? user.role.toLowerCase()}</span>
+        <span className="flex size-9 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-700 md:bg-brand-600 md:text-white">{initialsOf(user.name)}</span>
+        <span className="hidden max-w-40 text-left leading-tight md:block">
+          <span className="block truncate text-[13px] font-semibold text-slate-800">{user.name}</span>
+          <span className="block truncate text-[11.5px] text-slate-500">{roleLabel}</span>
         </span>
-        <ChevronDown className="hidden size-4 text-slate-400 md:block" />
+        <ChevronDown className={cx("hidden size-4 text-slate-400 transition-transform md:block", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-50 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
-          <div className="border-b border-slate-100 px-4 py-2.5">
-            <p className="truncate text-sm font-semibold text-slate-900">{user.name}</p>
-            <p className="truncate text-xs text-slate-500">{user.email}</p>
+        <Panel title="Account" align="right" className="sm:w-72" onClose={() => setOpen(false)}>
+          <div className="flex items-center gap-3 border-b border-slate-100 px-4 pb-3 pt-1 sm:pt-3">
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-brand-50 text-base font-bold text-brand-700 sm:size-10 sm:text-sm">
+              {initialsOf(user.name)}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900">{user.name}</p>
+              <p className="truncate text-xs text-slate-500">{user.email}</p>
+              <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="rounded-md bg-brand-50 px-1.5 py-0.5 font-medium text-brand-700">{roleLabel}</span>
+                {current && (
+                  <span className="inline-flex max-w-full items-center gap-1 truncate rounded-md bg-slate-100 px-1.5 py-0.5 text-slate-600">
+                    <Store className="size-3 shrink-0" />
+                    <span className="truncate">{locked ? current.name : `Viewing ${current.name}`}</span>
+                  </span>
+                )}
+              </p>
+            </div>
           </div>
-          {[
-            { href: "/account", label: "My account", icon: <UserRound /> },
-            { href: "/account", label: "Change password", icon: <KeyRound /> },
-          ].map((i) => (
-            <Link
-              key={i.label}
-              href={i.href}
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 [&>svg]:size-4 [&>svg]:text-slate-400"
-            >
-              {i.icon}
-              {i.label}
-            </Link>
-          ))}
+          <div className="overflow-y-auto py-1">
+            {[
+              { href: "/account", label: "My account", icon: <UserRound /> },
+              { href: "/account", label: "Change password", icon: <KeyRound /> },
+            ].map((i) => (
+              <Link
+                key={i.label}
+                href={i.href}
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 sm:py-2 [&>svg]:size-4 [&>svg]:text-slate-400"
+              >
+                {i.icon}
+                {i.label}
+              </Link>
+            ))}
+          </div>
           <button
             onClick={logout}
-            className="flex w-full items-center gap-2.5 border-t border-slate-100 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+            className="flex w-full shrink-0 items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 sm:py-2.5"
           >
             <LogOut className="size-4" /> Sign out
           </button>
-        </div>
+        </Panel>
       )}
     </div>
   );
 }
 
-/** "Branch: Main Branch ▾" — staff locked to a branch just see its name */
+/**
+ * "Branch: Main Branch ▾". Phones show the short branch code; the list opens as a bottom sheet there and as a
+ * dropdown on wider screens. Staff locked to a branch just see its name.
+ */
 function BranchPicker() {
   const { branches, currentId, current, locked, canViewAll, setBranch } = useBranch();
-  const box = useRef<HTMLDivElement>(null);
-  const shell = "flex h-10 shrink-0 items-center gap-2 rounded-[9px] border border-[#e1e6d8] bg-white px-2.5";
+  const { open, setOpen, toggle, box } = usePanel();
+  const [q, setQ] = useState("");
+  const all = currentId === "all";
+  const shell = "flex h-10 min-w-0 items-center gap-2 rounded-[9px] border border-[#e1e6d8] bg-white px-2.5";
   const label = <span className="hidden text-[12px] font-medium uppercase tracking-[0.06em] text-[#5f6e60] md:inline">Branch</span>;
+  // Phones: the code (MAIN, CHM); wider: the full name
+  const name = (
+    <>
+      <span className="truncate text-sm font-semibold text-slate-800 sm:hidden">{all ? "All" : (current?.code ?? "—")}</span>
+      <span className="hidden truncate text-sm font-semibold text-slate-800 sm:inline">{all ? "All branches" : (current?.name ?? "—")}</span>
+    </>
+  );
+
   if (locked || branches.length <= 1) {
     return (
-      <div className={shell} title={locked ? "You work in this branch" : undefined}>
-        <Store className="size-4 text-brand-600" />
+      <div className={cx(shell, "max-w-[9rem] sm:max-w-[16rem]")} title={locked ? `You work in ${current?.name ?? "this branch"}` : current?.name}>
+        <Store className="size-4 shrink-0 text-brand-600" />
         {label}
-        <span className="max-w-36 truncate text-sm font-semibold text-slate-800">{current?.name ?? "—"}</span>
+        {name}
       </div>
     );
   }
+
+  const term = q.trim().toLowerCase();
+  const rows = [
+    ...(canViewAll ? [{ id: "all", code: "ALL", name: "All branches", city: "Every branch together" }] : []),
+    ...branches,
+  ].filter((b) => !term || `${b.name} ${b.code} ${b.city ?? ""}`.toLowerCase().includes(term));
+
+  function pick(id: string) {
+    if (id !== currentId) setBranch(id);
+    setOpen(false);
+    setQ("");
+  }
+
   return (
-    <div ref={box} className={cx(shell, "focus-within:border-brand-500")}>
-      <Store className="size-5 text-brand-600" />
-      {label}
-      <Dropdown
-        bare
-        anchor={box}
-        options={[
-          ...(canViewAll ? [{ value: "all", label: "All branches" }] : []),
-          ...branches.map((b) => ({ value: b.id, label: b.name })),
-        ]}
-        value={currentId}
-        onChange={setBranch}
-        isSearch={branches.length > 10}
-        className="w-auto max-w-44 font-semibold text-slate-800"
+    <div ref={box} className="relative min-w-0">
+      <button
+        type="button"
+        onClick={toggle}
+        className={cx(shell, "max-w-[9rem] hover:border-brand-300 sm:max-w-[18rem]", open && "border-brand-500 ring-4 ring-brand-500/15")}
+        title={all ? "All branches" : current?.name}
         aria-label="Branch"
-      />
+        aria-haspopup="dialog"
+        aria-expanded={open}
+      >
+        <Store className="size-4 shrink-0 text-brand-600 sm:size-5" />
+        {label}
+        {name}
+        <ChevronDown className={cx("size-4 shrink-0 text-slate-400 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <Panel title="Switch branch" align="left" className="sm:w-72" onClose={() => setOpen(false)}>
+          {branches.length > 6 && (
+            <div className="relative shrink-0 border-b border-slate-100 p-2">
+              <Search className="pointer-events-none absolute left-5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Find a branch…"
+                aria-label="Find a branch"
+                className="h-10 w-full rounded-lg border border-slate-200 pl-9 pr-2 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none sm:h-9"
+              />
+            </div>
+          )}
+          <div role="listbox" aria-label="Branches" className="min-h-0 flex-1 overflow-y-auto py-1">
+            {rows.length === 0 && <p className="px-4 py-6 text-center text-sm text-slate-400">No branch matches “{q}”</p>}
+            {rows.map((b) => {
+              const selected = b.id === currentId;
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  onClick={() => pick(b.id)}
+                  className={cx("flex w-full items-center gap-3 px-4 py-3 text-left sm:py-2", selected ? "bg-brand-50" : "hover:bg-slate-50")}
+                >
+                  <span
+                    className={cx(
+                      "flex h-8 min-w-11 shrink-0 items-center justify-center rounded-md px-1.5 text-[11px] font-semibold",
+                      selected ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600",
+                    )}
+                  >
+                    {b.code}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className={cx("block truncate text-sm", selected ? "font-semibold text-brand-800" : "font-medium text-slate-800")}>{b.name}</span>
+                    {b.city && <span className="block truncate text-xs text-slate-500">{b.city}</span>}
+                  </span>
+                  {selected && <Check className="size-4 shrink-0 text-brand-600" />}
+                </button>
+              );
+            })}
+          </div>
+        </Panel>
+      )}
     </div>
   );
 }
 
 export function TopBar({ onMenu }: { onMenu: () => void }) {
+  const { can } = useAuth();
+  // Phones: search hides behind a button and opens as a second row
+  const [searchOpen, setSearchOpen] = useState(false);
+  const openSearch = useCallback(() => setSearchOpen(true), []);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
   return (
-    <header className="no-print sticky top-0 z-30 flex items-center gap-2.5 border-b border-[#e1e6d8] bg-white px-4 py-2.5 lg:px-6">
-      <button onClick={onMenu} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Open menu">
+    <header className="no-print sticky top-0 z-30 flex flex-wrap items-center gap-x-1.5 gap-y-2 border-b border-[#e1e6d8] bg-white px-2.5 py-2 sm:flex-nowrap sm:gap-2.5 sm:px-4 sm:py-2.5 lg:px-6">
+      <button onClick={onMenu} className="shrink-0 rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Open menu">
         <Menu className="size-5" />
       </button>
       <BranchPicker />
       {/* Search sits at the right end, beside POS, notifications and the user menu */}
-      <div className="hidden flex-1 sm:block" />
-      <GlobalSearch />
-      <Link
-        href="/sales/new"
-        className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[9px] bg-brand-600 px-3.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"
+      <div className="min-w-0 flex-1" />
+      <GlobalSearch mobileOpen={searchOpen} onMobileOpen={openSearch} onMobileClose={closeSearch} />
+      <button
+        type="button"
+        onClick={() => setSearchOpen((o) => !o)}
+        className={cx("shrink-0 rounded-lg p-2 sm:hidden", searchOpen ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100")}
+        aria-label={searchOpen ? "Close search" : "Search"}
+        aria-expanded={searchOpen}
       >
-        <ShoppingCart className="size-4" />
-        <span className="hidden sm:inline">POS</span>
-      </Link>
+        {searchOpen ? <X className="size-5" /> : <Search className="size-5" />}
+      </button>
+      {can("sales.bill") && (
+        <Link
+          href="/sales/new"
+          className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[9px] bg-brand-600 px-3 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 sm:px-3.5"
+          aria-label="New sale (POS)"
+        >
+          <ShoppingCart className="size-4" />
+          <span className="hidden sm:inline">POS</span>
+        </Link>
+      )}
       <NotificationBell />
       <UserMenu />
     </header>

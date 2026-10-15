@@ -343,7 +343,7 @@ function RulesEditor({
         </ul>
       </Card>
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {dirty && <span className="mr-auto text-sm text-amber-700">You have unsaved changes</span>}
         <Button variant="secondary" icon={<Undo2 className="size-4" />} onClick={onDiscard} disabled={!dirty || saving}>
           Discard

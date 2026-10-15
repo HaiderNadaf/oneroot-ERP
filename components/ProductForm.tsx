@@ -244,7 +244,7 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
             aria-label="Manufacturer"
           />
         </Field>
-        <Field label="Technical name / composition" className="sm:col-span-2" hint="e.g. Imidacloprid 17.8% SL, NPK 19:19:19">
+        <Field label="Technical Name/Composition/Serial No/Chasis No" className="sm:col-span-2" hint="e.g. Imidacloprid 17.8% SL, NPK 19:19:19">
           <Input value={str("technicalName")} onChange={(e) => set("technicalName", e.target.value)} />
         </Field>
         <Field label="Pack size" hint="e.g. 50 kg bag, 250 ml">

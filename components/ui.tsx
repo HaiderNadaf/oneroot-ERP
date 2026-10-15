@@ -585,11 +585,12 @@ export function PageHeader({
 }) {
   return (
     <>
-      <div className="no-print mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900">{title}</h1>
+      <div className="no-print mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">{title}</h1>
           {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
         </div>
+        {/* Phones: the actions get their own row under the title */}
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
       {quickActions && <PageHeaderExtraSlot className="-mt-1" />}
@@ -613,12 +614,12 @@ export function Card({
   return (
     <section className={cx("rounded-xl border border-slate-200 bg-white shadow-sm", className)}>
       {(title || actions) && (
-        <header className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
-          {actions}
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 sm:px-4">
+          <h2 className="min-w-0 text-sm font-semibold text-slate-800">{title}</h2>
+          {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
         </header>
       )}
-      <div className={cx("p-4", bodyClassName)}>{children}</div>
+      <div className={cx("p-3 sm:p-4", bodyClassName)}>{children}</div>
     </section>
   );
 }
@@ -644,12 +645,12 @@ export function StatCard({
     blue: "bg-sky-50 text-sky-700",
   };
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+        <p className="min-w-0 text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
         {icon && <span className={cx("rounded-lg p-1.5 [&>svg]:size-4", tones[tone])}>{icon}</span>}
       </div>
-      <p className="num mt-2 text-2xl font-semibold text-slate-900">{value}</p>
+      <p className="num mt-2 break-words text-xl font-semibold text-slate-900 sm:text-2xl">{value}</p>
       {sub && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
     </div>
   );
@@ -713,7 +714,7 @@ export function StatusBadge({ status }: { status: string }) {
 /** Wrapper giving tables consistent styling; use <Th>/<Td> inside */
 export function Table({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cx("overflow-x-auto", className)}>
+    <div className={cx("max-w-full overflow-x-auto overscroll-x-contain", className)}>
       <table className="w-full text-left text-sm">{children}</table>
     </div>
   );
@@ -888,7 +889,7 @@ export function Pagination({
 }) {
   if (totalPages <= 1) return <p className="px-3 py-2.5 text-xs text-slate-500">{total} record{total === 1 ? "" : "s"}</p>;
   return (
-    <div className="flex items-center justify-between px-3 py-2.5 text-xs text-slate-500">
+    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-xs text-slate-500">
       <span>
         {total} records · page {page} of {totalPages}
       </span>
@@ -968,17 +969,30 @@ export function Modal({
   if (!open) return null;
   const widths = { sm: "max-w-md", md: "max-w-lg", lg: "max-w-3xl", xl: "max-w-5xl" };
   return (
-    <div className="no-print fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 pt-[8vh]">
+    <div className="no-print fixed inset-0 z-50 flex items-stretch justify-center bg-slate-900/40 sm:items-start sm:overflow-y-auto sm:p-4 sm:pt-[8vh]">
       <div className="fixed inset-0" onClick={onClose} />
-      <div className={cx("relative w-full rounded-xl bg-white shadow-xl", widths[size])}>
-        <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
-          <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-          <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close">
-            <X className="size-4" />
+      {/* Phones: the whole screen, header and footer pinned, the body scrolls; wider: a centred dialog */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        className={cx(
+          "relative flex h-[100dvh] w-full flex-col bg-white shadow-xl sm:h-auto sm:rounded-xl",
+          widths[size],
+          "max-sm:max-w-none",
+        )}
+      >
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5 sm:py-3.5">
+          <h3 className="min-w-0 truncate text-base font-semibold text-slate-900">{title}</h3>
+          <button onClick={onClose} className="-mr-1 shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close">
+            <X className="size-5 sm:size-4" />
           </button>
         </header>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <footer className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3">{footer}</footer>}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:max-h-[70vh] sm:flex-none sm:px-5">{children}</div>
+        {footer && (
+          <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-100 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:pb-3 [&>*]:max-sm:flex-1">
+            {footer}
+          </footer>
+        )}
       </div>
     </div>
   );

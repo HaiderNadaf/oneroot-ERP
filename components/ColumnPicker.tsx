@@ -94,7 +94,7 @@ export function ColumnPicker<T>({ state }: { state: ReturnType<typeof useColumns
         {hidden > 0 && <span className="num rounded-full bg-slate-100 px-1.5 text-[11px] text-slate-600">{state.columns.length}/{state.all.length}</span>}
       </Button>
       {open && (
-        <div className="absolute right-0 z-40 mt-1.5 w-64 rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div className="absolute right-0 z-40 mt-1.5 w-64 max-w-[calc(100vw-1.5rem)] rounded-xl border border-slate-200 bg-white shadow-xl">
           <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Show columns</p>
             <div className="flex gap-2 text-xs">
@@ -113,7 +113,7 @@ export function ColumnPicker<T>({ state }: { state: ReturnType<typeof useColumns
                 <li key={c.id}>
                   <label
                     className={cx(
-                      "flex cursor-pointer items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-slate-50",
+                      "flex cursor-pointer items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-slate-50 sm:py-1.5",
                       c.locked && "cursor-default text-slate-400",
                     )}
                   >

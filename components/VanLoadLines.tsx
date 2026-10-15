@@ -21,7 +21,7 @@ export function LoadLines({ lines, setLines }: { lines: LoadLine[]; setLines: (f
       ) : (
         <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
           {lines.map((l) => (
-            <li key={l.product.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+            <li key={l.product.id} className="flex items-center gap-2 px-3 py-2 text-sm sm:gap-3">
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-slate-800">{l.product.name}</p>
                 <p className="text-xs text-slate-500">
@@ -34,12 +34,12 @@ export function LoadLines({ lines, setLines }: { lines: LoadLine[]; setLines: (f
                 step="any"
                 value={l.quantity}
                 onChange={(e) => setLines((ls) => ls.map((x) => (x.product.id === l.product.id ? { ...x, quantity: e.target.value } : x)))}
-                className="num h-8 w-24 text-right"
+                className="num h-8 w-20 shrink-0 text-right sm:w-24"
                 aria-label={`Quantity of ${l.product.name}`}
                 placeholder="Qty"
               />
-              <span className="w-10 text-xs text-slate-500">{l.product.unit}</span>
-              <button type="button" onClick={() => setLines((ls) => ls.filter((x) => x.product.id !== l.product.id))} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove">
+              <span className="w-10 shrink-0 truncate text-xs text-slate-500">{l.product.unit}</span>
+              <button type="button" onClick={() => setLines((ls) => ls.filter((x) => x.product.id !== l.product.id))} className="shrink-0 rounded p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:p-1" aria-label="Remove">
                 <Trash2 className="size-4" />
               </button>
             </li>

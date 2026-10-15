@@ -396,7 +396,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
             ) : (
               lines.map((l) => (
                 <tr key={l.key}>
-                  <Td className="min-w-56">
+                  <Td className="min-w-44 sm:min-w-56">
                     <p className="font-medium text-slate-900">{l.name}</p>
                     <p className="text-xs text-slate-500">{l.sku}</p>
                   </Td>
@@ -452,7 +452,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
                     <button
                       type="button"
                       onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}
-                      className="rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                      className="rounded-md p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:p-1"
                       aria-label={`Remove ${l.name}`}
                     >
                       <Trash2 className="size-4" />
@@ -618,9 +618,9 @@ function ChargeInput({
   onGstRate: (v: string) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
       <dt className="text-slate-500">{label}</dt>
-      <dd className="flex items-center gap-1.5">
+      <dd className="ml-auto flex items-center gap-1.5">
         <Select value={gstRate} onChange={(e) => onGstRate(e.target.value)} className="h-8 w-20 text-xs" aria-label={`GST on ${label}`} title="GST %">
           {GST_RATES.map((r) => (
             <option key={r} value={r}>
@@ -645,9 +645,9 @@ function ChargeInput({
 
 function TotalRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="num text-slate-800">{value}</dd>
+    <div className="flex justify-between gap-3">
+      <dt className="min-w-0 text-slate-500">{label}</dt>
+      <dd className="num shrink-0 text-slate-800">{value}</dd>
     </div>
   );
 }

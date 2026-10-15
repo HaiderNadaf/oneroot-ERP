@@ -60,9 +60,9 @@ export function PoTermsModal({ open, onClose }: { open: boolean; onClose: () => 
     <Modal
       open={open}
       onClose={onClose}
-      title="Purchase order — terms & conditions"
+      title="Purchase Order — Terms & Conditions"
       size="lg"
-      footer={<Button onClick={onClose}>Close</Button>}
+      footer={<Button variant="danger" onClick={onClose}>Close</Button>}
     >
       <ol className="space-y-3 text-sm">
         {PO_TERMS.map((t, i) => (

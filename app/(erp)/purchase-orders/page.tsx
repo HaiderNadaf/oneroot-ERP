@@ -104,7 +104,7 @@ function PurchaseOrders() {
 
       <Card bodyClassName="p-0">
         {data && (
-          <div className="border-b border-slate-100 px-4 py-2.5 text-sm text-slate-600">
+          <div className="border-b border-slate-100 px-3 py-2.5 text-sm text-slate-600 sm:px-4">
             <span className="font-medium text-slate-900">{data.total}</span> purchase order{data.total === 1 ? "" : "s"} · total value{" "}
             <span className="num font-medium text-slate-900">{inr(totalValue)}</span> incl. GST
           </div>
@@ -120,9 +120,9 @@ function PurchaseOrders() {
                 <Th>PO</Th>
                 <Th>Vendor</Th>
                 <Th right>Value</Th>
-                <Th>Approval</Th>
+                <Th className="hidden md:table-cell">Approval</Th>
                 <Th>Status</Th>
-                <Th right>Received</Th>
+                <Th right className="hidden md:table-cell">Received</Th>
                 <ActionsTh />
               </tr>
             </thead>
@@ -161,24 +161,24 @@ function PurchaseOrders() {
                           {po.createdBy && ` · ${po.createdBy.name}`}
                         </p>
                       </Td>
-                      <Td>
-                        <p className="font-medium text-slate-800">{po.vendor?.name ?? "—"}</p>
+                      <Td className="min-w-40">
+                        <p className="break-words font-medium text-slate-800">{po.vendor?.name ?? "—"}</p>
                         {po.itemCount !== undefined && (
                           <p className="text-xs text-slate-500">
                             {po.itemCount} item{po.itemCount === 1 ? "" : "s"}
                           </p>
                         )}
                       </Td>
-                      <Td right className="font-medium text-slate-900">
+                      <Td right className="whitespace-nowrap font-medium text-slate-900">
                         {inr(po.totalAmount)}
                       </Td>
-                      <Td>
+                      <Td className="hidden md:table-cell">
                         <ApprovalChain chain={po.chain} />
                       </Td>
                       <Td>
                         <StatusBadge status={po.status} />
                       </Td>
-                      <Td right>
+                      <Td right className="hidden md:table-cell">
                         {showReceived ? (
                           <div className="ml-auto w-24">
                             <p className="num text-xs font-medium text-slate-700">{po.receivedPct}%</p>

@@ -93,9 +93,9 @@ function PickerBody({ productId, productName, quantity, value, onClose, onChange
             const on = picked.includes(s.serialNo);
             return (
               <li key={s.id}>
-                <button type="button" onClick={() => toggle(s.serialNo)} className={cx("flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50", on && "bg-brand-50")}>
-                  <span className="font-mono">{s.serialNo}</span>
-                  <span className="text-xs text-slate-500">
+                <button type="button" onClick={() => toggle(s.serialNo)} className={cx("flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm hover:bg-slate-50 sm:py-2", on && "bg-brand-50")}>
+                  <span className="min-w-0 break-all font-mono">{s.serialNo}</span>
+                  <span className="shrink-0 text-xs text-slate-500">
                     {s.batch?.batchNo && s.batch.batchNo !== "DEFAULT" ? `Batch ${s.batch.batchNo} · ` : ""}
                     {on ? "✓ picked" : ""}
                   </span>

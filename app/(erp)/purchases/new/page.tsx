@@ -302,7 +302,7 @@ function NewPurchase() {
         <Table>
           <thead>
             <tr>
-              <Th className="min-w-52">Product</Th>
+              <Th className="min-w-44 sm:min-w-52">Product</Th>
               <Th className="min-w-32">Batch</Th>
               <Th className="min-w-40">Mfg</Th>
               <Th className="min-w-40">Expiry</Th>
@@ -481,7 +481,7 @@ function NewPurchase() {
                       <button
                         type="button"
                         onClick={() => removeLine(l.key)}
-                        className="mt-1 rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        className="mt-1 rounded-md p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:p-1"
                         aria-label={`Remove ${l.product.name}`}
                       >
                         <Trash2 className="size-4" />

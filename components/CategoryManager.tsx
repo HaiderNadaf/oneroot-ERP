@@ -116,11 +116,11 @@ function ProductCategories() {
         <b className="font-mono">ORI</b> + category code + sub-category code + a running number (e.g. 1 → 2 → <b className="font-mono">ORI12000000001</b>),
         unique across all products. Codes lock once products use them.
       </p>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section>
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Categories</h4>
           <form onSubmit={addCategory} className="mb-2 flex gap-2">
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New category" />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New category" className="min-w-0 flex-1" />
             <Dropdown options={TYPE_OPTIONS} value={type} onChange={(v) => setType(v as ProductType)} placeholder="Tax type" className="w-32 shrink-0" aria-label="Tax type" />
             <Button type="submit" loading={busy === "cat"}>
               Add
@@ -167,7 +167,7 @@ function ProductCategories() {
           </h4>
           {picked && (
             <form onSubmit={addSub} className="mb-2 flex gap-2">
-              <Input value={subName} onChange={(e) => setSubName(e.target.value)} placeholder={`New sub-category in ${picked.name}`} />
+              <Input value={subName} onChange={(e) => setSubName(e.target.value)} placeholder={`New sub-category in ${picked.name}`} className="min-w-0 flex-1" />
               <Button type="submit" loading={busy === "sub"}>
                 Add
               </Button>
@@ -291,7 +291,7 @@ function ExpenseCategories({ open, onClose }: { open: boolean; onClose: () => vo
   return (
     <Modal open={open} onClose={onClose} title="Expense categories" size="sm">
       <form onSubmit={add} className="mb-3 flex gap-2">
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New category name" />
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New category name" className="min-w-0 flex-1" />
         <Button type="submit" loading={busy}>
           Add
         </Button>

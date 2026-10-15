@@ -118,10 +118,12 @@ function Expenses() {
       <div className="grid gap-4 xl:grid-cols-3">
         <Card bodyClassName="p-0" className="xl:col-span-2">
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
-            <Input type="date" value={from} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="w-40" aria-label="From date" />
-            <span className="text-sm text-slate-400">to</span>
-            <Input type="date" value={to} onChange={(e) => (setTo(e.target.value), setPage(1))} className="w-40" aria-label="To date" />
-            <Select value={categoryId} onChange={(e) => (setCategoryId(e.target.value), setPage(1))} className="w-48">
+            <div className="flex w-full items-center gap-2 sm:w-auto">
+              <Input type="date" value={from} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-40 sm:flex-none" aria-label="From date" />
+              <span className="text-sm text-slate-400">to</span>
+              <Input type="date" value={to} onChange={(e) => (setTo(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-40 sm:flex-none" aria-label="To date" />
+            </div>
+            <Select value={categoryId} onChange={(e) => (setCategoryId(e.target.value), setPage(1))} className="w-full sm:w-48">
               <option value="">All categories</option>
               {categories?.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -322,7 +324,7 @@ function AddExpenseForm({
         </>
       }
     >
-      <form id="expense-form" onSubmit={save} className="grid grid-cols-2 gap-3">
+      <form id="expense-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Category" required>
           <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required autoFocus>
             <option value="">Select…</option>
@@ -354,10 +356,10 @@ function AddExpenseForm({
         <Field label="Reference" hint="Bill no., UPI txn id, cheque no.">
           <Input value={reference} onChange={(e) => setReference(e.target.value)} />
         </Field>
-        <Field label="Notes" className="col-span-2">
+        <Field label="Notes" className="sm:col-span-2">
           <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
-        <RecordedIn className="col-span-2" />
+        <RecordedIn className="sm:col-span-2" />
       </form>
     </Modal>
   );

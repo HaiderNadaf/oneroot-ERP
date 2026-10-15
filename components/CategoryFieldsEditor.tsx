@@ -88,12 +88,12 @@ export function CategoryFieldsEditor({ category, onClose, onSaved }: { category:
       ) : (
         <ul className="space-y-2">
           {fields.map((f, i) => (
-            <li key={i} className="grid grid-cols-12 items-start gap-2 rounded-lg border border-slate-200 p-2">
-              <div className="col-span-4">
+            <li key={i} className="grid grid-cols-6 items-start gap-2 rounded-lg border border-slate-200 p-2 sm:grid-cols-12">
+              <div className="col-span-6 sm:col-span-4">
                 <Input value={f.label} onChange={(e) => update(i, { label: e.target.value, key: f.key || keyFromLabel(e.target.value) })} placeholder="Label, e.g. Variety" aria-label="Field label" />
                 <p className="mt-1 truncate font-mono text-[10px] text-slate-400">key: {f.key || keyFromLabel(f.label) || "…"}</p>
               </div>
-              <Select value={f.type} onChange={(e) => update(i, { type: e.target.value as FieldType, options: e.target.value === "select" ? (f.options ?? []) : undefined })} className="col-span-2" aria-label="Field type">
+              <Select value={f.type} onChange={(e) => update(i, { type: e.target.value as FieldType, options: e.target.value === "select" ? (f.options ?? []) : undefined })} className="col-span-3 sm:col-span-2" aria-label="Field type">
                 {(Object.keys(FIELD_TYPE_LABEL) as FieldType[]).map((t) => (
                   <option key={t} value={t}>
                     {FIELD_TYPE_LABEL[t]}
@@ -107,11 +107,11 @@ export function CategoryFieldsEditor({ category, onClose, onSaved }: { category:
                   <span className="block pt-2 text-xs text-slate-400">—</span>
                 )}
               </div>
-              <div className="col-span-2 flex flex-col gap-1 pt-1">
+              <div className="col-span-4 flex flex-col gap-1 pt-1 sm:col-span-2">
                 <Checkbox label="Required" checked={!!f.required} onChange={(v) => update(i, { required: v })} />
                 <Checkbox label="On bill" checked={!!f.showOnBill} onChange={(v) => update(i, { showOnBill: v })} />
               </div>
-              <div className="col-span-1 flex justify-end gap-0.5">
+              <div className="col-span-2 flex justify-end gap-0.5 sm:col-span-1">
                 <button type="button" onClick={() => move(i, -1)} className="rounded p-1 text-slate-400 hover:bg-slate-100" aria-label="Move up">
                   <ArrowUp className="size-3.5" />
                 </button>

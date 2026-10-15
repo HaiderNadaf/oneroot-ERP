@@ -154,9 +154,9 @@ export default function ShiftsPage() {
 
 function Mini({ label, value, tone, strong }: { label: string; value: string; tone?: "green"; strong?: boolean }) {
   return (
-    <div className={cx("rounded-lg px-3 py-2", strong ? "bg-brand-50" : "bg-slate-50")}>
+    <div className={cx("min-w-0 rounded-lg px-3 py-2", strong ? "bg-brand-50" : "bg-slate-50")}>
       <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={cx("num mt-0.5 text-base font-semibold", tone === "green" ? "text-brand-700" : strong ? "text-brand-800" : "text-slate-900")}>{value}</p>
+      <p className={cx("num mt-0.5 break-words text-base font-semibold", tone === "green" ? "text-brand-700" : strong ? "text-brand-800" : "text-slate-900")}>{value}</p>
     </div>
   );
 }
@@ -650,8 +650,8 @@ function DepositBody({ preset, onClose, onSaved }: { preset: Shift | null; onClo
         </>
       }
     >
-      <form id="deposit-form" onSubmit={save} className="grid grid-cols-2 gap-3">
-        <Field label="For shift" className="col-span-2" hint="Closed shifts with cash still to bank">
+      <form id="deposit-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="For shift" className="sm:col-span-2" hint="Closed shifts with cash still to bank">
           <Select
             value={shiftId}
             onChange={(e) => {
@@ -680,7 +680,7 @@ function DepositBody({ preset, onClose, onSaved }: { preset: Shift | null; onClo
         <Field label="Slip / reference no.">
           <Input value={reference} onChange={(e) => setReference(e.target.value)} />
         </Field>
-        <Field label="Slip photo" className="col-span-2">
+        <Field label="Slip photo" className="sm:col-span-2">
           <input
             type="file"
             accept="image/*"
@@ -699,12 +699,12 @@ function DepositBody({ preset, onClose, onSaved }: { preset: Shift | null; onClo
           {slip && <img src={slip} alt="Slip preview" className="mt-2 max-h-40 rounded-lg border border-slate-200" />}
         </Field>
         {chosen && (
-          <p className={cx("col-span-2 rounded-lg px-3 py-2 text-sm", diff === 0 ? "bg-brand-50 text-brand-800" : "bg-red-50 text-red-700")}>
+          <p className={cx("sm:col-span-2 rounded-lg px-3 py-2 text-sm", diff === 0 ? "bg-brand-50 text-brand-800" : "bg-red-50 text-red-700")}>
             Shift {chosen.shiftNo} has {inr(gapOf(chosen))} to bank. {diff === 0 ? "This deposit tallies." : `Difference ${inr(Math.abs(diff))} — a reason is required and it stays red on the dashboard until the owner resolves it.`}
           </p>
         )}
         {chosen && diff !== 0 && (
-          <Field label="Reason for the difference" required className="col-span-2">
+          <Field label="Reason for the difference" required className="sm:col-span-2">
             <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. ₹3,200 paid to labour, voucher attached" />
           </Field>
         )}

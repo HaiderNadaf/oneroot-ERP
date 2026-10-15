@@ -56,7 +56,7 @@ function Audit() {
       <PageHeader title="Audit log" subtitle="Who did what, and when — every create, change, cancellation and sign-in" />
       <Card bodyClassName="p-0">
         <div className="flex flex-wrap gap-2 border-b border-slate-100 p-3">
-          <Select value={entity} onChange={(e) => (setEntity(e.target.value), setPage(1))} className="w-48">
+          <Select value={entity} onChange={(e) => (setEntity(e.target.value), setPage(1))} className="w-full sm:w-48">
             <option value="">All records</option>
             {ENTITIES.map((x) => (
               <option key={x} value={x}>
@@ -64,7 +64,7 @@ function Audit() {
               </option>
             ))}
           </Select>
-          <Select value={userId} onChange={(e) => (setUserId(e.target.value), setPage(1))} className="w-48">
+          <Select value={userId} onChange={(e) => (setUserId(e.target.value), setPage(1))} className="w-full sm:w-48">
             <option value="">All users</option>
             {users?.map((u) => (
               <option key={u.id} value={u.id}>
@@ -138,7 +138,7 @@ function AuditRow({ log }: { log: AuditLog }) {
           log.entityId || "—"
         )}
       </Td>
-      <Td className="max-w-md">
+      <Td className="max-w-64 sm:max-w-md">
         {!hasDetails ? (
           <span className="text-slate-400">—</span>
         ) : (

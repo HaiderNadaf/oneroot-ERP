@@ -142,7 +142,7 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
           <Input inputMode="numeric" maxLength={6} value={str("pincode")} onChange={(e) => set("pincode", e.target.value)} />
         </Field>
 
-        <fieldset className="rounded-lg border border-dashed border-slate-300 p-3 sm:col-span-3">
+        <fieldset className="min-w-0 rounded-lg border border-dashed border-slate-300 p-3 sm:col-span-3">
           <legend className="px-1 text-xs font-medium text-slate-600">Bank details (for payments)</legend>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label="Bank name">
@@ -163,7 +163,7 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
         <Field label="Opening balance (₹)" hint="Amount you already owe this vendor">
           <Input type="number" step="0.01" value={str("openingBalance")} onChange={(e) => set("openingBalance", e.target.value)} />
         </Field>
-        <div />
+        <div className="hidden sm:block" />
         <Field label="Notes" className="sm:col-span-3">
           <Textarea rows={2} value={str("notes")} onChange={(e) => set("notes", e.target.value)} />
         </Field>

@@ -17,6 +17,7 @@ export function PermissionPicker({
   resetLabel,
   disabled,
   admin,
+  showRemoved,
 }: {
   value: Permission[];
   onChange: (next: Permission[]) => void;
@@ -25,6 +26,8 @@ export function PermissionPicker({
   disabled?: boolean;
   /** The target is an administrator: everything, nothing to tick */
   admin?: boolean;
+  /** Mark role permissions that were unticked (user form: they are taken away from this one user) */
+  showRemoved?: boolean;
 }) {
   const { user: me } = useAuth();
   const selected = new Set(value);
@@ -109,6 +112,11 @@ export function PermissionPicker({
                           {!defaults.includes(p.key) && selected.has(p.key) && (
                             <span className="ml-1 align-middle">
                               <Badge tone="amber">extra</Badge>
+                            </span>
+                          )}
+                          {showRemoved && defaults.includes(p.key) && !selected.has(p.key) && (
+                            <span className="ml-1 align-middle">
+                              <Badge tone="red">removed</Badge>
                             </span>
                           )}
                         </span>

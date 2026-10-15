@@ -125,7 +125,7 @@ export default function ApprovalsPage() {
       )}
 
       {data && (
-        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
           {data.byStep.map((s, i) => (
             <StatCard
               key={i}
@@ -189,7 +189,7 @@ export default function ApprovalsPage() {
               <Th>PO</Th>
               <Th>Vendor</Th>
               <Th right>Value</Th>
-              <Th>Approval chain</Th>
+              <Th className="hidden md:table-cell">Approval chain</Th>
               <Th>Waiting with</Th>
               <Th />
             </tr>
@@ -223,17 +223,17 @@ export default function ApprovalsPage() {
                       {po.createdBy && ` · ${po.createdBy.name}`}
                     </p>
                   </Td>
-                  <Td className="min-w-48">
-                    <p className="font-medium text-slate-800">{po.vendor?.name ?? "—"}</p>
+                  <Td className="min-w-40 sm:min-w-48">
+                    <p className="break-words font-medium text-slate-800">{po.vendor?.name ?? "—"}</p>
                     <p className="text-xs text-slate-500">
                       {po._count.items} item{po._count.items === 1 ? "" : "s"}
                       {po.lastAction && ` · ${po.lastAction.action} by ${po.lastAction.userName}`}
                     </p>
                   </Td>
-                  <Td right className="font-medium text-slate-900">
+                  <Td right className="whitespace-nowrap font-medium text-slate-900">
                     {inr(po.totalAmount)}
                   </Td>
-                  <Td>
+                  <Td className="hidden md:table-cell">
                     <ApprovalChain chain={po.chain} />
                   </Td>
                   <Td>
@@ -293,7 +293,7 @@ export default function ApprovalsPage() {
                     </div>
                   </Td>
                   <Td className="whitespace-nowrap">{d.userName}</Td>
-                  <Td className="text-slate-600">{d.note || <span className="text-slate-300">—</span>}</Td>
+                  <Td className="min-w-48 text-slate-600">{d.note || <span className="text-slate-300">—</span>}</Td>
                 </tr>
               ))
             )}

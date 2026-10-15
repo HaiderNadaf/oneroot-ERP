@@ -107,9 +107,9 @@ export default function CustomersPage() {
               setPage(1);
             }}
             placeholder="Search name, phone, village…"
-            className="min-w-60 flex-1"
+            className="w-full flex-1 sm:w-auto sm:min-w-60"
           />
-          <Select value={status} onChange={(e) => (setStatus(e.target.value), setPage(1))} className="w-32" aria-label="Status">
+          <Select value={status} onChange={(e) => (setStatus(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-32 sm:flex-none" aria-label="Status">
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
             <option value="all">All</option>

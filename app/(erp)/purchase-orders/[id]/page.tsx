@@ -184,10 +184,10 @@ export default function PurchaseOrderDetailPage() {
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Vendor</p>
                 {v ? (
                   <>
-                    <Link href={`/vendors/${v.id}`} className="mt-1 block font-semibold text-slate-900 hover:text-brand-700">
+                    <Link href={`/vendors/${v.id}`} className="mt-1 block break-words font-semibold text-slate-900 hover:text-brand-700">
                       {v.name}
                     </Link>
-                    <p className="text-sm text-slate-600">{[v.address, v.city, v.state, v.pincode].filter(Boolean).join(", ")}</p>
+                    <p className="break-words text-sm text-slate-600">{[v.address, v.city, v.state, v.pincode].filter(Boolean).join(", ")}</p>
                     <p className="text-sm text-slate-600">{[v.contactPerson, v.phone].filter(Boolean).join(" · ")}</p>
                   </>
                 ) : (
@@ -209,7 +209,7 @@ export default function PurchaseOrderDetailPage() {
                 <dt className="text-slate-500">Expiry</dt>
                 <dd>{po.expiryDays ? `${po.expiryDays} days` : "—"}</dd>
                 <dt className="text-slate-500">Vendor GSTIN</dt>
-                <dd className="font-mono text-xs">{v?.gstin || "—"}</dd>
+                <dd className="break-all font-mono text-xs">{v?.gstin || "—"}</dd>
                 <dt className="text-slate-500">Place of supply</dt>
                 <dd>
                   {pos.label}
@@ -261,7 +261,7 @@ export default function PurchaseOrderDetailPage() {
               {items.map((it, i) => (
                 <tr key={it.id}>
                   <Td className="text-slate-400">{i + 1}</Td>
-                  <Td className="min-w-48">
+                  <Td className="min-w-40 sm:min-w-48">
                     <p className="font-medium text-slate-900">{it.product.name}</p>
                     <p className="text-xs text-slate-500">
                       {it.product.sku}
@@ -312,7 +312,7 @@ export default function PurchaseOrderDetailPage() {
               </tfoot>
             )}
           </Table>
-          <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 p-3 sm:grid-cols-2 sm:p-4">
             <div className="text-sm">
               <p className="text-xs text-slate-500">Amount in words</p>
               <p className="mt-0.5 font-medium text-slate-800">{amountInWords(n(po.totalAmount))}</p>
@@ -362,7 +362,7 @@ export default function PurchaseOrderDetailPage() {
           ) : (
             <ul className="divide-y divide-slate-100">
               {po.grns.map((g) => (
-                <li key={g.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                <li key={g.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 px-3 py-2.5 text-sm sm:px-4">
                   <Link href={`/goods-inward/${g.id}`} className="font-medium text-brand-700 hover:underline">
                     {g.grnNo}
                   </Link>
@@ -388,7 +388,7 @@ export default function PurchaseOrderDetailPage() {
           ) : (
             <ul className="divide-y divide-slate-100">
               {po.purchases.map((p) => (
-                <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 px-3 py-2.5 text-sm sm:px-4">
                   <Link href={`/purchases/${p.id}`} className="font-medium text-brand-700 hover:underline">
                     {p.purchaseNo}
                   </Link>
@@ -682,9 +682,9 @@ function DecisionModal({ po, action, onClose, onDone }: { po: PurchaseOrder; act
       }
     >
       <div className="mb-3 grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3 text-sm">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs text-slate-500">Vendor</p>
-          <p className="font-medium text-slate-800">{po.vendor?.name ?? "—"}</p>
+          <p className="break-words font-medium text-slate-800">{po.vendor?.name ?? "—"}</p>
         </div>
         <div>
           <p className="text-xs text-slate-500">Value</p>

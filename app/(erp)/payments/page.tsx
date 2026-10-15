@@ -139,12 +139,12 @@ export default function PaymentsPage() {
 
       <Card bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
-          <div className="flex items-center gap-1.5">
-            <Input type="date" value={from} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="w-38" aria-label="From date" />
+          <div className="flex w-full items-center gap-1.5 sm:w-auto">
+            <Input type="date" value={from} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="From date" />
             <span className="text-xs text-slate-400">to</span>
-            <Input type="date" value={to} onChange={(e) => (setTo(e.target.value), setPage(1))} className="w-38" aria-label="To date" />
+            <Input type="date" value={to} onChange={(e) => (setTo(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="To date" />
           </div>
-          <Select value={mode} onChange={(e) => (setMode(e.target.value), setPage(1))} className="w-40" aria-label="Mode">
+          <Select value={mode} onChange={(e) => (setMode(e.target.value), setPage(1))} className="w-full sm:w-40" aria-label="Mode">
             <option value="">All modes</option>
             {CASH_MODES.map((m) => (
               <option key={m} value={m}>

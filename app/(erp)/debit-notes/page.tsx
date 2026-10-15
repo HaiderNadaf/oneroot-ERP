@@ -237,7 +237,7 @@ function Notes() {
                   <Th>Vendor</Th>
                   <Th>Reason</Th>
                   <Th>Against</Th>
-                  <Th>Vendor ref</Th>
+                  <Th className="hidden md:table-cell">Vendor ref</Th>
                   <Th right>Value incl. GST</Th>
                   <Th>Status</Th>
                   <ActionsTh />
@@ -259,20 +259,20 @@ function Notes() {
                         </button>
                         <p className="text-xs text-slate-500">{date(dn.noteDate)}</p>
                       </Td>
-                      <Td>
+                      <Td className="min-w-36">
                         <Link href={`/vendors/${dn.vendor.id}`} className="hover:text-brand-700">
                           {dn.vendor.name}
                         </Link>
                       </Td>
-                      <Td className="max-w-64">
+                      <Td className="min-w-48 max-w-64">
                         <ReasonBadge reason={dn.reasonType} />
                         <p className="mt-0.5 text-xs text-slate-600">{dn.reason}</p>
                       </Td>
                       <Td className="whitespace-nowrap text-sm">
                         <Against dn={dn} />
                       </Td>
-                      <Td className="whitespace-nowrap text-slate-600">{dn.vendorRef || "—"}</Td>
-                      <Td right className="font-medium">
+                      <Td className="hidden whitespace-nowrap text-slate-600 md:table-cell">{dn.vendorRef || "—"}</Td>
+                      <Td right className="whitespace-nowrap font-medium">
                         {inr(dn.totalAmount)}
                       </Td>
                       <Td>
@@ -299,7 +299,7 @@ function Notes() {
             onClose={() => setViewing(null)}
             size="lg"
             title={
-              <span className="flex items-center gap-2">
+              <span className="flex flex-wrap items-center gap-2">
                 {viewing.dnNo} <NoteStatusBadge status={viewing.status} type={viewing.noteType} />
               </span>
             }
@@ -382,10 +382,11 @@ function NoteDoc({ dn, store }: { dn: DebitNote; store: StoreSettings | null }) 
           {dn.status === "DRAFT" && " — DRAFT"}
         </p>
       </div>
-      <div className="mb-4 grid grid-cols-2 gap-4">
-        <div>
+      {/* Stacks on phones in the modal; the print: classes keep the printed copy as it was */}
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 print:grid-cols-2">
+        <div className="min-w-0">
           <p className="text-xs uppercase tracking-wide text-slate-500">{isDebit ? "To" : "From"}</p>
-          <p className="font-semibold">{dn.vendor.name}</p>
+          <p className="break-words font-semibold">{dn.vendor.name}</p>
           {(dn.vendor.address || dn.vendor.city) && (
             <p className="text-xs text-slate-600">{[dn.vendor.address, dn.vendor.city, dn.vendor.state].filter(Boolean).join(", ")}</p>
           )}
@@ -413,6 +414,8 @@ function NoteDoc({ dn, store }: { dn: DebitNote; store: StoreSettings | null }) 
           <dd>{dn.reason}</dd>
         </dl>
       </div>
+      {/* Scrolls sideways inside the modal on phones; prints at full width */}
+      <div className="max-w-full overflow-x-auto overscroll-x-contain print:overflow-visible">
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-y border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -429,7 +432,7 @@ function NoteDoc({ dn, store }: { dn: DebitNote; store: StoreSettings | null }) 
           {dn.items.map((i, idx) => (
             <tr key={i.id} className="border-b border-slate-100">
               <td className="py-1.5 pr-2 text-slate-400">{idx + 1}</td>
-              <td className="py-1.5 pr-2">
+              <td className="min-w-32 py-1.5 pr-2 print:min-w-0">
                 {i.product?.name ?? i.description ?? "—"}
                 {i.product?.hsnCode && <span className="text-xs text-slate-500"> · HSN {i.product.hsnCode}</span>}
                 {i.product && i.description && <span className="block text-xs text-slate-500">{i.description}</span>}
@@ -445,12 +448,13 @@ function NoteDoc({ dn, store }: { dn: DebitNote; store: StoreSettings | null }) 
           ))}
         </tbody>
       </table>
+      </div>
       <div className="mt-3 flex flex-wrap justify-between gap-4">
         <div className="max-w-sm">
           <p className="text-xs text-slate-500">Amount in words</p>
           <p className="font-medium">{amountInWords(n(dn.totalAmount))}</p>
         </div>
-        <dl className="w-60 space-y-1">
+        <dl className="w-full space-y-1 sm:w-60 print:w-60">
           <div className="flex justify-between">
             <dt className="text-slate-500">Taxable value</dt>
             <dd className="num">{inr(dn.subtotal)}</dd>

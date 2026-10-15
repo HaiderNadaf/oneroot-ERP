@@ -193,7 +193,7 @@ export default function SaleDetailPage() {
                 {sale.payments.map((p) => (
                   <li key={p.id} className="flex items-start justify-between gap-2 px-4 py-2.5 text-sm">
                     <div className="min-w-0">
-                      <p className="font-medium text-slate-800">{p.paymentNo}</p>
+                      <p className="break-words font-medium text-slate-800">{p.paymentNo}</p>
                       <p className="text-xs text-slate-500">
                         {date(p.paymentDate)} · {modeLabel(p.mode)}
                         {p.reference && ` · ${p.reference}`}
@@ -214,7 +214,7 @@ export default function SaleDetailPage() {
                 {sale.returns.map((r) => (
                   <li key={r.id} className="px-4 py-2.5 text-sm">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
+                      <div className="min-w-0">
                         <p className="font-medium text-slate-800">{r.returnNo}</p>
                         <p className="text-xs text-slate-500">
                           {date(r.returnDate)} · refund {r.refundMode === "CREDIT" ? "as credit note" : r.refundMode}
@@ -349,8 +349,8 @@ function RecordPaymentBody({ open, sale, balance, onClose, onSaved }: PayProps) 
         </>
       }
     >
-      <form id="sale-pay-form" onSubmit={save} className="grid grid-cols-2 gap-3">
-        <p className="col-span-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+      <form id="sale-pay-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <p className="sm:col-span-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
           Balance due on this invoice: <span className="num font-semibold text-red-600">{inr(balance)}</span>
         </p>
         <Field label="Amount (₹)" required>

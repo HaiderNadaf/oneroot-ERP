@@ -122,7 +122,7 @@ export default function VendorDetailPage() {
         }
       />
 
-      <div className="no-print mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="no-print mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label={bal < 0 ? "Advance with vendor" : "Payable balance"}
           value={inr(Math.abs(bal))}
@@ -142,7 +142,7 @@ export default function VendorDetailPage() {
 
       <div className="no-print mb-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card title="Contact">
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 break-words">
             <Info label="Contact person">{v.contactPerson}</Info>
             <Info label="Phone">{v.phone && <a href={`tel:${v.phone}`} className="hover:text-brand-700">{v.phone}</a>}</Info>
             <Info label="Email">{v.email && <a href={`mailto:${v.email}`} className="hover:text-brand-700">{v.email}</a>}</Info>
@@ -159,7 +159,7 @@ export default function VendorDetailPage() {
           </dl>
         </Card>
         <Card title="Bank details">
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 break-words">
             <Info label="Bank">{v.bankName}</Info>
             <Info label="IFSC">{v.ifsc && <span className="font-mono">{v.ifsc}</span>}</Info>
             <Info label="Account number">{v.bankAccount && <span className="font-mono">{v.bankAccount}</span>}</Info>
@@ -379,7 +379,7 @@ function VendorPurchases({ vendorId }: { vendorId: string }) {
                 return (
                   <tr key={p.id} className={cx("hover:bg-slate-50", p.status === "CANCELLED" && "opacity-60")}>
                     <Td>
-                      <Link href={`/purchases/${p.id}`} className="font-medium text-slate-900 hover:text-brand-700">
+                      <Link href={`/purchases/${p.id}`} className="whitespace-nowrap font-medium text-slate-900 hover:text-brand-700">
                         {p.purchaseNo}
                       </Link>
                     </Td>
@@ -438,7 +438,7 @@ function VendorPayments({ vendorId }: { vendorId: string }) {
             ) : (
               data.items.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50">
-                  <Td className="font-medium text-slate-900">{p.paymentNo}</Td>
+                  <Td className="whitespace-nowrap font-medium text-slate-900">{p.paymentNo}</Td>
                   <Td className="whitespace-nowrap">{date(p.paymentDate)}</Td>
                   <Td>
                     {p.purchase ? (

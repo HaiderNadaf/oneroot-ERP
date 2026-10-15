@@ -109,7 +109,7 @@ export function ProfitLossReport({ range, rangeBar }: { range: Range; rangeBar: 
     >
       {data && (
         <div className="grid gap-4 lg:grid-cols-3">
-          <Card className="lg:col-span-2" bodyClassName="px-6 py-5">
+          <Card className="lg:col-span-2" bodyClassName="px-4 py-5 sm:px-6">
             <div className="mb-3 flex items-baseline justify-between border-b border-slate-200 pb-2">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Profit & Loss</h3>
               <span className="text-xs text-slate-500">{periodLabel(range)}</span>

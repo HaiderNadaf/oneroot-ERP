@@ -384,8 +384,8 @@ function TypeForm({ type, onClose, onSaved }: { type: CustomerType | null; onClo
         </>
       }
     >
-      <form id="type-form" onSubmit={save} className="grid grid-cols-2 gap-3">
-        <Field label="Name" required className="col-span-2">
+      <form id="type-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Name" required className="sm:col-span-2">
           <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus placeholder="e.g. FPO member" />
         </Field>
         <Field label="Discount %" required>
@@ -394,7 +394,7 @@ function TypeForm({ type, onClose, onSaved }: { type: CustomerType | null; onClo
         <Field label="Only when bill ≥ ₹" hint="0 = always">
           <Input type="number" min="0" step="100" value={minBill} onChange={(e) => setMinBill(e.target.value)} className="num" />
         </Field>
-        <div className="col-span-2 space-y-2">
+        <div className="space-y-2 sm:col-span-2">
           <Checkbox label="Do not discount govt-subsidised fertiliser" checked={excl} onChange={setExcl} />
           <Checkbox label="Switched on" checked={isActive} onChange={setIsActive} />
         </div>

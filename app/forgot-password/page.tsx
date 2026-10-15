@@ -47,7 +47,7 @@ export default function ForgotPassword() {
 
   return (
     // Light mint page with soft green and wheat-gold glows; the card's deep-green header frames the white logo tile
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#f6faf2] via-brand-50 to-[#dcefe3] p-4">
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-gradient-to-br from-[#f6faf2] via-brand-50 to-[#dcefe3] p-4">
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div className="absolute -left-32 -top-32 size-[28rem] rounded-full bg-brand-500/25 blur-3xl" />
         <div className="absolute -bottom-40 -right-24 size-[30rem] rounded-full bg-amber-300/30 blur-3xl" />
@@ -62,7 +62,7 @@ export default function ForgotPassword() {
             <p className="relative text-[11px] font-medium uppercase tracking-[0.18em] text-brand-100/80">Agri Inputs ERP</p>
           </div>
           <div className="h-1 bg-gradient-to-r from-brand-500 via-brand-400 to-amber-400" />
-          <div className="px-6 py-4">
+          <div className="px-5 py-4 sm:px-6">
             <div className="mb-2 text-center">
               <h1 className="text-lg font-semibold text-slate-900">Change password</h1>
               <p className="text-xs text-slate-500">Enter your current password, then pick a new one</p>
@@ -97,7 +97,7 @@ export default function ForgotPassword() {
                 {mismatch && <span className="mt-1 block text-xs text-red-600">Passwords don&apos;t match</span>}
               </Field>
               {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-              <Button type="submit" loading={busy} className="w-full" disabled={!email || !current || !next || !confirm}>
+              <Button type="submit" loading={busy} className="w-full max-sm:h-10!" disabled={!email || !current || !next || !confirm}>
                 Change password
               </Button>
               <p className="text-center text-xs text-slate-500">

@@ -72,10 +72,10 @@ export function SerialsPanel({ productId, batches }: { productId: string; batche
         <thead>
           <tr>
             <Th>Serial</Th>
-            <Th>Batch</Th>
+            <Th className="hidden md:table-cell">Batch</Th>
             <Th>Status</Th>
             <Th>Bill</Th>
-            <Th>Since</Th>
+            <Th className="hidden md:table-cell">Since</Th>
             <Th />
           </tr>
         </thead>
@@ -87,11 +87,11 @@ export function SerialsPanel({ productId, batches }: { productId: string; batche
           ) : (
             data.map((s) => (
               <tr key={s.id} className="hover:bg-slate-50">
-                <Td className="font-mono">{s.serialNo}</Td>
-                <Td className="text-xs">{s.batch?.batchNo && s.batch.batchNo !== "DEFAULT" ? s.batch.batchNo : "—"}</Td>
+                <Td className="min-w-28 break-all font-mono">{s.serialNo}</Td>
+                <Td className="hidden text-xs md:table-cell">{s.batch?.batchNo && s.batch.batchNo !== "DEFAULT" ? s.batch.batchNo : "—"}</Td>
                 <Td>{s.status === "IN_STOCK" ? <Badge tone="green">In stock</Badge> : <Badge>Sold</Badge>}</Td>
                 <Td className="text-xs">{s.saleItem?.sale?.invoiceNo ?? "—"}</Td>
-                <Td className="whitespace-nowrap text-xs">{dateTime(s.soldAt ?? s.createdAt)}</Td>
+                <Td className="hidden whitespace-nowrap text-xs md:table-cell">{dateTime(s.soldAt ?? s.createdAt)}</Td>
                 <Td right>
                   {s.status === "IN_STOCK" && can("products.manage") && (
                     <Button size="sm" variant="ghost" icon={<Trash2 className="size-4" />} aria-label="Remove serial" onClick={() => remove(s)} />

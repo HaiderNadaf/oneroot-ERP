@@ -199,7 +199,7 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
       <PageHeader title="Book purchase invoice" subtitle={`Vendor's bill for the goods passed on ${grn.grnNo}`} />
 
       <Card className="mb-4">
-        <dl className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <dl className="mb-4 grid grid-cols-2 gap-4 break-words sm:grid-cols-4">
           <Info label="Vendor">
             <Link href={`/vendors/${v.id}`} className="hover:text-brand-700">
               {v.name}
@@ -252,7 +252,7 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
         <Table>
           <thead>
             <tr>
-              <Th className="min-w-52">Product</Th>
+              <Th className="min-w-44 sm:min-w-52">Product</Th>
               <Th right>Qty passed</Th>
               <Th right>PO rate</Th>
               <Th right>Invoice rate</Th>
@@ -273,7 +273,7 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
                     {r.i.batchNo ? ` · batch ${r.i.batchNo}` : ""}
                   </p>
                 </Td>
-                <Td right className="pt-3.5">
+                <Td right className="whitespace-nowrap pt-3.5">
                   {qty(r.i.passedQty)} <span className="text-xs text-slate-500">{r.i.product.unit}</span>
                 </Td>
                 <Td right className="pt-3.5 text-slate-600">
@@ -332,8 +332,8 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
               <CheckCircle2 className="size-4 shrink-0" /> Rates and quantities match the PO and GRN
             </div>
           ) : (
-            <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              <AlertTriangle className="size-4 shrink-0" /> {mismatches} rate{mismatches === 1 ? "" : "s"} differ
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 sm:items-center">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 sm:mt-0" /> {mismatches} rate{mismatches === 1 ? "" : "s"} differ
               {mismatches === 1 ? "s" : ""} from the PO — saving flags this invoice and alerts the manager
             </div>
           )}

@@ -107,20 +107,20 @@ export default function SalesPage() {
             value={search}
             onChange={resetPage(setSearch)}
             placeholder="Invoice no, customer, phone or agent ID…"
-            className="min-w-60 flex-1"
+            className="w-full flex-1 sm:w-auto sm:min-w-60"
           />
-          <div className="flex items-center gap-1.5">
-            <Input type="date" value={from} max={to || undefined} onChange={(e) => resetPage(setFrom)(e.target.value)} className="w-38" aria-label="From date" />
+          <div className="flex w-full items-center gap-1.5 sm:w-auto">
+            <Input type="date" value={from} max={to || undefined} onChange={(e) => resetPage(setFrom)(e.target.value)} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="From date" />
             <span className="text-xs text-slate-400">to</span>
-            <Input type="date" value={to} min={from || undefined} onChange={(e) => resetPage(setTo)(e.target.value)} className="w-38" aria-label="To date" />
+            <Input type="date" value={to} min={from || undefined} onChange={(e) => resetPage(setTo)(e.target.value)} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="To date" />
           </div>
-          <Select value={paymentStatus} onChange={(e) => resetPage(setPaymentStatus)(e.target.value)} className="w-36" aria-label="Payment status">
+          <Select value={paymentStatus} onChange={(e) => resetPage(setPaymentStatus)(e.target.value)} className="min-w-0 flex-1 sm:w-36 sm:flex-none" aria-label="Payment status">
             <option value="">Any payment</option>
             <option value="PAID">Paid</option>
             <option value="PARTIAL">Partial</option>
             <option value="UNPAID">Unpaid</option>
           </Select>
-          <Select value={status} onChange={(e) => resetPage(setStatus)(e.target.value)} className="w-36" aria-label="Status">
+          <Select value={status} onChange={(e) => resetPage(setStatus)(e.target.value)} className="min-w-0 flex-1 sm:w-36 sm:flex-none" aria-label="Status">
             <option value="COMPLETED">Completed</option>
             <option value="CANCELLED">Cancelled</option>
             <option value="all">All</option>

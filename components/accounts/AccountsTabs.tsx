@@ -237,7 +237,7 @@ function AccountModalBody({ account, onClose, onSaved }: { account: Account | nu
         </>
       }
     >
-      <form id="account-form" onSubmit={save} className="grid grid-cols-2 gap-3">
+      <form id="account-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Code" required hint="e.g. 1030 for a second bank">
           <Input value={code} onChange={(e) => setCode(e.target.value)} disabled={editing} required className="font-mono" />
         </Field>
@@ -258,10 +258,10 @@ function AccountModalBody({ account, onClose, onSaved }: { account: Account | nu
             ))}
           </Select>
         </Field>
-        <Field label="Name" required className="col-span-2">
+        <Field label="Name" required className="sm:col-span-2">
           <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
         </Field>
-        <Field label="Group" required className="col-span-2" hint="Tally group — used when exporting">
+        <Field label="Group" required className="sm:col-span-2" hint="Tally group — used when exporting">
           <Select value={group} onChange={(e) => setGroup(e.target.value)}>
             {(options.includes(group) ? options : [group, ...options]).map((g) => (
               <option key={g}>{g}</option>
@@ -278,7 +278,7 @@ function AccountModalBody({ account, onClose, onSaved }: { account: Account | nu
           </Select>
         </Field>
         {editing && !account!.key && (
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <Checkbox label="Active" checked={isActive} onChange={setIsActive} />
           </div>
         )}
@@ -302,7 +302,7 @@ export function DayBookTab({ range, rangeBar }: { range: Range; rangeBar: ReactN
     <>
       <div className="no-print mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
         {rangeBar}
-        <Select value={refType} onChange={(e) => (setRefType(e.target.value), setPage(1))} className="w-44" aria-label="Voucher type">
+        <Select value={refType} onChange={(e) => (setRefType(e.target.value), setPage(1))} className="w-full sm:w-44" aria-label="Voucher type">
           <option value="">All vouchers</option>
           {Object.entries(REF_TYPE_LABEL).map(([k, v]) => (
             <option key={k} value={k}>
@@ -310,7 +310,7 @@ export function DayBookTab({ range, rangeBar }: { range: Range; rangeBar: ReactN
             </option>
           ))}
         </Select>
-        <Input value={search} onChange={(e) => (setSearch(e.target.value), setPage(1))} placeholder="Voucher / bill no. / narration" className="w-56" />
+        <Input value={search} onChange={(e) => (setSearch(e.target.value), setPage(1))} placeholder="Voucher / bill no. / narration" className="w-full sm:w-56" />
         <div className="flex-1" />
         <Button icon={<Plus className="size-4" />} onClick={() => setManual(true)}>
           New voucher
@@ -582,62 +582,65 @@ function ManualVoucherBody({ onClose, onSaved }: { onClose: () => void; onSaved:
             <Input value={narration} onChange={(e) => setNarration(e.target.value)} placeholder="e.g. Owner's capital deposited in bank" autoFocus />
           </Field>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-              <th className="py-1.5 text-left">Account</th>
-              <th className="py-1.5 text-left">Party / description</th>
-              <th className="w-32 py-1.5 text-right">Debit</th>
-              <th className="w-32 py-1.5 text-right">Credit</th>
-              <th className="w-8" />
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((l) => {
-              const a = acct(l.accountId);
-              return (
-                <tr key={l.key} className="border-b border-slate-100 align-top">
-                  <td className="py-1.5 pr-2">
-                    <Select value={l.accountId} onChange={(e) => update(l.key, { accountId: e.target.value, customer: null, vendor: null })}>
-                      <option value="">Choose account</option>
-                      {TYPE_ORDER.map((t) => (
-                        <optgroup key={t} label={TYPE_LABEL[t]}>
-                          {(accounts ?? [])
-                            .filter((x) => x.type === t && x.isActive)
-                            .map((x) => (
-                              <option key={x.id} value={x.id}>
-                                {x.code} · {x.name}
-                              </option>
-                            ))}
-                        </optgroup>
-                      ))}
-                    </Select>
-                  </td>
-                  <td className="py-1.5 pr-2">
-                    {a?.key === "DEBTORS" ? (
-                      <CustomerPicker value={l.customer} onChange={(c) => update(l.key, { customer: c })} />
-                    ) : a?.key === "CREDITORS" ? (
-                      <VendorPicker value={l.vendor} onChange={(v) => update(l.key, { vendor: v })} />
-                    ) : (
-                      <Input value={l.description} onChange={(e) => update(l.key, { description: e.target.value })} placeholder="Optional" />
-                    )}
-                  </td>
-                  <td className="py-1.5 pr-2">
-                    <Input type="number" step="0.01" min="0" value={l.debit} onChange={(e) => update(l.key, { debit: e.target.value, credit: e.target.value ? "" : l.credit })} className="num text-right" />
-                  </td>
-                  <td className="py-1.5 pr-2">
-                    <Input type="number" step="0.01" min="0" value={l.credit} onChange={(e) => update(l.key, { credit: e.target.value, debit: e.target.value ? "" : l.debit })} className="num text-right" />
-                  </td>
-                  <td className="py-1.5">
-                    <button type="button" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove line">
-                      <Trash2 className="size-4" />
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        {/* Phones: the voucher lines scroll sideways instead of squashing four inputs into one row */}
+        <div className="max-sm:-mx-1 max-sm:overflow-x-auto max-sm:px-1">
+          <table className="w-full text-sm max-sm:min-w-[36rem]">
+            <thead>
+              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                <th className="py-1.5 text-left">Account</th>
+                <th className="py-1.5 text-left">Party / description</th>
+                <th className="w-32 py-1.5 text-right">Debit</th>
+                <th className="w-32 py-1.5 text-right">Credit</th>
+                <th className="w-8" />
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((l) => {
+                const a = acct(l.accountId);
+                return (
+                  <tr key={l.key} className="border-b border-slate-100 align-top">
+                    <td className="py-1.5 pr-2">
+                      <Select value={l.accountId} onChange={(e) => update(l.key, { accountId: e.target.value, customer: null, vendor: null })}>
+                        <option value="">Choose account</option>
+                        {TYPE_ORDER.map((t) => (
+                          <optgroup key={t} label={TYPE_LABEL[t]}>
+                            {(accounts ?? [])
+                              .filter((x) => x.type === t && x.isActive)
+                              .map((x) => (
+                                <option key={x.id} value={x.id}>
+                                  {x.code} · {x.name}
+                                </option>
+                              ))}
+                          </optgroup>
+                        ))}
+                      </Select>
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      {a?.key === "DEBTORS" ? (
+                        <CustomerPicker value={l.customer} onChange={(c) => update(l.key, { customer: c })} />
+                      ) : a?.key === "CREDITORS" ? (
+                        <VendorPicker value={l.vendor} onChange={(v) => update(l.key, { vendor: v })} />
+                      ) : (
+                        <Input value={l.description} onChange={(e) => update(l.key, { description: e.target.value })} placeholder="Optional" />
+                      )}
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      <Input type="number" step="0.01" min="0" value={l.debit} onChange={(e) => update(l.key, { debit: e.target.value, credit: e.target.value ? "" : l.credit })} className="num text-right" />
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      <Input type="number" step="0.01" min="0" value={l.credit} onChange={(e) => update(l.key, { credit: e.target.value, debit: e.target.value ? "" : l.debit })} className="num text-right" />
+                    </td>
+                    <td className="py-1.5">
+                      <button type="button" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove line">
+                        <Trash2 className="size-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
         <Button
           type="button"
           variant="ghost"
@@ -685,8 +688,8 @@ export function LedgerTab({ range, rangeBar, initialAccountId }: { range: Range;
         title={`Ledger · ${title}`}
         period={periodLabel(range)}
         controls={
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={chosen?.id ?? ""} onChange={(e) => (setAccountId(e.target.value), setCustomer(null), setVendor(null))} className="w-64" aria-label="Account">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <Select value={chosen?.id ?? ""} onChange={(e) => (setAccountId(e.target.value), setCustomer(null), setVendor(null))} className="w-full sm:w-64" aria-label="Account">
               {TYPE_ORDER.map((t) => (
                 <optgroup key={t} label={TYPE_LABEL[t]}>
                   {(accounts ?? [])
@@ -700,12 +703,12 @@ export function LedgerTab({ range, rangeBar, initialAccountId }: { range: Range;
               ))}
             </Select>
             {chosen?.key === "DEBTORS" && (
-              <div className="w-64">
+              <div className="w-full sm:w-64">
                 <CustomerPicker value={customer} onChange={setCustomer} />
               </div>
             )}
             {chosen?.key === "CREDITORS" && (
-              <div className="w-64">
+              <div className="w-full sm:w-64">
                 <VendorPicker value={vendor} onChange={setVendor} />
               </div>
             )}
@@ -951,7 +954,7 @@ export function PnlTab({ range, rangeBar }: { range: Range; rangeBar: ReactNode 
     >
       {data && (
         <div className="grid gap-4 lg:grid-cols-3">
-          <Card className="lg:col-span-2" bodyClassName="px-6 py-5">
+          <Card className="lg:col-span-2" bodyClassName="px-4 py-5 sm:px-6">
             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Trading account</p>
             {rows("INCOME", ["Sales Accounts", "Direct Incomes"]).map((r) => (
               <StatementRow key={r.id} code={r.code} label={r.name} amount={r.amount} indent />

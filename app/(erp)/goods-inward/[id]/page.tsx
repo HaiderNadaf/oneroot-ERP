@@ -91,7 +91,7 @@ function GrnView() {
         <div className="grid grid-cols-1 gap-4 border-b border-slate-100 p-4 sm:grid-cols-2">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Vendor</p>
-            <Link href={`/vendors/${v.id}`} className="mt-1 block font-semibold text-slate-900 hover:text-brand-700">
+            <Link href={`/vendors/${v.id}`} className="mt-1 block break-words font-semibold text-slate-900 hover:text-brand-700">
               {v.name}
             </Link>
             <p className="text-sm text-slate-600">{[v.address, v.city, v.state, v.pincode].filter(Boolean).join(", ")}</p>
@@ -141,7 +141,8 @@ function GrnView() {
             {items.map((it, i) => (
               <tr key={it.id}>
                 <Td className="text-slate-400">{i + 1}</Td>
-                <Td>
+                {/* Keeps the name readable when the table scrolls sideways on phones; no effect on paper */}
+                <Td className="min-w-40 print:min-w-0">
                   <p className="font-medium text-slate-900">{it.product.name}</p>
                   <p className="text-xs text-slate-500">
                     {it.product.sku}
@@ -191,7 +192,7 @@ function GrnView() {
       <div className="no-print grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card title="Purchase invoice">
           {invoiced && g.purchase ? (
-            <div className="flex items-center justify-between gap-2 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
               <span>
                 Booked as{" "}
                 <Link href={`/purchases/${g.purchase.id}`} className="font-medium text-brand-700 hover:underline">

@@ -167,12 +167,12 @@ function AdjustForm({
         <Field label="Product" required>
           {fixed ? (
             <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-800">
-              {fixed.name}
+              <span className="truncate">{fixed.name}</span>
             </div>
           ) : picked ? (
-            <div className="flex h-9 items-center justify-between rounded-lg border border-brand-300 bg-brand-50 px-3 text-sm">
-              <span className="truncate font-medium text-slate-800">{picked.name}</span>
-              <button type="button" onClick={() => setPicked(null)} className="text-slate-400 hover:text-slate-700" aria-label="Change product">
+            <div className="flex h-9 items-center justify-between gap-2 rounded-lg border border-brand-300 bg-brand-50 px-3 text-sm">
+              <span className="min-w-0 truncate font-medium text-slate-800">{picked.name}</span>
+              <button type="button" onClick={() => setPicked(null)} className="shrink-0 text-slate-400 hover:text-slate-700" aria-label="Change product">
                 <X className="size-4" />
               </button>
             </div>
@@ -241,7 +241,7 @@ function AdjustForm({
             )}
 
             {isIn && tracksBatch && batchSel === NEW_BATCH && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="Batch no." hint="Leave blank for the default batch">
                   <Input value={batchNo} onChange={(e) => setBatchNo(e.target.value)} />
                 </Field>

@@ -277,9 +277,9 @@ export default function ProductsPage() {
               setPage(1);
             }}
             placeholder="Search name, SKU, barcode, brand, composition…"
-            className="min-w-60 flex-1"
+            className="w-full sm:w-auto sm:min-w-60 sm:flex-1"
           />
-          <Select value={type} onChange={(e) => (setType(e.target.value), setPage(1))} className="w-36" aria-label="Type">
+          <Select value={type} onChange={(e) => (setType(e.target.value), setPage(1))} className="w-[calc(50%-0.25rem)] sm:w-36" aria-label="Type">
             <option value="">All types</option>
             {PRODUCT_TYPES.map((t) => (
               <option key={t} value={t}>
@@ -287,7 +287,7 @@ export default function ProductsPage() {
               </option>
             ))}
           </Select>
-          <Select value={categoryId} onChange={(e) => (setCategoryId(e.target.value), setPage(1))} className="w-40" aria-label="Category">
+          <Select value={categoryId} onChange={(e) => (setCategoryId(e.target.value), setPage(1))} className="w-[calc(50%-0.25rem)] sm:w-40" aria-label="Category">
             <option value="">All categories</option>
             {categories?.map((top) => (
               <optgroup key={top.id} label={top.name}>
@@ -300,18 +300,18 @@ export default function ProductsPage() {
               </optgroup>
             ))}
           </Select>
-          <Select value={stock} onChange={(e) => (setStock(e.target.value), setPage(1))} className="w-36" aria-label="Stock">
+          <Select value={stock} onChange={(e) => (setStock(e.target.value), setPage(1))} className="w-[calc(50%-0.25rem)] sm:w-36" aria-label="Stock">
             <option value="">Any stock</option>
             <option value="in">In stock</option>
             <option value="low">Low stock</option>
             <option value="out">Out of stock</option>
           </Select>
-          <Select value={status} onChange={(e) => (setStatus(e.target.value), setPage(1))} className="w-28" aria-label="Status">
+          <Select value={status} onChange={(e) => (setStatus(e.target.value), setPage(1))} className="w-[calc(50%-0.25rem)] sm:w-28" aria-label="Status">
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
             <option value="all">All</option>
           </Select>
-          <Select value={sort} onChange={(e) => (setSort(e.target.value), setPage(1))} className="w-40" aria-label="Sort by">
+          <Select value={sort} onChange={(e) => (setSort(e.target.value), setPage(1))} className="w-[calc(50%-0.25rem)] sm:w-40" aria-label="Sort by">
             <option value="">Sort: Name A–Z</option>
             <option value="sku">Sort: SKU</option>
             <option value="stock_asc">Stock: low to high</option>

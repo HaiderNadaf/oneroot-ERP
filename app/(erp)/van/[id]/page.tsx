@@ -56,7 +56,7 @@ export default function VanTripPage() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard label="Sales on the trip" value={inr(t.summary.salesTotal)} sub={`${t.summary.bills} bill${t.summary.bills === 1 ? "" : "s"}`} />
         <StatCard label="Cash collected" value={inr(t.summary.cashSales)} />
         <StatCard label="On credit" value={inr(t.summary.credit)} tone={t.summary.credit > 0 ? "amber" : undefined} />
@@ -73,7 +73,7 @@ export default function VanTripPage() {
         )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Card title="Stock on the van" bodyClassName="p-0">
           <Table>
             <thead>

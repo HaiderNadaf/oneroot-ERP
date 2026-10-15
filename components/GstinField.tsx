@@ -85,19 +85,19 @@ export function GstinField({
           )}
           {info.error && value.length >= 2 && (value.length === 15 || !info.stateName) && (
             <span className="flex items-center gap-1.5 text-red-600">
-              <XCircle className="size-3.5" />
+              <XCircle className="size-3.5 shrink-0" />
               {info.error}
             </span>
           )}
           {!info.error && info.warning && (
             <span className="flex items-center gap-1.5 text-amber-700">
-              <AlertTriangle className="size-3.5" />
+              <AlertTriangle className="size-3.5 shrink-0" />
               {info.warning}
             </span>
           )}
           {info.valid && !info.warning && (
             <span className="flex items-center gap-1.5 text-brand-700">
-              <CheckCircle2 className="size-3.5" />
+              <CheckCircle2 className="size-3.5 shrink-0" />
               Valid GSTIN · PAN {info.pan}
             </span>
           )}

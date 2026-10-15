@@ -97,8 +97,12 @@ export interface User {
   email: string;
   phone?: string | null;
   role: Role;
-  /** Ticks from lib/permissions.ts; a role only sets the starting ticks (administrators need none) */
+  /** What the user may do = their role's permissions + extraPermissions − revokedPermissions (administrators need none) */
   permissions: string[];
+  /** Given to this user on top of their role */
+  extraPermissions?: string[];
+  /** Taken away from this user although their role has them */
+  revokedPermissions?: string[];
   /** Custom role (named set of ticks) the user was given, if any */
   roleTemplateId?: string | null;
   roleTemplate?: { id: string; name: string; department?: { id: string; name: string } | null } | null;
@@ -123,6 +127,16 @@ export interface RoleTemplate {
   departmentId?: string | null;
   department?: { id: string; name: string } | null;
   createdAt?: string;
+}
+
+/** A built-in role's permissions (editable in Roles & Limits); users on it follow it plus their own extras / removals */
+export interface BuiltInRole {
+  role: Role;
+  permissions: string[];
+  /** The standard set shipped with the app, for "reset to standard" */
+  defaults: string[];
+  /** Users on this role without a custom role */
+  userCount: number;
 }
 
 /** A department groups the custom roles of one function (Procurement, Sales, Warehouse...) */

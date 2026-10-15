@@ -36,14 +36,20 @@ import { useAuth } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS, defaultsFor, hasPerm, normalizePermissions, type Permission } from "@/lib/permissions";
-import { ROLES, type Role, type RoleTemplate, type User } from "@/lib/types";
+import { ROLES, type BuiltInRole, type Role, type RoleTemplate, type User } from "@/lib/types";
 
 const ROLE_INFO: Record<Role, string> = {
   ADMIN: "Everything, always — including users, store settings and the audit log",
-  MANAGER: "Starts with inventory, purchases, reports, approvals and cancellations",
-  CASHIER: "Starts with billing, customers and receipts",
-  ACCOUNTANT: "Starts with purchases, payments, expenses, accounts and reports",
+  MANAGER: "Inventory, purchases, reports, approvals and cancellations",
+  CASHIER: "Billing, customers and receipts",
+  ACCOUNTANT: "Purchases, payments, expenses, accounts and reports",
 };
+
+/** A built-in role's permissions as set in Roles & Limits (the shipped defaults until they load) */
+function rolePerms(role: Role, builtIns: BuiltInRole[]): Permission[] {
+  const r = builtIns.find((b) => b.role === role);
+  return r ? normalizePermissions(r.permissions) : defaultsFor(role);
+}
 
 const roleName = (r: Role) => r.charAt(0) + r.slice(1).toLowerCase();
 
@@ -69,6 +75,7 @@ function Users() {
   const { user: me, can } = useAuth();
   const { data, error, loading, reload } = useApi<User[]>("/users");
   const templates = useApi<RoleTemplate[]>("/roles/custom");
+  const builtIns = useApi<BuiltInRole[]>("/roles/built-in");
   const [editing, setEditing] = useState<User | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [roleForm, setRoleForm] = useState<{ template: RoleTemplate | null; departmentId: string | null } | null>(null);
@@ -110,8 +117,8 @@ function Users() {
                 <Th>Role</Th>
                 <Th>Access</Th>
                 <Th>Branch</Th>
-                <Th>Phone</Th>
-                <Th>Last sign-in</Th>
+                <Th className="hidden md:table-cell">Phone</Th>
+                <Th className="hidden md:table-cell">Last sign-in</Th>
                 <Th>Status</Th>
                 <ActionsTh />
               </tr>
@@ -146,7 +153,7 @@ function Users() {
                       )}
                     </Td>
                     <Td>
-                      <AccessSummary user={u} templates={templates.data ?? []} />
+                      <AccessSummary user={u} />
                     </Td>
                     <Td className="whitespace-nowrap">
                       {u.branch ? (
@@ -158,8 +165,8 @@ function Users() {
                         <span className="text-xs text-slate-500">All branches</span>
                       )}
                     </Td>
-                    <Td>{u.phone || "—"}</Td>
-                    <Td className="text-xs">{u.lastLoginAt ? dateTime(u.lastLoginAt) : "Never"}</Td>
+                    <Td className="hidden md:table-cell">{u.phone || "—"}</Td>
+                    <Td className="hidden text-xs md:table-cell">{u.lastLoginAt ? dateTime(u.lastLoginAt) : "Never"}</Td>
                     <Td>{u.isActive ? <Badge tone="green">Active</Badge> : <Badge>Disabled</Badge>}</Td>
                     <ActionsTd>
                       <RowAction kind="edit" title={`Edit ${u.name}`} onClick={() => open(u)} />
@@ -190,8 +197,9 @@ function Users() {
           ))}
         </dl>
         <p className="mt-4 border-t border-slate-100 pt-3 text-sm text-slate-600">
-          <b className="font-medium text-slate-800">Permissions:</b> a role only fills in the starting ticks. Tick or untick anything in the
-          user form to give exactly the access you want — the sidebar, the pages and the API all follow the ticks. Put roles inside a
+          <b className="font-medium text-slate-800">Permissions:</b> the role decides what a user can open — the sidebar, the pages and the
+          API all follow it. Change a role in Roles &amp; Limits and everyone on it follows. For one person you can still tick extra
+          permissions or untick some; those stay with them when their role is edited, and picking another role clears them. Put roles inside a
           department (Procurement, Sales, Warehouse...) so the right people find them; discount, refund and adjustment ceilings still come
           from the limits chosen for each role (Roles &amp; Limits).
         </p>
@@ -207,6 +215,7 @@ function Users() {
           user={editing}
           isSelf={!!editing && editing.id === me?.id}
           templates={templates.data ?? []}
+          builtIns={builtIns.data ?? []}
           onTemplatesChanged={() => void templates.reload()}
           onClose={() => setFormOpen(false)}
           onSaved={() => {
@@ -231,23 +240,27 @@ function Users() {
   );
 }
 
-/** What the user's ticks are compared against: their custom role, else the built-in role */
-function baselineFor(user: { role: Role; roleTemplateId?: string | null }, templates: RoleTemplate[]): Permission[] {
-  const t = user.roleTemplateId ? templates.find((x) => x.id === user.roleTemplateId) : null;
-  return t ? normalizePermissions(t.permissions) : defaultsFor(user.role);
-}
-
-/** "Everything", "Manager defaults", "Store supervisor" or "Custom · 12 of 39" */
-function AccessSummary({ user, templates }: { user: User; templates: RoleTemplate[] }) {
+/** "Everything", "As per role" or the user's own extras / removals on top of their role */
+function AccessSummary({ user }: { user: User }) {
   if (user.role === "ADMIN") return <span className="text-xs text-slate-500">Everything</span>;
-  const mine = normalizePermissions(user.permissions ?? []);
-  const base = baselineFor(user, templates);
-  const custom = mine.length !== base.length || mine.some((k) => !base.includes(k));
+  const extra = user.extraPermissions?.length ?? 0;
+  const removed = user.revokedPermissions?.length ?? 0;
+  const label = (keys: string[] = []) => keys.map((k) => PERMISSIONS.find((p) => p.key === k)?.label ?? k).join(" · ");
   return (
     <span className="text-xs text-slate-500">
-      {custom ? <Badge tone="amber">Custom</Badge> : user.roleTemplate ? "As per role" : `${roleName(user.role)} defaults`}
+      {!extra && !removed ? "As per role" : null}
+      {extra > 0 && (
+        <span title={label(user.extraPermissions)} className="mr-1">
+          <Badge tone="amber">+{extra} extra</Badge>
+        </span>
+      )}
+      {removed > 0 && (
+        <span title={label(user.revokedPermissions)} className="mr-1">
+          <Badge tone="red">−{removed} removed</Badge>
+        </span>
+      )}
       <span className="num ml-1.5">
-        {mine.length} of {PERMISSIONS.length}
+        {normalizePermissions(user.permissions ?? []).length} of {PERMISSIONS.length}
       </span>
     </span>
   );
@@ -329,6 +342,7 @@ function UserForm({
   user,
   isSelf,
   templates,
+  builtIns,
   onTemplatesChanged,
   onClose,
   onSaved,
@@ -336,6 +350,7 @@ function UserForm({
   user: User | null;
   isSelf: boolean;
   templates: RoleTemplate[];
+  builtIns: BuiltInRole[];
   onTemplatesChanged: () => void;
   onClose: () => void;
   onSaved: () => void;
@@ -349,7 +364,7 @@ function UserForm({
   const [role, setRole] = useState<Role>(user?.role ?? "CASHIER");
   const [templateId, setTemplateId] = useState<string | null>(user?.roleTemplateId ?? null);
   const [permissions, setPermissions] = useState<Permission[]>(() =>
-    user ? normalizePermissions(user.permissions ?? []) : defaultsFor("CASHIER").filter((k) => hasPerm(me, k)),
+    user ? normalizePermissions(user.permissions ?? []) : rolePerms("CASHIER", builtIns).filter((k) => hasPerm(me, k)),
   );
   const [isActive, setIsActive] = useState(user?.isActive ?? true);
   const [branchId, setBranchId] = useState(user?.branchId ?? user?.branch?.id ?? "");
@@ -361,13 +376,14 @@ function UserForm({
   const [newRole, setNewRole] = useState(false);
   const approver = hasPerm({ role, permissions }, "approvals.decide");
   const template = templateId ? (templates.find((t) => t.id === templateId) ?? null) : null;
-  const baseline = template ? normalizePermissions(template.permissions) : defaultsFor(role);
+  // The role's own permissions: what the ticks are compared against (extra / removed)
+  const baseline = template ? normalizePermissions(template.permissions) : rolePerms(role, builtIns);
 
   // Picking a role (built-in or your own) starts again from that role's ticks
   const pick = (r: Role, t: RoleTemplate | null) => {
     setRole(r);
     setTemplateId(t?.id ?? null);
-    setPermissions(r === "ADMIN" ? [] : (t ? normalizePermissions(t.permissions) : defaultsFor(r)).filter((k) => hasPerm(me, k)));
+    setPermissions(r === "ADMIN" ? [] : (t ? normalizePermissions(t.permissions) : rolePerms(r, builtIns)).filter((k) => hasPerm(me, k)));
   };
 
   async function save(e: React.FormEvent) {
@@ -440,16 +456,19 @@ function UserForm({
           {isSelf ? (
             <p className="mt-1 text-xs text-slate-400">You can&apos;t change your own role, permissions or disable your own account.</p>
           ) : (
-            <p className="mt-1 text-xs text-slate-400">Picking a role fills in its usual ticks below; then give or take away whatever you like.</p>
+            <p className="mt-1 text-xs text-slate-400">
+              The role decides the access. Tick extra or untick for this person only — marked below, and kept when the role is edited.
+            </p>
           )}
         </div>
         <PermissionPicker
           value={permissions}
           onChange={setPermissions}
           defaults={baseline}
-          resetLabel={`Reset to ${template ? template.name : `${roleName(role)} defaults`}`}
+          resetLabel={`Reset to ${template ? template.name : roleName(role)} role`}
           disabled={isSelf}
           admin={role === "ADMIN"}
+          showRemoved
         />
         <Field
           label="Home branch"

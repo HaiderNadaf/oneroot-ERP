@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { VendorForm } from "@/components/VendorForm";
 import {
+  ActionsTd,
+  ActionsTh,
   Badge,
   Button,
   Card,
@@ -14,6 +16,7 @@ import {
   LoadingRow,
   PageHeader,
   Pagination,
+  RowAction,
   SearchInput,
   Select,
   Table,
@@ -141,7 +144,7 @@ export default function VendorsPage() {
                 <Th>State / place of supply</Th>
                 <Th right>Terms</Th>
                 <Th right>Payable</Th>
-                <Th />
+                <ActionsTh />
               </tr>
             </thead>
             <tbody>
@@ -192,20 +195,19 @@ export default function VendorsPage() {
                           <span className="text-slate-400">{inr(0)}</span>
                         )}
                       </Td>
-                      <Td right>
+                      <ActionsTd>
+                        <RowAction kind="view" href={`/vendors/${v.id}`} title={`View ${v.name}`} />
                         {canEdit && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
+                          <RowAction
+                            kind="edit"
+                            title={`Edit ${v.name}`}
                             onClick={() => {
                               setEditing(v);
                               setFormOpen(true);
                             }}
-                          >
-                            Edit
-                          </Button>
+                          />
                         )}
-                      </Td>
+                      </ActionsTd>
                     </tr>
                   );
                 })

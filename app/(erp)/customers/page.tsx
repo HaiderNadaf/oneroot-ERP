@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { CustomerForm } from "@/components/CustomerForm";
 import {
+  ActionsTd,
+  ActionsTh,
   Badge,
   Button,
   Card,
@@ -14,6 +16,7 @@ import {
   LoadingRow,
   PageHeader,
   Pagination,
+  RowAction,
   SearchInput,
   Select,
   Table,
@@ -130,7 +133,7 @@ export default function CustomersPage() {
                 <Th>Crops</Th>
                 <Th right>Credit limit</Th>
                 <Th right>Balance due</Th>
-                <Th />
+                <ActionsTh />
               </tr>
             </thead>
             <tbody>
@@ -188,18 +191,17 @@ export default function CustomersPage() {
                         )}
                         {limit > 0 && bal > limit && <p className="text-[11px] text-red-600">over limit</p>}
                       </Td>
-                      <Td right>
-                        <Button
-                          variant="ghost"
-                          size="sm"
+                      <ActionsTd>
+                        <RowAction kind="view" href={`/customers/${c.id}`} title={`View ${c.name}`} />
+                        <RowAction
+                          kind="edit"
+                          title={`Edit ${c.name}`}
                           onClick={() => {
                             setEditing(c);
                             setFormOpen(true);
                           }}
-                        >
-                          Edit
-                        </Button>
-                      </Td>
+                        />
+                      </ActionsTd>
                     </tr>
                   );
                 })

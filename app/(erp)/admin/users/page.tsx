@@ -8,6 +8,8 @@ import { DepartmentsPanel } from "@/components/DepartmentsPanel";
 import { PermissionPicker } from "@/components/PermissionPicker";
 import { RoleTemplateForm } from "@/components/RoleTemplateForm";
 import {
+  ActionsTd,
+  ActionsTh,
   Badge,
   Button,
   Card,
@@ -19,6 +21,7 @@ import {
   LoadingRow,
   Modal,
   PageHeader,
+  RowAction,
   Select,
   StatusBadge,
   Table,
@@ -110,7 +113,7 @@ function Users() {
                 <Th>Phone</Th>
                 <Th>Last sign-in</Th>
                 <Th>Status</Th>
-                <Th />
+                <ActionsTh />
               </tr>
             </thead>
             <tbody>
@@ -158,11 +161,9 @@ function Users() {
                     <Td>{u.phone || "—"}</Td>
                     <Td className="text-xs">{u.lastLoginAt ? dateTime(u.lastLoginAt) : "Never"}</Td>
                     <Td>{u.isActive ? <Badge tone="green">Active</Badge> : <Badge>Disabled</Badge>}</Td>
-                    <Td right>
-                      <Button variant="ghost" size="sm" onClick={() => open(u)}>
-                        Edit
-                      </Button>
-                    </Td>
+                    <ActionsTd>
+                      <RowAction kind="edit" title={`Edit ${u.name}`} onClick={() => open(u)} />
+                    </ActionsTd>
                   </tr>
                 ))
               )}

@@ -15,7 +15,7 @@ const TYPE_OPTIONS: DropdownOption[] = PRODUCT_TYPES.map((t) => ({ value: t, lab
 
 /**
  * Product categories and their sub-categories (two tables), or expense categories with `kind="expense"`.
- * A product's SKU is ORI + an 11-digit running number; category codes are for lookup and import only.
+ * A product's SKU is ORI + category code + sub-category code + a running number, 11 digits after ORI in all.
  */
 export function CategoryManager({ open, onClose, kind = "product" }: { open: boolean; onClose: () => void; kind?: "product" | "expense" }) {
   if (kind === "expense") return <ExpenseCategories open={open} onClose={onClose} />;
@@ -113,7 +113,8 @@ function ProductCategories() {
     <>
       <p className="mb-3 rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">
         Every product sits in a <b>category</b> and one of its <b>sub-categories</b>. Its SKU is{" "}
-        <b className="font-mono">ORI</b> + an 11-digit running number, unique across all products. Codes lock once products use them.
+        <b className="font-mono">ORI</b> + category code + sub-category code + a running number (e.g. 1 → 2 → <b className="font-mono">ORI12000000001</b>),
+        unique across all products. Codes lock once products use them.
       </p>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <section>

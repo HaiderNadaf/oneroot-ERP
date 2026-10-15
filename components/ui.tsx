@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Search, X, XCircle } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Pencil, Search, X, XCircle } from "lucide-react";
 import {
   Children,
   createContext,
@@ -23,6 +23,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
+import Link from "next/link";
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
 // ───────────────────────── Buttons ─────────────────────────
@@ -718,12 +719,13 @@ export function Table({ children, className }: { children: ReactNode; className?
   );
 }
 
-export function Th({ children, className, right }: { children?: ReactNode; className?: string; right?: boolean }) {
+export function Th({ children, className, right, center }: { children?: ReactNode; className?: string; right?: boolean; center?: boolean }) {
   return (
     <th
       className={cx(
         "whitespace-nowrap border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500",
         right && "text-right",
+        center && "text-center",
         className,
       )}
     >
@@ -736,17 +738,81 @@ export function Td({
   children,
   className,
   right,
+  center,
   colSpan,
 }: {
   children?: ReactNode;
   className?: string;
   right?: boolean;
+  center?: boolean;
   colSpan?: number;
 }) {
   return (
-    <td colSpan={colSpan} className={cx("border-b border-slate-100 px-3 py-2.5 text-slate-700", right && "num text-right", className)}>
+    <td colSpan={colSpan} className={cx("border-b border-slate-100 px-3 py-2.5 text-slate-700", right && "num text-right", center && "text-center", className)}>
       {children}
     </td>
+  );
+}
+
+/** Header of a list's row-actions column: "Actions", centred */
+export function ActionsTh({ className }: { className?: string }) {
+  return (
+    <Th center className={className}>
+      Actions
+    </Th>
+  );
+}
+
+/** Row-actions cell of a list: its buttons centred under the Actions header */
+export function ActionsTd({ children, className }: { children?: ReactNode; className?: string }) {
+  return (
+    <Td center className={className}>
+      <div className="flex items-center justify-center gap-1.5">{children}</div>
+    </Td>
+  );
+}
+
+const ROW_ACTION = {
+  view: { icon: Eye, label: "View", tone: "bg-sky-50 text-sky-700 ring-sky-200 hover:bg-sky-100" },
+  edit: { icon: Pencil, label: "Edit", tone: "bg-brand-50 text-brand-700 ring-brand-200 hover:bg-brand-100" },
+} as const;
+
+/**
+ * View / Edit button for a list row: a filled pill with its icon and label. Pass `href` to navigate, else `onClick`.
+ * `label` overrides the text; `title` is the tooltip / accessible name (e.g. "Edit PO-26-27-00002").
+ */
+export function RowAction({
+  kind,
+  href,
+  onClick,
+  label,
+  title,
+}: {
+  kind: keyof typeof ROW_ACTION;
+  href?: string;
+  onClick?: () => void;
+  label?: string;
+  title?: string;
+}) {
+  const { icon: Icon, label: text, tone } = ROW_ACTION[kind];
+  const className = cx(
+    "inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg px-2.5 text-xs font-semibold ring-1 ring-inset transition-colors",
+    tone,
+  );
+  const body = (
+    <>
+      <Icon className="size-3.5" aria-hidden />
+      {label ?? text}
+    </>
+  );
+  return href ? (
+    <Link href={href} className={className} title={title} aria-label={title}>
+      {body}
+    </Link>
+  ) : (
+    <button type="button" onClick={onClick} className={className} title={title} aria-label={title}>
+      {body}
+    </button>
   );
 }
 

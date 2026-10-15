@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Eye, Pencil, Plus, Tags, Upload, X } from "lucide-react";
+import { Download, Plus, Tags, Upload, X } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CategoryManager } from "@/components/CategoryManager";
@@ -8,6 +8,9 @@ import { ColumnPicker, useColumns, type ColumnDef } from "@/components/ColumnPic
 import { GenerateBarcodesButton } from "@/components/GenerateBarcodesButton";
 import { ProductForm } from "@/components/ProductForm";
 import {
+  ActionsTd,
+  ActionsTh,
+  RowAction,
   Badge,
   Button,
   Card,
@@ -98,7 +101,7 @@ export default function ProductsPage() {
     const cols: ColumnDef<Product>[] = [
       {
         id: "product",
-        label: "Product",
+        label: "Product Name",
         locked: true,
         render: (p) => (
           <>
@@ -113,8 +116,8 @@ export default function ProductsPage() {
         ),
         csv: (p) => p.name,
       },
-      { id: "sku", label: "SKU", render: (p) => <span className="font-mono text-xs">{p.sku}</span>, csv: (p) => p.sku },
-      { id: "barcode", label: "Barcode", render: (p) => dash(p.barcode), csv: (p) => p.barcode },
+      { id: "sku", label: "SKU Code", render: (p) => <span className="font-mono text-xs">{p.sku}</span>, csv: (p) => p.sku },
+      { id: "barcode", label: "Barcode ID", render: (p) => dash(p.barcode), csv: (p) => p.barcode },
       {
         id: "type",
         label: "Type",
@@ -229,7 +232,7 @@ export default function ProductsPage() {
     const visible = cols.columns.filter((c) => c.csv);
     downloadCsv(
       "products.csv",
-      visible.map((c) => (c.id === "product" ? "Product" : c.label)),
+      visible.map((c) => (c.id === "product" ? "Product Name" : c.label)),
       all.items.map((p) => visible.map((c) => c.csv!(p))),
     );
   }
@@ -340,9 +343,7 @@ export default function ProductsPage() {
                     {c.label}
                   </Th>
                 ))}
-                <Th right className="sticky right-0">
-                  Actions
-                </Th>
+                <ActionsTh className="sticky right-0" />
               </tr>
             </thead>
             <tbody>
@@ -376,30 +377,19 @@ export default function ProductsPage() {
                         {c.render(p)}
                       </Td>
                     ))}
-                    <Td right className="sticky right-0 bg-white group-hover:bg-slate-50">
-                      <div className="flex justify-end gap-1">
-                        <Link
-                          href={`/products/${p.id}`}
-                          className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                          title="View product, batches and stock history"
-                        >
-                          <Eye className="size-4" /> View
-                        </Link>
-                        {can("products.manage") && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditing(p);
-                              setFormOpen(true);
-                            }}
-                            className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-brand-700 hover:bg-brand-50"
-                            title="Edit product"
-                          >
-                            <Pencil className="size-4" /> Edit
-                          </button>
-                        )}
-                      </div>
-                    </Td>
+                    <ActionsTd className="sticky right-0 bg-white group-hover:bg-slate-50">
+                      <RowAction kind="view" href={`/products/${p.id}`} title={`View ${p.name}: batches and stock history`} />
+                      {can("products.manage") && (
+                        <RowAction
+                          kind="edit"
+                          title={`Edit ${p.name}`}
+                          onClick={() => {
+                            setEditing(p);
+                            setFormOpen(true);
+                          }}
+                        />
+                      )}
+                    </ActionsTd>
                   </tr>
                 ))
               )}

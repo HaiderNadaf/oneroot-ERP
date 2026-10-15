@@ -466,7 +466,7 @@ function BranchPicker() {
   const { branches, currentId, current, locked, canViewAll, setBranch } = useBranch();
   const box = useRef<HTMLDivElement>(null);
   const shell = "flex h-10 shrink-0 items-center gap-2 rounded-[9px] border border-[#e1e6d8] bg-white px-2.5";
-  const label = <span className="hidden text-[11px] font-medium uppercase tracking-[0.06em] text-[#5f6e60] md:inline">Branch</span>;
+  const label = <span className="hidden text-[12px] font-medium uppercase tracking-[0.06em] text-[#5f6e60] md:inline">Branch</span>;
   if (locked || branches.length <= 1) {
     return (
       <div className={shell} title={locked ? "You work in this branch" : undefined}>
@@ -478,7 +478,7 @@ function BranchPicker() {
   }
   return (
     <div ref={box} className={cx(shell, "focus-within:border-brand-500")}>
-      <Store className="size-4 text-brand-600" />
+      <Store className="size-5 text-brand-600" />
       {label}
       <Dropdown
         bare

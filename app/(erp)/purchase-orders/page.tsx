@@ -1,13 +1,13 @@
 "use client";
 
-import { ClipboardCheck, Eye, PackageCheck, Pencil, Plus } from "lucide-react";
+import { ClipboardCheck, PackageCheck, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ApprovalChain } from "@/components/ApprovalChain";
 import { RequirePerm } from "@/components/AppShell";
 import { BranchCode } from "@/components/BranchNotice";
-import { Badge, Button, Card, EmptyRow, ErrorBox, LoadingRow, PageHeader, Pagination, StatusBadge, Table, Tabs, Td, Th, cx } from "@/components/ui";
+import { ActionsTd, ActionsTh, Badge, Button, Card, EmptyRow, ErrorBox, LoadingRow, PageHeader, Pagination, RowAction, StatusBadge, Table, Tabs, Td, Th, cx } from "@/components/ui";
 import { date, inr, n } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
@@ -123,7 +123,7 @@ function PurchaseOrders() {
                 <Th>Approval</Th>
                 <Th>Status</Th>
                 <Th right>Received</Th>
-                <Th />
+                <ActionsTh />
               </tr>
             </thead>
             <tbody>
@@ -193,8 +193,7 @@ function PurchaseOrders() {
                           <span className="text-slate-300">—</span>
                         )}
                       </Td>
-                      <Td right>
-                        <div className="flex items-center justify-end gap-1">
+                      <ActionsTd>
                           {receivable && can("purchases.receive") && (
                             <Button
                               size="sm"
@@ -205,26 +204,9 @@ function PurchaseOrders() {
                               Receive
                             </Button>
                           )}
-                          {po.canEdit && (
-                            <Link
-                              href={`/purchase-orders/${po.id}/edit`}
-                              className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                              title="Edit"
-                              aria-label={`Edit ${po.poNo}`}
-                            >
-                              <Pencil className="size-4" />
-                            </Link>
-                          )}
-                          <Link
-                            href={`/purchase-orders/${po.id}`}
-                            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                            title="View"
-                            aria-label={`View ${po.poNo}`}
-                          >
-                            <Eye className="size-4" />
-                          </Link>
-                        </div>
-                      </Td>
+                          <RowAction kind="view" href={`/purchase-orders/${po.id}`} title={`View ${po.poNo}`} />
+                          {po.canEdit && <RowAction kind="edit" href={`/purchase-orders/${po.id}/edit`} title={`Edit ${po.poNo}`} />}
+                      </ActionsTd>
                     </tr>
                   );
                 })

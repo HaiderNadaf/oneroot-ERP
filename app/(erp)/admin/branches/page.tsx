@@ -7,6 +7,8 @@ import { RequirePerm } from "@/components/AppShell";
 import { BranchCode } from "@/components/BranchNotice";
 import { GstinField, StateSelect } from "@/components/GstinField";
 import {
+  ActionsTd,
+  ActionsTh,
   Badge,
   Button,
   Card,
@@ -18,6 +20,7 @@ import {
   LoadingRow,
   Modal,
   PageHeader,
+  RowAction,
   Table,
   Td,
   Textarea,
@@ -104,7 +107,7 @@ function Branches() {
                 <Th right>Batches in stock</Th>
                 <Th right>Stock value</Th>
                 <Th>Status</Th>
-                <Th />
+                <ActionsTh />
               </tr>
             </thead>
             <tbody>
@@ -134,11 +137,9 @@ function Branches() {
                       {inr0(b.stockValue ?? 0)}
                     </Td>
                     <Td>{b.isActive ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}</Td>
-                    <Td right>
-                      <Button variant="ghost" size="sm" onClick={() => open(b)}>
-                        Edit
-                      </Button>
-                    </Td>
+                    <ActionsTd>
+                      <RowAction kind="edit" title={`Edit ${b.name}`} onClick={() => open(b)} />
+                    </ActionsTd>
                   </tr>
                 ))
               )}

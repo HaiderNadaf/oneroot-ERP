@@ -1,10 +1,10 @@
 "use client";
 
-import { Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { Plus, Save, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { RoleTemplateForm } from "@/components/RoleTemplateForm";
-import { Badge, Button, Card, Checkbox, EmptyRow, ErrorBox, Input, PageHeader, Spinner, StatusBadge, Table, Td, Th, errMsg, useConfirm, useToast } from "@/components/ui";
+import { ActionsTd, ActionsTh, Badge, Button, Card, Checkbox, EmptyRow, ErrorBox, Input, PageHeader, RowAction, Spinner, StatusBadge, Table, Td, Th, errMsg, useConfirm, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { clearApiCache, useApi } from "@/lib/hooks";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -159,7 +159,7 @@ function CustomRoles() {
               <Th>Money limits</Th>
               <Th>Permissions</Th>
               <Th right>Users</Th>
-              <Th />
+              <ActionsTh />
             </tr>
           </thead>
           <tbody>
@@ -195,14 +195,10 @@ function CustomRoles() {
                     </p>
                   </Td>
                   <Td right>{t.userCount ? <Badge tone="blue">{t.userCount}</Badge> : <span className="text-xs text-slate-400">none</span>}</Td>
-                  <Td right>
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" icon={<Pencil className="size-4" />} onClick={() => setForm({ open: true, template: t })}>
-                        Edit
-                      </Button>
-                      <Button variant="ghost" size="sm" icon={<Trash2 className="size-4" />} loading={removing === t.id} disabled={t.userCount > 0} onClick={() => remove(t)} aria-label="Delete role" />
-                    </div>
-                  </Td>
+                  <ActionsTd>
+                    <RowAction kind="edit" title={`Edit ${t.name}`} onClick={() => setForm({ open: true, template: t })} />
+                    <Button variant="ghost" size="sm" icon={<Trash2 className="size-4" />} loading={removing === t.id} disabled={t.userCount > 0} onClick={() => remove(t)} aria-label="Delete role" />
+                  </ActionsTd>
                 </tr>
               ))
             )}

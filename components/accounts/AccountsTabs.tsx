@@ -1,11 +1,13 @@
 "use client";
 
-import { Download, FileText, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Download, FileText, Plus, RefreshCw, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { CustomerPicker, VendorPicker } from "@/components/pickers";
 import { ReportFrame, TotalRow, periodLabel, type Range } from "@/components/reports/ReportKit";
 import {
+  ActionsTd,
+  ActionsTh,
   Badge,
   Button,
   Card,
@@ -17,6 +19,7 @@ import {
   LoadingRow,
   Modal,
   Pagination,
+  RowAction,
   Select,
   Spinner,
   Table,
@@ -115,7 +118,7 @@ export function ChartTab() {
                       <Th right>Debits</Th>
                       <Th right>Credits</Th>
                       <Th right>Balance</Th>
-                      <Th />
+                      <ActionsTh />
                     </tr>
                   </thead>
                   <tbody>
@@ -139,9 +142,9 @@ export function ChartTab() {
                           <Td right>{a.debit ? inr(a.debit) : "—"}</Td>
                           <Td right>{a.credit ? inr(a.credit) : "—"}</Td>
                           <Td right className="font-semibold text-slate-900">{drcr(a.balance ?? 0)}</Td>
-                          <Td right>
-                            <Button variant="ghost" size="sm" icon={<Pencil className="size-3.5" />} onClick={() => setEditing(a)} aria-label={`Edit ${a.name}`} />
-                          </Td>
+                          <ActionsTd>
+                            <RowAction kind="edit" title={`Edit ${a.name}`} onClick={() => setEditing(a)} />
+                          </ActionsTd>
                         </tr>
                       )),
                     )}

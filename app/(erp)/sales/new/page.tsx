@@ -34,7 +34,7 @@ import { CustomerPicker } from "@/components/pickers";
 import { PrintPortal } from "@/components/PrintPortal";
 import { SerialPicker } from "@/components/SerialPicker";
 import { ThermalReceipt, receiptFromSale, type ReceiptData } from "@/components/ThermalReceipt";
-import { Button, Checkbox, Input, Modal, PageHeaderExtraSlot, Select, Spinner, Textarea, cx, errMsg, useConfirm, useToast } from "@/components/ui";
+import { Button, Checkbox, Dropdown, Input, Modal, PageHeaderExtraSlot, Select, Spinner, Textarea, cx, errMsg, useConfirm, useToast, type DropdownOption } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
@@ -73,6 +73,15 @@ interface Part {
 let partSeq = 0;
 
 /** What a held bill stores: the cart exactly as it was */
+/** Agent row for the bill's agent picker */
+interface AgentOption {
+  id: string;
+  agentId: string;
+  firstName: string;
+  lastName?: string | null;
+  mobile?: string | null;
+}
+
 interface HoldPayload {
   lines: { productId: string; batchId: string | null; quantity: number; rate: number; discountPct: string }[];
   customerId: string | null;
@@ -85,6 +94,7 @@ interface HoldPayload {
   interState: boolean;
   govtReceipt: string;
   aadhaar: boolean;
+  agentId?: string;
 }
 
 interface Done {
@@ -139,6 +149,12 @@ export default function PosPage() {
   // Running company schemes and this role's authority limits (both kept on the device for offline billing)
   const { data: schemes } = useApi<Scheme[]>(needBranch.blocked ? null : "/schemes/active");
   const { data: limits } = useApi<RoleLimit>("/roles/mine");
+  const { data: agents } = useApi<AgentOption[]>("/agents/options");
+  const agentOptions: DropdownOption[] = (agents ?? []).map((a) => ({
+    value: a.id,
+    label: [a.firstName, a.lastName].filter(Boolean).join(" "),
+    hint: [a.agentId, a.mobile].filter(Boolean).join(" · "),
+  }));
   const [need, setNeed] = useState<ApprovalNeed | null>(null);
   const overRef = useRef(false);
   // Bills parked on this branch's counters (hold / recall)
@@ -173,6 +189,8 @@ export default function PosPage() {
   const [parts, setParts] = useState<Part[]>([]);
   const [interState, setInterState] = useState(false);
   const [notes, setNotes] = useState("");
+  // Agent who brought the sale in: saved with the sale for internal reference, never printed on the bill
+  const [agentId, setAgentId] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -568,6 +586,7 @@ export default function PosPage() {
       aadhaarVerified: needsGovt ? aadhaar : undefined,
       approvalId,
       vanTripId: vanTripId ?? undefined,
+      agentId: agentId || undefined,
     };
     if (!online) {
       if (aboveLimit && !approvalId) return toast.error(`A discount above ${n(limits?.maxDiscountPct)}% needs a manager's approval, which needs internet`);
@@ -606,6 +625,7 @@ export default function PosPage() {
     setReceived(null);
     setReference("");
     setNotes("");
+    setAgentId("");
     setWalkinName("");
     setPhone("");
     setCustomer(null);
@@ -636,6 +656,7 @@ export default function PosPage() {
         interState,
         govtReceipt,
         aadhaar,
+        agentId,
       };
       const h = await api.post<HeldBill>("/sales/holds", {
         customerId: customer?.id,
@@ -693,6 +714,7 @@ export default function PosPage() {
     setMode(p.mode ?? "CASH");
     setReference(p.reference ?? "");
     setNotes(p.notes ?? "");
+    setAgentId(p.agentId ?? "");
     setInterState(!!p.interState);
     setGovtReceipt(p.govtReceipt ?? "");
     setAadhaar(!!p.aadhaar);
@@ -1050,6 +1072,21 @@ export default function PosPage() {
                 This bill takes the balance to {inr(projectedBalance)}, over the credit limit.
               </p>
             )}
+          </div>
+
+          {/* Agent — internal reference only: shown in sales lists and details, not on the printed bill */}
+          <div className="border-b border-[#e1e6d8] px-4 py-3">
+            <Dropdown
+              options={agentOptions}
+              value={agentId}
+              onChange={setAgentId}
+              placeholder="Agent (optional)"
+              isSearch
+              searchPlaceholder="Search name, agent ID or mobile…"
+              emptyText="No agents — add them under Agents"
+              allowClear
+              aria-label="Agent"
+            />
           </div>
 
           {/* Government fertiliser POS — subsidised lines are sold on the govt device first */}

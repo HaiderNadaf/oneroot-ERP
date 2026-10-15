@@ -605,6 +605,9 @@ export interface Sale {
   channel?: SaleChannel;
   vanTripId?: string | null;
   approvalId?: string | null;
+  /** Agent who brought the sale in: internal reference, never on the printed bill */
+  agentId?: string | null;
+  agent?: { id: string; agentId: string; firstName: string; lastName?: string | null } | null;
   saleDate: string;
   dueDate?: string | null;
   subtotal: Dec;
@@ -1189,3 +1192,19 @@ export const TYPE_LABEL: Record<ProductType, string> = {
   EQUIPMENT: "Equipment",
   OTHER: "Other",
 };
+
+/** An agent who brings in vendors and customers; deleted agents are kept with deletedAt / deletedById */
+export interface Agent {
+  id: string;
+  /** ORAGENT + 5-digit running number, e.g. ORAGENT00001 */
+  agentId: string;
+  firstName: string;
+  lastName?: string | null;
+  /** 10-digit mobile number */
+  mobile?: string | null;
+  branchId?: string | null;
+  branch?: { id: string; code: string; name: string } | null;
+  createdAt: string;
+  deletedAt?: string | null;
+  deletedById?: string | null;
+}

@@ -1,10 +1,10 @@
 "use client";
 
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { ProductPicker } from "@/components/pickers";
-import { Badge, Button, Card, Checkbox, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, Select, Table, Tabs, Td, Textarea, Th, cx, errMsg, useConfirm, useToast } from "@/components/ui";
+import { ActionsTd, ActionsTh, Badge, Button, Card, Checkbox, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, RowAction, Select, Table, Tabs, Td, Textarea, Th, cx, errMsg, useConfirm, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { date, inr, n, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
@@ -91,7 +91,7 @@ function SchemesTab() {
               <Th>Claim</Th>
               <Th right>Used on</Th>
               <Th>Status</Th>
-              <Th />
+              <ActionsTh />
             </tr>
           </thead>
           <tbody>
@@ -116,12 +116,10 @@ function SchemesTab() {
                     <Td>{s.claimable ? <Badge tone="blue">From company</Badge> : <Badge>Own cost</Badge>}</Td>
                     <Td right>{s._count?.saleItems ?? 0} lines</Td>
                     <Td>{!s.isActive ? <Badge>Off</Badge> : running ? <Badge tone="green">Running</Badge> : dayOf(s.from) > now ? <Badge tone="amber">Scheduled</Badge> : <Badge>Ended</Badge>}</Td>
-                    <Td right>
-                      <div className="flex justify-end gap-1">
-                        <Button size="sm" variant="ghost" icon={<Pencil className="size-4" />} onClick={() => setEditing(s)} aria-label="Edit" />
-                        <Button size="sm" variant="ghost" icon={<Trash2 className="size-4" />} onClick={() => remove(s)} aria-label="Delete" />
-                      </div>
-                    </Td>
+                    <ActionsTd>
+                      <RowAction kind="edit" title={`Edit ${s.name}`} onClick={() => setEditing(s)} />
+                      <Button size="sm" variant="ghost" icon={<Trash2 className="size-4" />} onClick={() => remove(s)} aria-label="Delete" />
+                    </ActionsTd>
                   </tr>
                 );
               })
@@ -305,7 +303,7 @@ function TypesTab() {
               <Th>Subsidised fertiliser</Th>
               <Th right>Customers</Th>
               <Th>Status</Th>
-              <Th />
+              <ActionsTh />
             </tr>
           </thead>
           <tbody>
@@ -322,12 +320,10 @@ function TypesTab() {
                   <Td className="text-xs">{t.excludeSubsidised ? "Excluded" : "Included"}</Td>
                   <Td right>{t._count?.customers ?? 0}</Td>
                   <Td>{t.isActive ? <Badge tone="green">On</Badge> : <Badge>Off</Badge>}</Td>
-                  <Td right>
-                    <div className="flex justify-end gap-1">
-                      <Button size="sm" variant="ghost" icon={<Pencil className="size-4" />} onClick={() => setEditing(t)} aria-label="Edit" />
-                      <Button size="sm" variant="ghost" icon={<Trash2 className="size-4" />} onClick={() => remove(t)} aria-label="Delete" />
-                    </div>
-                  </Td>
+                  <ActionsTd>
+                    <RowAction kind="edit" title={`Edit ${t.name}`} onClick={() => setEditing(t)} />
+                    <Button size="sm" variant="ghost" icon={<Trash2 className="size-4" />} onClick={() => remove(t)} aria-label="Delete" />
+                  </ActionsTd>
                 </tr>
               ))
             )}

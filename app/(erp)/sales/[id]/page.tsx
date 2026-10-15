@@ -178,6 +178,13 @@ export default function SaleDetailPage() {
                 · total due {inr(sale.customer.balance)}
               </p>
             )}
+            {/* Internal reference: this panel is no-print, so the agent never reaches the printed bill / PDF */}
+            {sale.agent && (
+              <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                Agent: <span className="font-mono font-medium text-slate-800">{sale.agent.agentId}</span> ·{" "}
+                {[sale.agent.firstName, sale.agent.lastName].filter(Boolean).join(" ")}
+              </p>
+            )}
           </Card>
 
           <Card title="Payments" bodyClassName="p-0">

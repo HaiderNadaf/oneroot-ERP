@@ -50,7 +50,7 @@ export default function SalesPage() {
       const all = await api.get<Paged<Sale>>("/sales", { ...filters, pageSize: 500 });
       downloadCsv(
         `invoices_${from || "all"}_${to || "all"}.csv`,
-        ["Invoice no", "Date", "Customer", "Phone", "Items", "Taxable", "Tax", "Discount", "Total", "Paid", "Balance", "Mode", "Payment status", "Status", "Billed by"],
+        ["Invoice no", "Date", "Customer", "Phone", "Items", "Taxable", "Tax", "Discount", "Total", "Paid", "Balance", "Mode", "Payment status", "Status", "Billed by", "Agent ID", "Agent"],
         all.items.map((s) => [
           s.invoiceNo,
           date(s.saleDate),
@@ -67,6 +67,8 @@ export default function SalesPage() {
           s.paymentStatus,
           s.status,
           s.user?.name,
+          s.agent?.agentId,
+          s.agent ? [s.agent.firstName, s.agent.lastName].filter(Boolean).join(" ") : "",
         ]),
       );
       if (all.total > all.items.length) toast.error(`Exported the first ${all.items.length} of ${all.total} invoices — narrow the date range`);
@@ -104,7 +106,7 @@ export default function SalesPage() {
           <SearchInput
             value={search}
             onChange={resetPage(setSearch)}
-            placeholder="Invoice no, customer name or phone…"
+            placeholder="Invoice no, customer, phone or agent ID…"
             className="min-w-60 flex-1"
           />
           <div className="flex items-center gap-1.5">
@@ -135,6 +137,7 @@ export default function SalesPage() {
               <tr>
                 <Th>Invoice</Th>
                 <Th>Customer</Th>
+                <Th>Agent</Th>
                 <Th right>Items</Th>
                 <Th right>Total</Th>
                 <Th right>Paid</Th>
@@ -145,9 +148,9 @@ export default function SalesPage() {
             </thead>
             <tbody>
               {loading && !data ? (
-                <LoadingRow colSpan={8} />
+                <LoadingRow colSpan={9} />
               ) : !data?.items.length ? (
-                <EmptyRow colSpan={8}>
+                <EmptyRow colSpan={9}>
                   No invoices for these filters.{" "}
                   <Link href="/sales/new" className="font-medium text-brand-700 underline">
                     Create a sale
@@ -178,6 +181,16 @@ export default function SalesPage() {
                         )}
                         {(s.customer?.phone ?? s.customerPhone) && <p className="text-xs text-slate-500">{s.customer?.phone ?? s.customerPhone}</p>}
                       </Td>
+                      <Td>
+                        {s.agent ? (
+                          <>
+                            <p className="font-mono text-xs font-medium text-slate-800">{s.agent.agentId}</p>
+                            <p className="text-xs text-slate-500">{[s.agent.firstName, s.agent.lastName].filter(Boolean).join(" ")}</p>
+                          </>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </Td>
                       <Td right className="text-slate-500">
                         {s._count?.items ?? "—"}
                       </Td>
@@ -200,7 +213,7 @@ export default function SalesPage() {
             {data && data.items.length > 0 && (
               <tfoot>
                 <tr className="bg-slate-50 font-semibold">
-                  <Td colSpan={3} className="text-xs uppercase tracking-wide text-slate-500">
+                  <Td colSpan={4} className="text-xs uppercase tracking-wide text-slate-500">
                     Total ({data.total} invoice{data.total === 1 ? "" : "s"})
                   </Td>
                   <Td right>{inr(total)}</Td>

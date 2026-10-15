@@ -77,7 +77,7 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
   const [attrs, setAttrs] = useState<Attributes>(() => ({ ...(product?.attributes ?? {}) }));
   const [saving, setSaving] = useState(false);
   const editing = !!product;
-  // Preview of the SKU a new product will get: ORI + an 11-digit running number shared by all products
+  // Preview of the SKU a new product will get: ORI + category code + sub-category code + running number (11 digits in all)
   // Sub-categories are fetched for the chosen category only
   const { data: subCategories, loading: subsLoading } = useApi<SubCategory[]>(f.category ? `/categories/${f.category}/sub-categories` : null);
   const nextSku = useApi<{ sku: string | null }>(editing || !f.subCategoryId ? null : "/products/next-sku", {
@@ -93,12 +93,12 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
   const str = (k: string) => String(f[k] ?? "");
 
   const chosenCategory = categories?.find((c) => c.id === f.category);
-  const categoryOptions: DropdownOption[] = (categories ?? []).map((c) => ({ value: c.id, label: c.name, hint: c.code ?? undefined }));
+  const categoryOptions: DropdownOption[] = (categories ?? []).map((c) => ({ value: c.id, label: c.name }));
 
   // Only the sub-categories of the chosen category, as loaded from the API
   const subCategoryOptions: DropdownOption[] = (subCategories ?? [])
     .filter((c) => c.categoryId === f.category)
-    .map((c) => ({ value: c.id, label: c.name, hint: chosenCategory?.code && c.code ? `${chosenCategory.code}${c.code}` : undefined }));
+    .map((c) => ({ value: c.id, label: c.name }));
 
   const vendorOptions = useMemo<DropdownOption[]>(() => {
     const names = [...new Set((vendors?.items ?? []).map((v) => v.name.trim()).filter(Boolean))];

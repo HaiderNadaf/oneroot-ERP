@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, CheckCircle2, Eye, FileMinus, FilePlus, Printer, Send } from "lucide-react";
+import { Ban, CheckCircle2, FileMinus, FilePlus, Printer, Send } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -8,6 +8,8 @@ import { RequirePerm } from "@/components/AppShell";
 import { NoteForm, NoteStatusBadge, ReasonBadge, noteTypeName, postLabel, reducesPayable } from "@/components/NoteForm";
 import { VendorPicker } from "@/components/pickers";
 import {
+  ActionsTd,
+  ActionsTh,
   Button,
   Card,
   EmptyRow,
@@ -15,9 +17,10 @@ import {
   LoadingRow,
   Modal,
   PageHeader,
+  Pagination,
+  RowAction,
   Table,
   Tabs,
-  Pagination,
   Td,
   Th,
   cx,
@@ -237,7 +240,7 @@ function Notes() {
                   <Th>Vendor ref</Th>
                   <Th right>Value incl. GST</Th>
                   <Th>Status</Th>
-                  <Th />
+                  <ActionsTh />
                 </tr>
               </thead>
               <tbody>
@@ -275,18 +278,10 @@ function Notes() {
                       <Td>
                         <NoteStatusBadge status={dn.status} type={dn.noteType} />
                       </Td>
-                      <Td>
-                        <div className="flex justify-end gap-1">
-                          {actions(dn)}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            icon={<Eye className="size-4" />}
-                            onClick={() => setViewing(dn)}
-                            aria-label={`View ${dn.dnNo}`}
-                          />
-                        </div>
-                      </Td>
+                      <ActionsTd>
+                        {actions(dn)}
+                        <RowAction kind="view" title={`View ${dn.dnNo}`} onClick={() => setViewing(dn)} />
+                      </ActionsTd>
                     </tr>
                   ))
                 )}

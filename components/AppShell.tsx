@@ -89,13 +89,13 @@ export const NAV: NavGroup[] = [
       { href: "/customers/reminders", label: "Due Reminders", icon: <BellRing />, perms: ["customers.view"] },
       { href: "/approvals", label: "Approvals", icon: <BadgeCheck /> },
       { href: "/van", label: "Van Trips", icon: <Truck />, perms: ["sales.van"] },
+      { href: "/agents", label: "Agents", icon: <UserRoundPlus />, perms: ["vendors.view"] },
     ],
   },
   {
     section: "Purchases",
     items: [
       { href: "/vendors", label: "Vendors", icon: <Boxes />, perms: ["vendors.view"] },
-      { href: "/agents", label: "Agents", icon: <UserRoundPlus />, perms: ["vendors.view"] },
       {
         href: "/purchase-orders",
         label: "Purchase Orders",

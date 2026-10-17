@@ -1,11 +1,25 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ArrowUpDown, Download, Printer } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
-import { Button, ErrorBox, Input, Spinner, Th, cx } from "@/components/ui";
+import { Button, DateInput, ErrorBox, Spinner, Th, cx } from "@/components/ui";
+import { useAuth } from "@/lib/auth";
 import { date, monthStart, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import type { Permission } from "@/lib/permissions";
 import type { StoreSettings } from "@/lib/types";
+
+/** A link to another module that falls back to plain text when the user can't open that page */
+export function ReportLink({ href, perms, className, children }: { href: string; perms: Permission[]; className?: string; children: ReactNode }) {
+  const { can } = useAuth();
+  if (!can(...perms)) return <span className={cx(className?.includes("font-medium") && "font-medium", "text-slate-900")}>{children}</span>;
+  return (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  );
+}
 
 export interface Range {
   from: string;
@@ -25,8 +39,8 @@ function lastMonth(): Range {
 
 export const PRESETS: { label: string; range: () => Range }[] = [
   { label: "Today", range: () => ({ from: today(), to: today() }) },
-  { label: "This month", range: () => ({ from: monthStart(), to: today() }) },
-  { label: "Last month", range: lastMonth },
+  { label: "This Month", range: () => ({ from: monthStart(), to: today() }) },
+  { label: "Last Month", range: lastMonth },
   { label: "This FY", range: () => ({ from: fyStart(), to: today() }) },
 ];
 
@@ -40,9 +54,9 @@ export function RangeBar({ value, onChange }: { value: Range; onChange: (r: Rang
   return (
     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
       <div className="flex w-full items-center gap-2 sm:w-auto">
-        <Input type="date" value={value.from} max={value.to} onChange={(e) => onChange({ ...value, from: e.target.value })} className="min-w-0 flex-1 sm:w-40 sm:flex-none" aria-label="From date" />
+        <DateInput value={value.from} max={value.to} onChange={(e) => onChange({ ...value, from: e.target.value })} className="min-w-0 flex-1 sm:w-40 sm:flex-none" aria-label="From date" />
         <span className="text-sm text-slate-400">to</span>
-        <Input type="date" value={value.to} min={value.from} onChange={(e) => onChange({ ...value, to: e.target.value })} className="min-w-0 flex-1 sm:w-40 sm:flex-none" aria-label="To date" />
+        <DateInput value={value.to} min={value.from} onChange={(e) => onChange({ ...value, to: e.target.value })} className="min-w-0 flex-1 sm:w-40 sm:flex-none" aria-label="To date" />
       </div>
       <div className="flex flex-wrap gap-1">
         {PRESETS.map((p) => {
@@ -95,7 +109,7 @@ export function ReportFrame({
   const { data: store } = useApi<StoreSettings>("/settings");
   return (
     <div>
-      <div className="no-print mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="no-print mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-surface p-3 shadow-sm">
         {controls}
         <div className="flex-1" />
         <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => window.print()} disabled={!hasData}>

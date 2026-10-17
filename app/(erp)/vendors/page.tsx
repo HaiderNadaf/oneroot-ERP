@@ -3,7 +3,6 @@
 import { Download, Plus } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { VendorForm } from "@/components/VendorForm";
 import {
   ActionsTd,
   ActionsTh,
@@ -31,6 +30,7 @@ import { downloadCsv, inr, n } from "@/lib/format";
 import { useApi, useDebounced } from "@/lib/hooks";
 import { parseGstin, placeOfSupply } from "@/lib/gst";
 import type { Paged, StoreSettings, Vendor } from "@/lib/types";
+import { LazyVendorForm } from "@/components/lazy";
 
 export default function VendorsPage() {
   const { can } = useAuth();
@@ -60,7 +60,7 @@ export default function VendorsPage() {
       const all = await api.get<Paged<Vendor>>("/vendors", { ...filters, pageSize: 500 });
       downloadCsv(
         "vendors.csv",
-        ["Name", "Contact person", "Phone", "Email", "GSTIN", "Address", "City", "State", "Pincode", "Bank", "Account no", "IFSC", "Payment terms (days)", "Opening balance", "Payable balance", "Active"],
+        ["Name", "Contact Person", "Phone", "Email", "GSTIN", "Address", "City", "State", "Pincode", "Bank", "Account No", "IFSC", "Payment Terms (Days)", "Opening Balance", "Payable Balance", "Active"],
         all.items.map((v) => [
           v.name,
           v.contactPerson,
@@ -101,7 +101,7 @@ export default function VendorsPage() {
             </Button>
             {canEdit && (
               <Button icon={<Plus className="size-4" />} onClick={openNew}>
-                New vendor
+                New Vendor
               </Button>
             )}
           </>
@@ -125,7 +125,7 @@ export default function VendorsPage() {
             <option value="all">All</option>
           </Select>
           <div className="px-1">
-            <Checkbox label="With dues only" checked={withDues} onChange={(v) => (setWithDues(v), setPage(1))} />
+            <Checkbox label="With Dues Only" checked={withDues} onChange={(v) => (setWithDues(v), setPage(1))} />
           </div>
         </div>
 
@@ -141,7 +141,7 @@ export default function VendorsPage() {
                 <Th>Contact</Th>
                 <Th>Phone</Th>
                 <Th>GSTIN</Th>
-                <Th>State / place of supply</Th>
+                <Th>State / Place of Supply</Th>
                 <Th right>Terms</Th>
                 <Th right>Payable</Th>
                 <ActionsTh />
@@ -155,7 +155,7 @@ export default function VendorsPage() {
                   {search || withDues ? "No vendors match these filters." : "No vendors yet."}{" "}
                   {canEdit && !search && !withDues && (
                     <button className="font-medium text-brand-700 underline" onClick={openNew}>
-                      Add your first vendor
+                      Add Your First Vendor
                     </button>
                   )}
                 </EmptyRow>
@@ -231,7 +231,7 @@ export default function VendorsPage() {
         {data && <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />}
       </Card>
 
-      <VendorForm
+      <LazyVendorForm
         open={formOpen}
         vendor={editing}
         onClose={() => setFormOpen(false)}

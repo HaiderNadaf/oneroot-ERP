@@ -33,30 +33,30 @@ export const keyFromLabel = (label: string) =>
 /** Starter templates per product type — the manager picks what applies */
 export const SUGGESTED_FIELDS: Record<ProductType, FieldDef[]> = {
   SEED: [
-    { key: "variety", label: "Variety / hybrid", type: "text", showOnBill: true },
+    { key: "variety", label: "Variety / Hybrid", type: "text", showOnBill: true },
     { key: "crop", label: "Crop", type: "text" },
     { key: "season", label: "Season", type: "select", options: ["Kharif", "Rabi", "Zaid", "All"] },
     { key: "germination_pct", label: "Germination %", type: "number" },
-    { key: "lot_no", label: "Lot no.", type: "text" },
-    { key: "truthful_label", label: "Truthfully labelled", type: "yesno" },
+    { key: "lot_no", label: "Lot No.", type: "text" },
+    { key: "truthful_label", label: "Truthfully Labelled", type: "yesno" },
   ],
   FERTILIZER: [
-    { key: "npk_grade", label: "NPK grade", type: "text", showOnBill: true },
-    { key: "fco_licence", label: "FCO licence / registration no.", type: "text" },
-    { key: "subsidy_scheme", label: "Subsidy scheme", type: "select", options: ["NBS", "Urea", "None"] },
+    { key: "npk_grade", label: "NPK Grade", type: "text", showOnBill: true },
+    { key: "fco_licence", label: "FCO Licence / Registration No.", type: "text" },
+    { key: "subsidy_scheme", label: "Subsidy Scheme", type: "select", options: ["NBS", "Urea", "None"] },
     { key: "form", label: "Form", type: "select", options: ["Granular", "Liquid", "Powder", "Water soluble"] },
   ],
   PESTICIDE: [
-    { key: "cib_reg_no", label: "CIB & RC registration no.", type: "text" },
+    { key: "cib_reg_no", label: "CIB & RC Registration No.", type: "text" },
     { key: "formulation", label: "Formulation", type: "select", options: ["SL", "SC", "EC", "WP", "WG", "SP", "DP", "GR", "OD", "ME"] },
-    { key: "toxicity", label: "Toxicity label", type: "select", options: ["Green", "Blue", "Yellow", "Red"] },
-    { key: "target_pest", label: "Target pest / disease", type: "text" },
-    { key: "phi_days", label: "Pre-harvest interval (days)", type: "number" },
+    { key: "toxicity", label: "Toxicity Label", type: "select", options: ["Green", "Blue", "Yellow", "Red"] },
+    { key: "target_pest", label: "Target Pest / Disease", type: "text" },
+    { key: "phi_days", label: "Pre-Harvest Interval (Days)", type: "number" },
   ],
   EQUIPMENT: [
     { key: "model", label: "Model", type: "text", showOnBill: true },
-    { key: "warranty_months", label: "Warranty (months)", type: "number" },
-    { key: "power_source", label: "Power source", type: "select", options: ["Manual", "Battery", "Petrol", "Electric"] },
+    { key: "warranty_months", label: "Warranty (Months)", type: "number" },
+    { key: "power_source", label: "Power Source", type: "select", options: ["Manual", "Battery", "Petrol", "Electric"] },
   ],
   OTHER: [{ key: "spec", label: "Specification", type: "text" }],
 };

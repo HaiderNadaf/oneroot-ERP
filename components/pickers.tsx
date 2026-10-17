@@ -1,12 +1,12 @@
 "use client";
 
-import { Loader2, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { inr, n, qty } from "@/lib/format";
 import { useDebounced } from "@/lib/hooks";
 import type { Customer, Paged, Product, Vendor } from "@/lib/types";
-import { cx } from "./ui";
+import { cx, InfinityLoader } from "./ui";
 
 /** Generic async combobox: type to search, arrow keys + Enter to pick */
 function AsyncPicker<T extends { id: string }>({
@@ -89,11 +89,15 @@ function AsyncPicker<T extends { id: string }>({
             pick(items[active]);
           } else if (e.key === "Escape") setOpen(false);
         }}
-        className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-8 pr-8 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+        className="h-9 w-full rounded-lg border border-slate-300 bg-surface pl-8 pr-8 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
       />
-      {loading && <Loader2 className="absolute right-2.5 top-1/2 size-4 -translate-y-1/2 animate-spin text-slate-400" />}
+      {loading && (
+        <span className="absolute right-2 top-1/2 -translate-y-1/2">
+          <InfinityLoader className="size-5" />
+        </span>
+      )}
       {open && (
-        <div className="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-slate-200 bg-surface py-1 shadow-lg">
           {items.length === 0 && !loading && <p className="px-3 py-2 text-sm text-slate-400">No matches</p>}
           {items.map((item, i) => (
             <button

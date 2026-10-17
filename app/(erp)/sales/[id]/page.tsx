@@ -12,6 +12,7 @@ import {
   Badge,
   Button,
   Card,
+  DateInput,
   ErrorBox,
   Field,
   Input,
@@ -76,7 +77,7 @@ export default function SaleDetailPage() {
   async function cancelSale() {
     const ok = await confirm(
       `Cancel invoice ${sale!.invoiceNo}? Stock will be returned, payments recorded against it will be removed and the customer's balance reversed. This cannot be undone.`,
-      { danger: true, confirmLabel: "Cancel invoice" },
+      { danger: true, confirmLabel: "Cancel Invoice" },
     );
     if (!ok) return;
     setCancelling(true);
@@ -114,19 +115,19 @@ export default function SaleDetailPage() {
               </Button>
             </Link>
             <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => print()}>
-              {mode === "thermal" ? "Print receipt" : "Print invoice"}
+              {mode === "thermal" ? "Print Receipt" : "Print Invoice"}
             </Button>
             <Button variant="ghost" onClick={() => print(mode === "thermal" ? "a4" : "thermal")}>
-              {mode === "thermal" ? "A4 invoice" : "Receipt"}
+              {mode === "thermal" ? "A4 Invoice" : "Receipt"}
             </Button>
-            {!cancelled && sale.customerId && balance > 0 && (
+            {!cancelled && sale.customerId && balance > 0 && can("payments.record") && (
               <Button variant="secondary" icon={<IndianRupee className="size-4" />} onClick={() => setPayOpen(true)}>
-                Record payment
+                Record Payment
               </Button>
             )}
-            {!cancelled && returnable && (
+            {!cancelled && returnable && can("sales.returns") && (
               <Button variant="secondary" icon={<Undo2 className="size-4" />} onClick={() => setReturnOpen(true)}>
-                Return items
+                Return Items
               </Button>
             )}
             {!cancelled && can("sales.cancel") && (
@@ -138,18 +139,18 @@ export default function SaleDetailPage() {
                 title={hasReturns ? "Invoices with returns cannot be cancelled" : undefined}
                 onClick={cancelSale}
               >
-                Cancel invoice
+                Cancel Invoice
               </Button>
             )}
             <Link href="/sales/new">
-              <Button icon={<Plus className="size-4" />}>New sale</Button>
+              <Button icon={<Plus className="size-4" />}>New Sale</Button>
             </Link>
           </>
         }
       />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px]">
-        <div className="print-area min-w-0 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+        <div className="paper print-area min-w-0 rounded-xl border border-slate-200 bg-surface p-5 shadow-sm sm:p-8">
           <div className="overflow-x-auto">
             <div className="min-w-[680px]">
               <SaleInvoice sale={sale} settings={settings} />
@@ -158,9 +159,9 @@ export default function SaleDetailPage() {
         </div>
 
         <div className="no-print space-y-4">
-          <Card title="Payment status">
+          <Card title="Payment Status">
             <dl className="space-y-1.5 text-sm">
-              <Row label="Invoice total" value={inr(total)} />
+              <Row label="Invoice Total" value={inr(total)} />
               <Row label="Paid" value={inr(paid)} />
               <div className="flex justify-between border-t border-slate-100 pt-1.5">
                 <dt className="font-medium text-slate-700">Balance due</dt>
@@ -172,9 +173,13 @@ export default function SaleDetailPage() {
             {sale.customer && (
               <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
                 Customer:{" "}
-                <Link href={`/customers/${sale.customer.id}`} className="font-medium text-brand-700 hover:underline">
-                  {sale.customer.name}
-                </Link>{" "}
+                {can("customers.view") ? (
+                  <Link href={`/customers/${sale.customer.id}`} className="font-medium text-brand-700 hover:underline">
+                    {sale.customer.name}
+                  </Link>
+                ) : (
+                  <span className="font-medium text-slate-800">{sale.customer.name}</span>
+                )}{" "}
                 · total due {inr(sale.customer.balance)}
               </p>
             )}
@@ -295,13 +300,14 @@ function RecordPaymentModal(props: PayProps) {
 
 function RecordPaymentBody({ open, sale, balance, onClose, onSaved }: PayProps) {
   const toast = useToast();
+  const { can } = useAuth();
   const [amount, setAmount] = useState(String(balance));
   const [mode, setMode] = useState<PaymentMode>("CASH");
   const [reference, setReference] = useState("");
   const [payDate, setPayDate] = useState(today());
   const [saving, setSaving] = useState(false);
   // Credit notes the customer still holds can settle the bill without money moving
-  const { data: cust } = useApi<Customer>(sale.customerId ? `/customers/${sale.customerId}` : null);
+  const { data: cust } = useApi<Customer>(sale.customerId && can("customers.view") ? `/customers/${sale.customerId}` : null);
   const credit = round2(n(cust?.creditNoteBalance));
   const modes: PaymentMode[] = credit > 0 ? [...RECEIPT_MODES, "CREDIT_NOTE"] : RECEIPT_MODES;
 
@@ -336,7 +342,7 @@ function RecordPaymentBody({ open, sale, balance, onClose, onSaved }: PayProps) 
     <Modal
       open={open}
       onClose={onClose}
-      title={`Record payment · ${sale.invoiceNo}`}
+      title={`Record Payment · ${sale.invoiceNo}`}
       size="sm"
       footer={
         <>
@@ -344,7 +350,7 @@ function RecordPaymentBody({ open, sale, balance, onClose, onSaved }: PayProps) 
             Cancel
           </Button>
           <Button type="submit" form="sale-pay-form" loading={saving}>
-            Save payment
+            Save Payment
           </Button>
         </>
       }
@@ -367,7 +373,7 @@ function RecordPaymentBody({ open, sale, balance, onClose, onSaved }: PayProps) 
           </Select>
         </Field>
         <Field label="Date">
-          <Input type="date" value={payDate} max={today()} onChange={(e) => setPayDate(e.target.value)} />
+          <DateInput value={payDate} max={today()} onChange={(e) => setPayDate(e.target.value)} />
         </Field>
         <Field label="Reference" hint="UTR / cheque no.">
           <Input value={reference} onChange={(e) => setReference(e.target.value)} disabled={mode === "CASH" || mode === "CREDIT_NOTE"} />
@@ -442,7 +448,7 @@ function ReturnBody({ open, sale, onClose, onSaved }: ReturnProps) {
     <Modal
       open={open}
       onClose={onClose}
-      title={`Return items · ${sale.invoiceNo}`}
+      title={`Return Items · ${sale.invoiceNo}`}
       size="lg"
       footer={
         <>
@@ -500,19 +506,19 @@ function ReturnBody({ open, sale, onClose, onSaved }: ReturnProps) {
           </table>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Refund mode" required hint={refundMode === "CREDIT" ? "Reduces the customer's dues" : "Money handed back now"}>
+          <Field label="Refund Mode" required hint={refundMode === "CREDIT" ? "Reduces the customer's dues" : "Money handed back now"}>
             <Select value={refundMode} onChange={(e) => setRefundMode(e.target.value as PaymentMode)}>
               <option value="CASH">Cash</option>
               <option value="UPI">UPI</option>
               <option value="BANK">Bank</option>
-              {sale.customerId && <option value="CREDIT">Credit note (adjust dues)</option>}
+              {sale.customerId && <option value="CREDIT">Credit Note (Adjust Dues)</option>}
             </Select>
           </Field>
           <Field label="Reason" className="sm:col-span-2">
             <Textarea rows={1} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Wrong product, damaged pack" />
           </Field>
           {subsidisedReturn && (
-            <Field label="Govt POS reversal reference" required className="sm:col-span-3" hint="Reverse the sale on the government fertiliser device first, then enter its reference here">
+            <Field label="Govt POS Reversal Reference" required className="sm:col-span-3" hint="Reverse the sale on the government fertiliser device first, then enter its reference here">
               <Input value={govtRef} onChange={(e) => setGovtRef(e.target.value)} className="font-mono" />
             </Field>
           )}

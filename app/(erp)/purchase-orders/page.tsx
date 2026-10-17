@@ -18,10 +18,10 @@ type Filter = "" | PoStatus;
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "", label: "All" },
-  { value: "PENDING_APPROVAL", label: "Pending approval" },
-  { value: "SENT_BACK", label: "Sent back" },
+  { value: "PENDING_APPROVAL", label: "Pending Approval" },
+  { value: "SENT_BACK", label: "Sent Back" },
   { value: "APPROVED", label: "Approved" },
-  { value: "PARTIALLY_RECEIVED", label: "Partially received" },
+  { value: "PARTIALLY_RECEIVED", label: "Partially Received" },
   { value: "RECEIVED", label: "Received" },
   { value: "REJECTED", label: "Rejected" },
   { value: "DRAFT", label: "Draft" },
@@ -44,6 +44,7 @@ export default function PurchaseOrdersPage() {
 function PurchaseOrders() {
   const router = useRouter();
   const { can } = useAuth();
+  const canManage = can("purchases.manage");
   const { currentId } = useBranch();
   const [status, setStatus] = useState<Filter>("");
   const [page, setPage] = useState(1);
@@ -79,16 +80,18 @@ function PurchaseOrders() {
   return (
     <>
       <PageHeader
-        title="Purchase orders"
+        title="Purchase Orders"
         subtitle="Raise orders with vendors, get them approved, then receive goods against them"
         actions={
           <>
             <Button variant="secondary" icon={<ClipboardCheck className="size-4" />} onClick={() => router.push("/purchase-orders/approvals")}>
               Approvals
             </Button>
-            <Button icon={<Plus className="size-4" />} onClick={() => router.push("/purchase-orders/new")}>
-              New PO
-            </Button>
+            {canManage && (
+              <Button icon={<Plus className="size-4" />} onClick={() => router.push("/purchase-orders/new")}>
+                New PO
+              </Button>
+            )}
           </>
         }
       />
@@ -133,11 +136,13 @@ function PurchaseOrders() {
                 <EmptyRow colSpan={7}>
                   {status ? (
                     "No purchase orders with this status"
+                  ) : !canManage ? (
+                    "No purchase orders yet."
                   ) : (
                     <>
                       No purchase orders yet.{" "}
                       <Link href="/purchase-orders/new" className="font-medium text-brand-700 underline">
-                        Raise your first PO
+                        Raise Your First PO
                       </Link>
                     </>
                   )}
@@ -205,7 +210,7 @@ function PurchaseOrders() {
                             </Button>
                           )}
                           <RowAction kind="view" href={`/purchase-orders/${po.id}`} title={`View ${po.poNo}`} />
-                          {po.canEdit && <RowAction kind="edit" href={`/purchase-orders/${po.id}/edit`} title={`Edit ${po.poNo}`} />}
+                          {po.canEdit && canManage && <RowAction kind="edit" href={`/purchase-orders/${po.id}/edit`} title={`Edit ${po.poNo}`} />}
                       </ActionsTd>
                     </tr>
                   );

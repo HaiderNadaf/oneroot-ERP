@@ -5,6 +5,7 @@ import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { Button, Card, ErrorBox, Input, PageHeader, Select, Spinner, Table, Td, Th, errMsg, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { inr0 } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { ApprovalConfig, User } from "@/lib/types";
@@ -33,13 +34,19 @@ export default function ApprovalRulesPage() {
 
 function ApprovalRules() {
   const { data: config, error, reload, setData } = useApi<ApprovalConfig>("/approval-rules");
-  const { data: users, error: usersError } = useApi<User[]>("/users");
+  const { can } = useAuth();
+  const canListUsers = can("admin.users");
+  const { data: allUsers, error: usersError } = useApi<User[]>(canListUsers ? "/users" : null);
+  // Without access to the user list, the approvers already assigned are the only ones to pick from
+  const users = canListUsers
+    ? allUsers
+    : config?.steps.flatMap((s) => (s.approver ? [{ ...s.approver, isActive: true } as User] : [])).filter((u, i, all) => all.findIndex((x) => x.id === u.id) === i);
   const [version, setVersion] = useState(0);
 
   return (
     <>
       <PageHeader
-        title="PO approval rules"
+        title="PO Approval Rules"
         subtitle="Who approves purchase orders, and how many approvals each order value needs"
       />
       {error || usersError ? (
@@ -191,11 +198,11 @@ function RulesEditor({
       </div>
 
       <Card
-        title="Approval chain"
+        title="Approval Chain"
         bodyClassName="p-0"
         actions={
           <Button variant="secondary" size="sm" icon={<Plus className="size-4" />} onClick={addStep}>
-            Add step
+            Add Step
           </Button>
         }
       >
@@ -219,7 +226,7 @@ function RulesEditor({
                       className="min-w-48"
                       value={s.title}
                       onChange={(e) => updateStep(s.key, { title: e.target.value })}
-                      placeholder="e.g. Store Manager"
+                      placeholder="e.g. Store manager"
                       aria-label={`Title of step ${i + 1}`}
                     />
                   </Td>
@@ -230,7 +237,7 @@ function RulesEditor({
                       onChange={(e) => updateStep(s.key, { approverId: e.target.value })}
                       aria-label={`Approver for step ${i + 1}`}
                     >
-                      <option value="">Any manager (unassigned)</option>
+                      <option value="">Any Manager (Unassigned)</option>
                       {activeUsers.map((u) => (
                         <option key={u.id} value={u.id}>
                           {u.name} · {u.role.charAt(0) + u.role.slice(1).toLowerCase()}
@@ -244,13 +251,13 @@ function RulesEditor({
                   </Td>
                   <Td right>
                     <div className="flex justify-end gap-0.5">
-                      <IconBtn label="Move up" disabled={i === 0} onClick={() => moveStep(i, -1)}>
+                      <IconBtn label="Move Up" disabled={i === 0} onClick={() => moveStep(i, -1)}>
                         <ArrowUp className="size-4" />
                       </IconBtn>
-                      <IconBtn label="Move down" disabled={i === steps.length - 1} onClick={() => moveStep(i, 1)}>
+                      <IconBtn label="Move Down" disabled={i === steps.length - 1} onClick={() => moveStep(i, 1)}>
                         <ArrowDown className="size-4" />
                       </IconBtn>
-                      <IconBtn label="Remove step" danger disabled={steps.length <= 1} onClick={() => removeStep(s.key)}>
+                      <IconBtn label="Remove Step" danger disabled={steps.length <= 1} onClick={() => removeStep(s.key)}>
                         <Trash2 className="size-4" />
                       </IconBtn>
                     </div>
@@ -263,19 +270,19 @@ function RulesEditor({
       </Card>
 
       <Card
-        title="Value bands"
+        title="Value Bands"
         bodyClassName="p-0"
         actions={
           <Button variant="secondary" size="sm" icon={<Plus className="size-4" />} onClick={addBand}>
-            Add band
+            Add Band
           </Button>
         }
       >
         <Table>
           <thead>
             <tr>
-              <Th>PO value (incl. GST)</Th>
-              <Th>Approvals needed</Th>
+              <Th>PO Value (Incl. GST)</Th>
+              <Th>Approvals Needed</Th>
               <Th>Route</Th>
               <Th />
             </tr>
@@ -320,7 +327,7 @@ function RulesEditor({
                   <Td className="text-slate-600">{routeText(b.steps)}</Td>
                   <Td right>
                     {!last && (
-                      <IconBtn label="Remove band" danger onClick={() => removeBand(b.key)}>
+                      <IconBtn label="Remove Band" danger onClick={() => removeBand(b.key)}>
                         <Trash2 className="size-4" />
                       </IconBtn>
                     )}
@@ -332,7 +339,7 @@ function RulesEditor({
         </Table>
       </Card>
 
-      <Card title="In plain words">
+      <Card title="In Plain Words">
         <p className="text-sm text-slate-700">{preview}</p>
         <ul className="mt-2 space-y-0.5 text-xs text-slate-500">
           {steps.map((s, i) => (
@@ -349,7 +356,7 @@ function RulesEditor({
           Discard
         </Button>
         <Button icon={<Save className="size-4" />} onClick={save} loading={saving} disabled={!dirty}>
-          Save rules
+          Save Rules
         </Button>
       </div>
     </div>

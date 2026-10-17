@@ -5,16 +5,15 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { BranchCode } from "@/components/BranchNotice";
-import { StockAdjustModal, type StockAdjustInitial } from "@/components/StockAdjustModal";
-import { ExpiryBadge, MOVEMENT_LABEL, MOVEMENT_TYPES, MovementBadge, MovementRef, SignedQty } from "@/components/StockBits";
-import { TransferModal } from "@/components/TransferModal";
+import type { StockAdjustInitial } from "@/components/StockAdjustModal";
+import { ExpiryBadge, MOVEMENT_LABEL, MOVEMENT_TYPES, MovementBadge, MovementRef, SignedQty, useSeeCostPrice } from "@/components/StockBits";
 import {
   Badge,
   Button,
   Card,
+  DateInput,
   EmptyRow,
   ErrorBox,
-  Input,
   LoadingRow,
   PageHeader,
   Pagination,
@@ -33,6 +32,7 @@ import { useBranch } from "@/lib/branch";
 import { date, dateTime, daysUntil, downloadCsv, inr, inr0, n, qty } from "@/lib/format";
 import { useApi, useDebounced } from "@/lib/hooks";
 import type { Batch, Paged, StockMovement, StockTransfer } from "@/lib/types";
+import { LazyStockAdjustModal, LazyTransferModal } from "@/components/lazy";
 
 type Tab = "batches" | "low" | "movements" | "transfers";
 const TABS: Tab[] = ["batches", "low", "movements", "transfers"];
@@ -49,6 +49,18 @@ interface LowStockRow {
 interface StockReport {
   items: unknown[];
   totals: { costValue: number; saleValue: number };
+}
+
+/** Product name, linked to its page when the user can open Products */
+function ProductName({ id, name }: { id: string; name: string }) {
+  const { can } = useAuth();
+  return can("products.view") ? (
+    <Link href={`/products/${id}`} className="font-medium text-slate-900 hover:text-brand-700">
+      {name}
+    </Link>
+  ) : (
+    <span className="font-medium text-slate-900">{name}</span>
+  );
 }
 
 type AdjustTarget = { product: { id: string; name: string; unit: string } | null; initial?: StockAdjustInitial };
@@ -86,7 +98,7 @@ export default function InventoryPage() {
         actions={
           can("inventory.adjust") && (
             <Button icon={<SlidersHorizontal className="size-4" />} onClick={() => setAdjust({ product: null })}>
-              Adjust stock
+              Adjust Stock
             </Button>
           )
         }
@@ -95,24 +107,24 @@ export default function InventoryPage() {
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {canValue ? (
           <StatCard
-            label="Stock value (cost)"
+            label="Stock Value (Cost)"
             value={stockReport.data ? inr0(stockReport.data.totals.costValue) : "—"}
             sub={stockReport.data ? `${inr0(stockReport.data.totals.saleValue)} at selling price` : undefined}
             icon={<IndianRupee />}
             tone="green"
           />
         ) : (
-          <StatCard label="Batches in stock" value={inStock.data?.total ?? "—"} sub="with quantity on hand" icon={<Boxes />} tone="green" />
+          <StatCard label="Batches in Stock" value={inStock.data?.total ?? "—"} sub="with quantity on hand" icon={<Boxes />} tone="green" />
         )}
         <StatCard
-          label="Below reorder level"
+          label="Below Reorder Level"
           value={lowStock.data?.length ?? "—"}
           sub="products to reorder"
           icon={<AlertTriangle />}
           tone={lowStock.data?.length ? "red" : "slate"}
         />
         <StatCard
-          label="Expiring soon"
+          label="Expiring Soon"
           value={expiring.data?.total ?? "—"}
           sub="batches with stock"
           icon={<CalendarClock />}
@@ -132,8 +144,8 @@ export default function InventoryPage() {
         onChange={setTab}
         tabs={[
           { value: "batches", label: "Batches" },
-          { value: "low", label: `Low stock${lowStock.data?.length ? ` (${lowStock.data.length})` : ""}` },
-          { value: "movements", label: "Stock movements" },
+          { value: "low", label: `Low Stock${lowStock.data?.length ? ` (${lowStock.data.length})` : ""}` },
+          { value: "movements", label: "Stock Movements" },
           { value: "transfers", label: "Transfers" },
         ]}
       />
@@ -153,7 +165,7 @@ export default function InventoryPage() {
       {tab === "movements" && <MovementsTab version={version} />}
       {tab === "transfers" && <TransfersTab version={version} onNew={() => setTransferOpen(true)} />}
 
-      <TransferModal
+      <LazyTransferModal
         open={transferOpen}
         onClose={() => setTransferOpen(false)}
         onSaved={() => {
@@ -162,7 +174,7 @@ export default function InventoryPage() {
         }}
       />
 
-      <StockAdjustModal
+      <LazyStockAdjustModal
         open={!!adjust}
         onClose={() => setAdjust(null)}
         onSaved={bump}
@@ -175,9 +187,10 @@ export default function InventoryPage() {
 
 function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: Batch) => void }) {
   const { can } = useAuth();
+  const showCost = useSeeCostPrice();
   // Batches from every branch are listed together while viewing All branches
   const showBranch = useBranch().currentId === "all";
-  const cols = showBranch ? 9 : 8;
+  const cols = (showBranch ? 10 : 9) - (showCost ? 0 : 2);
   // ?status=expiring|expired opens the batch list pre-filtered (used by dashboard shortcuts)
   const initialStatus = useSearchParams().get("status");
   const [status, setStatus] = useState(
@@ -192,23 +205,27 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
 
   async function exportCsv() {
     const all = await api.get<Paged<Batch>>("/inventory/batches", { ...query, pageSize: 500 });
+    const head = ["Branch", "Product", "SKU", "Batch", "Mfg Date", "Expiry Date", "Days to Expiry", "Qty", "Unit", "Cost", "MRP", "Value"];
+    const costCols = new Set(showCost ? [] : [9, 11]);
     downloadCsv(
       "batches.csv",
-      ["Branch", "Product", "SKU", "Batch", "Mfg date", "Expiry date", "Days to expiry", "Qty", "Unit", "Cost", "MRP", "Value"],
-      all.items.map((b) => [
-        b.branch?.code,
-        b.product?.name,
-        b.product?.sku,
-        b.batchNo,
-        b.mfgDate?.slice(0, 10),
-        b.expiryDate?.slice(0, 10),
-        daysUntil(b.expiryDate),
-        n(b.quantity),
-        b.product?.unit,
-        n(b.costPrice),
-        n(b.mrp) || "",
-        n(b.quantity) * n(b.costPrice),
-      ]),
+      head.filter((_, i) => !costCols.has(i)),
+      all.items.map((b) =>
+        [
+          b.branch?.code,
+          b.product?.name,
+          b.product?.sku,
+          b.batchNo,
+          b.mfgDate?.slice(0, 10),
+          b.expiryDate?.slice(0, 10),
+          daysUntil(b.expiryDate),
+          n(b.quantity),
+          b.product?.unit,
+          n(b.costPrice),
+          n(b.mrp) || "",
+          n(b.quantity) * n(b.costPrice),
+        ].filter((_, i) => !costCols.has(i)),
+      ),
     );
   }
 
@@ -232,10 +249,10 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
           className="w-[calc(50%-0.25rem)] sm:w-40"
           aria-label="Stock status"
         >
-          <option value="">In stock</option>
-          <option value="expiring">Expiring soon</option>
+          <option value="">In Stock</option>
+          <option value="expiring">Expiring Soon</option>
           <option value="expired">Expired</option>
-          <option value="all">All batches</option>
+          <option value="all">All Batches</option>
         </Select>
         <Select
           value={expiry}
@@ -247,12 +264,12 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
           className={cx("w-[calc(50%-0.25rem)] sm:w-48", expiry && "border-brand-500 bg-brand-50")}
           aria-label="Expires in"
         >
-          <option value="">Expires in: any time</option>
-          <option value="0-30">Expires in 0–30 days</option>
-          <option value="30-60">Expires in 30–60 days</option>
-          <option value="60-90">Expires in 60–90 days</option>
-          <option value="90-120">Expires in 90–120 days</option>
-          <option value="120+">Expires in 120+ days</option>
+          <option value="">Expires in: Any Time</option>
+          <option value="0-30">Expires in 0–30 Days</option>
+          <option value="30-60">Expires in 30–60 Days</option>
+          <option value="60-90">Expires in 60–90 Days</option>
+          <option value="90-120">Expires in 90–120 Days</option>
+          <option value="120+">Expires in 120+ Days</option>
         </Select>
         <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv}>
           Export
@@ -270,11 +287,11 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
               {showBranch && <Th>Branch</Th>}
               <Th>Batch</Th>
               <Th className="hidden md:table-cell">Location</Th>
-              <Th className="hidden md:table-cell">Mfg date</Th>
+              <Th className="hidden md:table-cell">Mfg Date</Th>
               <Th>Expiry</Th>
               <Th right>Qty</Th>
-              <Th right className="hidden md:table-cell">Cost</Th>
-              <Th right>Value</Th>
+              {showCost && <Th right className="hidden md:table-cell">Cost</Th>}
+              {showCost && <Th right>Value</Th>}
               <Th />
             </tr>
           </thead>
@@ -299,9 +316,7 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
                   <tr key={b.id} className={cx("hover:bg-slate-50", isExpired && n(b.quantity) > 0 && "bg-red-50/40")}>
                     <Td>
                       {b.product ? (
-                        <Link href={`/products/${b.product.id}`} className="font-medium text-slate-900 hover:text-brand-700">
-                          {b.product.name}
-                        </Link>
+                        <ProductName id={b.product.id} name={b.product.name} />
                       ) : (
                         "—"
                       )}
@@ -322,12 +337,12 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
                     <Td right className={n(b.quantity) <= 0 ? "text-slate-400" : "font-medium"}>
                       {qty(b.quantity)} <span className="text-xs font-normal text-slate-500">{b.product?.unit}</span>
                     </Td>
-                    <Td right className="hidden md:table-cell">{inr(b.costPrice)}</Td>
-                    <Td right>{inr(n(b.quantity) * n(b.costPrice))}</Td>
+                    {showCost && <Td right className="hidden md:table-cell">{inr(b.costPrice)}</Td>}
+                    {showCost && <Td right>{inr(n(b.quantity) * n(b.costPrice))}</Td>}
                     <Td right>
                       {isExpired && n(b.quantity) > 0 && can("inventory.adjust") && (
                         <Button variant="secondary" size="sm" className="text-red-700" onClick={() => onWriteOff(b)}>
-                          Write off
+                          Write Off
                         </Button>
                       )}
                     </Td>
@@ -357,7 +372,7 @@ function LowStockTab({
   const { can } = useAuth();
   return (
     <Card
-      title="Products at or below reorder level"
+      title="Products at or Below Reorder Level"
       bodyClassName="p-0"
       actions={
         can("purchases.manage") && (
@@ -378,8 +393,8 @@ function LowStockTab({
           <thead>
             <tr>
               <Th>Product</Th>
-              <Th right>In stock</Th>
-              <Th right>Reorder level</Th>
+              <Th right>In Stock</Th>
+              <Th right>Reorder Level</Th>
               <Th right>Shortfall</Th>
             </tr>
           </thead>
@@ -395,9 +410,7 @@ function LowStockTab({
                 return (
                   <tr key={r.id} className="hover:bg-slate-50">
                     <Td>
-                      <Link href={`/products/${r.id}`} className="font-medium text-slate-900 hover:text-brand-700">
-                        {r.name}
-                      </Link>
+                      <ProductName id={r.id} name={r.name} />
                       <p className="text-xs text-slate-500">{r.sku}</p>
                     </Td>
                     <Td right className={stock <= 0 ? "font-semibold text-red-600" : "font-medium text-amber-700"}>
@@ -422,6 +435,7 @@ function LowStockTab({
 }
 
 function MovementsTab({ version }: { version: number }) {
+  const showCost = useSeeCostPrice();
   const showBranch = useBranch().currentId === "all";
   const cols = showBranch ? 9 : 8;
   const [type, setType] = useState("");
@@ -433,22 +447,27 @@ function MovementsTab({ version }: { version: number }) {
 
   async function exportCsv() {
     const all = await api.get<Paged<StockMovement>>("/inventory/movements", { ...query, pageSize: 500 });
+    const head = ["Date", "Branch", "Product", "SKU", "Type", "Reference", "Batch", "Qty", "Balance After", "Unit Cost", "Note"];
+    // Column 9 is the unit cost
+    const keep = (_: unknown, i: number) => showCost || i !== 9;
     downloadCsv(
       "stock-movements.csv",
-      ["Date", "Branch", "Product", "SKU", "Type", "Reference", "Batch", "Qty", "Balance after", "Unit cost", "Note"],
-      all.items.map((m) => [
-        dateTime(m.createdAt),
-        m.branch?.code,
-        m.product?.name,
-        m.product?.sku,
-        MOVEMENT_LABEL[m.type],
-        m.refNo,
-        m.batch?.batchNo,
-        n(m.quantity),
-        n(m.balanceAfter),
-        m.unitCost == null ? "" : n(m.unitCost),
-        m.note,
-      ]),
+      head.filter(keep),
+      all.items.map((m) =>
+        [
+          dateTime(m.createdAt),
+          m.branch?.code,
+          m.product?.name,
+          m.product?.sku,
+          MOVEMENT_LABEL[m.type],
+          m.refNo,
+          m.batch?.batchNo,
+          n(m.quantity),
+          n(m.balanceAfter),
+          m.unitCost == null ? "" : n(m.unitCost),
+          m.note,
+        ].filter(keep),
+      ),
     );
   }
 
@@ -456,16 +475,16 @@ function MovementsTab({ version }: { version: number }) {
     <Card bodyClassName="p-0">
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
         <Select value={type} onChange={(e) => (setType(e.target.value), setPage(1))} className="w-full sm:w-48">
-          <option value="">All movement types</option>
+          <option value="">All Movement Types</option>
           {MOVEMENT_TYPES.map((t) => (
             <option key={t} value={t}>
               {MOVEMENT_LABEL[t]}
             </option>
           ))}
         </Select>
-        <Input type="date" value={from} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="w-[calc(50%-1.25rem)] sm:w-40" aria-label="From date" />
+        <DateInput value={from} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="w-[calc(50%-1.25rem)] sm:w-40" aria-label="From date" />
         <span className="text-sm text-slate-400">to</span>
-        <Input type="date" value={to} onChange={(e) => (setTo(e.target.value), setPage(1))} className="w-[calc(50%-1.25rem)] sm:w-40" aria-label="To date" />
+        <DateInput value={to} onChange={(e) => (setTo(e.target.value), setPage(1))} className="w-[calc(50%-1.25rem)] sm:w-40" aria-label="To date" />
         {(type || from || to) && (
           <Button variant="ghost" size="sm" onClick={() => (setType(""), setFrom(""), setTo(""), setPage(1))}>
             Clear
@@ -510,9 +529,7 @@ function MovementsTab({ version }: { version: number }) {
                     </Td>
                   )}
                   <Td>
-                    <Link href={`/products/${m.productId}`} className="font-medium text-slate-900 hover:text-brand-700">
-                      {m.product?.name ?? "—"}
-                    </Link>
+                    <ProductName id={m.productId} name={m.product?.name ?? "—"} />
                   </Td>
                   <Td>
                     <MovementBadge type={m.type} />
@@ -548,12 +565,12 @@ function TransfersTab({ version, onNew }: { version: number; onNew: () => void }
 
   return (
     <Card
-      title="Stock sent between branches"
+      title="Stock Sent Between Branches"
       bodyClassName="p-0"
       actions={
         can("inventory.transfer") && (
           <Button size="sm" icon={<ArrowLeftRight className="size-4" />} onClick={onNew}>
-            New transfer
+            New Transfer
           </Button>
         )
       }
@@ -578,7 +595,7 @@ function TransfersTab({ version, onNew }: { version: number; onNew: () => void }
               <LoadingRow colSpan={5} />
             ) : !data?.items.length ? (
               <EmptyRow colSpan={5}>
-                No stock transfers yet{can("inventory.transfer") ? " — use New transfer to send stock to another branch" : ""}
+                No stock transfers yet{can("inventory.transfer") ? " — use New Transfer to send stock to another branch" : ""}
               </EmptyRow>
             ) : (
               data.items.map((t) => {

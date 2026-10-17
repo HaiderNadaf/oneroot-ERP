@@ -10,9 +10,9 @@ import { Button, Field, Input, Modal, Select, errMsg, useToast } from "./ui";
 
 /** Which built-in role's money limits (Roles & Limits) this role shares */
 const LIMIT_ROLES: { value: Role; label: string; hint: string }[] = [
-  { value: "CASHIER", label: "Cashier limits", hint: "Smallest discount / refund / adjustment allowed without approval" },
-  { value: "ACCOUNTANT", label: "Accountant limits", hint: "The accountant's discount / refund / adjustment amounts" },
-  { value: "MANAGER", label: "Manager limits", hint: "Largest amounts; pick this for heads who approve others" },
+  { value: "CASHIER", label: "Cashier Limits", hint: "Smallest discount / refund / adjustment allowed without approval" },
+  { value: "ACCOUNTANT", label: "Accountant Limits", hint: "The accountant's discount / refund / adjustment amounts" },
+  { value: "MANAGER", label: "Manager Limits", hint: "Largest amounts; pick this for heads who approve others" },
 ];
 
 /**
@@ -91,20 +91,20 @@ export function RoleTemplateForm({
             Cancel
           </Button>
           <Button type="submit" form="role-template-form" loading={saving}>
-            {editing ? "Save role" : "Create role"}
+            {editing ? "Save Role" : "Create Role"}
           </Button>
         </>
       }
     >
       <form id="role-template-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Role name" required hint="e.g. Category Head, Manager, Intern" className={fixedDepartment ? "sm:col-span-2" : undefined}>
+        <Field label="Role Name" required hint="e.g. Category Head, Manager, Intern" className={fixedDepartment ? "sm:col-span-2" : undefined}>
           <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus minLength={2} />
         </Field>
         {!fixedDepartment && (
           <Field label="Department" required>
             <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} required>
               <option value="" disabled>
-                {departments.loading ? "Loading departments…" : departments.error ? "Could not load departments" : "Choose a department"}
+                {departments.loading ? "Loading Departments…" : departments.error ? "Could Not Load Departments" : "Choose a Department"}
               </option>
               {(departments.data ?? []).map((d) => (
                 <option key={d.id} value={d.id}>
@@ -119,7 +119,7 @@ export function RoleTemplateForm({
         </Field>
         <PermissionPicker value={permissions} onChange={setPermissions} defaults={template ? normalizePermissions(template.permissions) : permissions} />
         <Field
-          label="Discount, refund and stock-adjustment limits"
+          label="Discount, Refund and Stock-Adjustment Limits"
           className="sm:col-span-2"
           hint={`${LIMIT_ROLES.find((b) => b.value === baseRole)?.hint}. The amounts themselves are set in Roles & Limits.`}
         >

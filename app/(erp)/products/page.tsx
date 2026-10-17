@@ -3,10 +3,9 @@
 import { Download, Plus, Tags, Upload, X } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { CategoryManager } from "@/components/CategoryManager";
 import { ColumnPicker, useColumns, type ColumnDef } from "@/components/ColumnPicker";
 import { GenerateBarcodesButton } from "@/components/GenerateBarcodesButton";
-import { ProductForm } from "@/components/ProductForm";
+import { useSeeCostPrice } from "@/components/StockBits";
 import {
   ActionsTd,
   ActionsTh,
@@ -33,6 +32,7 @@ import { useBranch } from "@/lib/branch";
 import { downloadCsv, inr, n, qty } from "@/lib/format";
 import { useApi, useDebounced } from "@/lib/hooks";
 import { PRODUCT_TYPES, TYPE_LABEL, type Category, type Paged, type Product } from "@/lib/types";
+import { LazyCategoryManager, LazyProductForm } from "@/components/lazy";
 
 /** Margin on the GST-exclusive selling price */
 function marginPct(p: Product) {
@@ -64,9 +64,7 @@ const categoryPath = (p: Product) => [p.category?.name, p.subCategory?.name].fil
 
 export default function ProductsPage() {
   const { can } = useAuth();
-  // Cost price visibility follows the role's authority limits (Admin → Roles & Limits)
-  const { data: limits } = useApi<{ seeCostPrice: boolean }>("/roles/mine");
-  const showCost = limits ? limits.seeCostPrice : can("purchases.view");
+  const showCost = useSeeCostPrice();
   const { current, branches, locked } = useBranch();
   // Stock figures are for the selected branch; name it when the store has several
   const branchCode = current && (branches.length > 1 || locked) ? current.code : null;
@@ -108,15 +106,13 @@ export default function ProductsPage() {
             <Link href={`/products/${p.id}`} className="font-medium text-slate-900 hover:text-brand-700">
               {p.name}
             </Link>
-            <p className="text-xs text-slate-500">
-              {p.sku}
-              {p.packSize && ` · ${p.packSize}`}
-            </p>
+            {p.packSize && <p className="text-xs text-slate-500">{p.packSize}</p>}
           </>
         ),
         csv: (p) => p.name,
       },
-      { id: "sku", label: "SKU Code", render: (p) => <span className="font-mono text-xs">{p.sku}</span>, csv: (p) => p.sku },
+      // Always shown: the SKU is how staff identify a product
+      { id: "sku", label: "SKU Code", locked: true, render: (p) => <span className="whitespace-nowrap font-mono text-xs">{p.sku}</span>, csv: (p) => p.sku },
       { id: "barcode", label: "Barcode ID", render: (p) => dash(p.barcode), csv: (p) => p.barcode },
       {
         id: "type",
@@ -134,7 +130,7 @@ export default function ProductsPage() {
         render: (p) => <span className="line-clamp-2 max-w-56 text-xs">{dash(p.technicalName)}</span>,
         csv: (p) => p.technicalName,
       },
-      { id: "packSize", label: "Pack size", render: (p) => dash(p.packSize), csv: (p) => p.packSize },
+      { id: "packSize", label: "Pack Size", render: (p) => dash(p.packSize), csv: (p) => p.packSize },
       { id: "hsn", label: "HSN", render: (p) => dash(p.hsnCode), csv: (p) => p.hsnCode },
       { id: "gst", label: "GST %", right: true, defaultVisible: true, render: (p) => `${n(p.gstRate)}%`, csv: (p) => n(p.gstRate) },
       { id: "unit", label: "Unit", render: (p) => p.unit, csv: (p) => p.unit },
@@ -142,14 +138,14 @@ export default function ProductsPage() {
     if (showCost) {
       cols.push({
         id: "purchasePrice",
-        label: "Purchase rate",
+        label: "Purchase Rate",
         right: true,
         render: (p) => (n(p.purchasePrice) ? inr(p.purchasePrice) : dash(null)),
         csv: (p) => n(p.purchasePrice),
       });
     }
     cols.push(
-      { id: "salePrice", label: "Sale price", right: true, defaultVisible: true, render: (p) => inr(p.salePrice), csv: (p) => n(p.salePrice) },
+      { id: "salePrice", label: "Sale Price", right: true, defaultVisible: true, render: (p) => inr(p.salePrice), csv: (p) => n(p.salePrice) },
       {
         id: "mrp",
         label: "MRP",
@@ -180,12 +176,12 @@ export default function ProductsPage() {
         render: (p) => <StockCell p={p} />,
         csv: (p) => n(p.stock),
       },
-      { id: "reorderLevel", label: "Reorder level", right: true, render: (p) => (n(p.reorderLevel) ? qty(p.reorderLevel) : dash(null)), csv: (p) => n(p.reorderLevel) },
+      { id: "reorderLevel", label: "Reorder Level", right: true, render: (p) => (n(p.reorderLevel) ? qty(p.reorderLevel) : dash(null)), csv: (p) => n(p.reorderLevel) },
     );
     if (showCost) {
       cols.push({
         id: "stockValue",
-        label: "Stock value",
+        label: "Stock Value",
         right: true,
         render: (p) => inr(n(p.stock) * n(p.purchasePrice)),
         csv: (p) => Math.round(n(p.stock) * n(p.purchasePrice) * 100) / 100,
@@ -194,8 +190,8 @@ export default function ProductsPage() {
     cols.push(
       {
         id: "batch",
-        label: "Batch tracking",
-        render: (p) => (p.trackBatch ? <Badge tone="green">Batch & expiry</Badge> : <span className="text-xs text-slate-400">No</span>),
+        label: "Batch Tracking",
+        render: (p) => (p.trackBatch ? <Badge tone="green">Batch & Expiry</Badge> : <span className="text-xs text-slate-400">No</span>),
         csv: (p) => (p.trackBatch ? "Yes" : "No"),
       },
       {
@@ -232,7 +228,7 @@ export default function ProductsPage() {
     const visible = cols.columns.filter((c) => c.csv);
     downloadCsv(
       "products.csv",
-      visible.map((c) => (c.id === "product" ? "Product Name" : c.label)),
+      visible.map((c) => (c.id === "product" ? "Product name" : c.label)),
       all.items.map((p) => visible.map((c) => c.csv!(p))),
     );
   }
@@ -280,7 +276,7 @@ export default function ProductsPage() {
             className="w-full sm:w-auto sm:min-w-60 sm:flex-1"
           />
           <Select value={type} onChange={(e) => (setType(e.target.value), setPage(1))} className="w-[calc(50%-0.25rem)] sm:w-36" aria-label="Type">
-            <option value="">All types</option>
+            <option value="">All Types</option>
             {PRODUCT_TYPES.map((t) => (
               <option key={t} value={t}>
                 {TYPE_LABEL[t]}
@@ -288,7 +284,7 @@ export default function ProductsPage() {
             ))}
           </Select>
           <Select value={categoryId} onChange={(e) => (setCategoryId(e.target.value), setPage(1))} className="w-[calc(50%-0.25rem)] sm:w-40" aria-label="Category">
-            <option value="">All categories</option>
+            <option value="">All Categories</option>
             {categories?.map((top) => (
               <optgroup key={top.id} label={top.name}>
                 <option value={`cat:${top.id}`}>All {top.name}</option>
@@ -301,10 +297,10 @@ export default function ProductsPage() {
             ))}
           </Select>
           <Select value={stock} onChange={(e) => (setStock(e.target.value), setPage(1))} className="w-[calc(50%-0.25rem)] sm:w-36" aria-label="Stock">
-            <option value="">Any stock</option>
-            <option value="in">In stock</option>
-            <option value="low">Low stock</option>
-            <option value="out">Out of stock</option>
+            <option value="">Any Stock</option>
+            <option value="in">In Stock</option>
+            <option value="low">Low Stock</option>
+            <option value="out">Out of Stock</option>
           </Select>
           <Select value={status} onChange={(e) => (setStatus(e.target.value), setPage(1))} className="w-[calc(50%-0.25rem)] sm:w-28" aria-label="Status">
             <option value="active">Active</option>
@@ -314,11 +310,11 @@ export default function ProductsPage() {
           <Select value={sort} onChange={(e) => (setSort(e.target.value), setPage(1))} className="w-[calc(50%-0.25rem)] sm:w-40" aria-label="Sort by">
             <option value="">Sort: Name A–Z</option>
             <option value="sku">Sort: SKU</option>
-            <option value="stock_asc">Stock: low to high</option>
-            <option value="stock_desc">Stock: high to low</option>
-            <option value="price_asc">Price: low to high</option>
-            <option value="price_desc">Price: high to low</option>
-            <option value="newest">Newest first</option>
+            <option value="stock_asc">Stock: Low to High</option>
+            <option value="stock_desc">Stock: High to Low</option>
+            <option value="price_asc">Price: Low to High</option>
+            <option value="price_desc">Price: High to Low</option>
+            <option value="newest">Newest First</option>
           </Select>
           {(activeFilters > 0 || search) && (
             <Button variant="ghost" size="sm" icon={<X className="size-3.5" />} onClick={clearFilters}>
@@ -355,7 +351,7 @@ export default function ProductsPage() {
                     <>
                       No products match these filters.{" "}
                       <button className="font-medium text-brand-700 underline" onClick={clearFilters}>
-                        Clear filters
+                        Clear Filters
                       </button>
                     </>
                   ) : (
@@ -363,7 +359,7 @@ export default function ProductsPage() {
                       No products yet.{" "}
                       {can("products.manage") && (
                         <button className="font-medium text-brand-700 underline" onClick={openNew}>
-                          Add your first product
+                          Add Your First Product
                         </button>
                       )}
                     </>
@@ -377,7 +373,7 @@ export default function ProductsPage() {
                         {c.render(p)}
                       </Td>
                     ))}
-                    <ActionsTd className="sticky right-0 bg-white group-hover:bg-slate-50">
+                    <ActionsTd className="sticky right-0 bg-surface group-hover:bg-slate-50">
                       <RowAction kind="view" href={`/products/${p.id}`} title={`View ${p.name}: batches and stock history`} />
                       {can("products.manage") && (
                         <RowAction
@@ -400,7 +396,7 @@ export default function ProductsPage() {
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100">
             <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />
             <label className="flex items-center gap-2 px-3 py-2 text-xs text-slate-500">
-              Rows per page
+              Rows per Page
               <Select
                 value={String(pageSize)}
                 onChange={(e) => {
@@ -418,7 +414,7 @@ export default function ProductsPage() {
         )}
       </Card>
 
-      <ProductForm
+      <LazyProductForm
         open={formOpen}
         product={editing}
         onClose={() => setFormOpen(false)}
@@ -427,7 +423,7 @@ export default function ProductsPage() {
           void reload();
         }}
       />
-      <CategoryManager
+      <LazyCategoryManager
         open={catsOpen}
         onClose={() => {
           setCatsOpen(false);

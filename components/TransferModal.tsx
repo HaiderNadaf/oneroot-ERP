@@ -1,14 +1,15 @@
 "use client";
 
-import { ArrowRight, Loader2, PackageOpen, Trash2 } from "lucide-react";
+import { ArrowRight, PackageOpen, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
 import { date, n, qty, today } from "@/lib/format";
 import type { Batch, Product, StockTransfer } from "@/lib/types";
 import { BranchNotice, useBranchOptions } from "./BranchNotice";
 import { ProductPicker } from "./pickers";
-import { Button, Field, Input, Modal, Select, Table, Td, Textarea, Th, cx, errMsg, useToast } from "./ui";
+import { Button, DateInput, Field, InfinityLoader, Input, Modal, Select, Table, Td, Textarea, Th, cx, errMsg, useToast } from "./ui";
 
 interface Line {
   key: number;
@@ -25,7 +26,8 @@ interface Line {
  * Batch no., expiry and cost travel with the stock. Managers only.
  */
 export function TransferModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved?: (t: StockTransfer) => void }) {
-  if (!open) return null;
+  const { can } = useAuth();
+  if (!open || !can("inventory.transfer")) return null;
   // Mounted fresh on every open, so the initial state is the reset
   return <TransferForm onClose={onClose} onSaved={onSaved} />;
 }
@@ -111,7 +113,7 @@ function TransferForm({ onClose, onSaved }: { onClose: () => void; onSaved?: (t:
       open
       onClose={onClose}
       size="xl"
-      title="New stock transfer"
+      title="New Stock Transfer"
       footer={
         <>
           {lines.length > 0 && (
@@ -123,7 +125,7 @@ function TransferForm({ onClose, onSaved }: { onClose: () => void; onSaved?: (t:
             Cancel
           </Button>
           <Button onClick={save} loading={saving} disabled={blocked || !lines.length || !destinations.length}>
-            Send stock
+            Send Stock
           </Button>
         </>
       }
@@ -140,7 +142,7 @@ function TransferForm({ onClose, onSaved }: { onClose: () => void; onSaved?: (t:
               </div>
             </Field>
             <ArrowRight className="mx-auto mb-2.5 hidden size-4 text-slate-400 sm:block" />
-            <Field label="To branch" required>
+            <Field label="To Branch" required>
               <Select
                 value={toBranchId}
                 onChange={(e) => setToBranchId(e.target.value)}
@@ -148,7 +150,7 @@ function TransferForm({ onClose, onSaved }: { onClose: () => void; onSaved?: (t:
                 disabled={branchesLoading && !branches.length}
                 autoFocus
               >
-                <option value="">{branchesLoading && !branches.length ? "Loading branches…" : "Choose branch…"}</option>
+                <option value="">{branchesLoading && !branches.length ? "Loading Branches…" : "Choose Branch…"}</option>
                 {destinations.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name} ({b.code})
@@ -157,7 +159,7 @@ function TransferForm({ onClose, onSaved }: { onClose: () => void; onSaved?: (t:
               </Select>
             </Field>
             <Field label="Date" required>
-              <Input type="date" value={transferDate} max={today()} onChange={(e) => setTransferDate(e.target.value)} />
+              <DateInput value={transferDate} max={today()} onChange={(e) => setTransferDate(e.target.value)} />
             </Field>
           </div>
           {!branchesLoading && !destinations.length && (
@@ -196,7 +198,7 @@ function TransferForm({ onClose, onSaved }: { onClose: () => void; onSaved?: (t:
                     <Td>
                       {!l.batches ? (
                         <span className="flex h-9 items-center gap-1.5 text-xs text-slate-500">
-                          <Loader2 className="size-4 animate-spin" /> Loading batches…
+                          <InfinityLoader className="size-5" /> Loading batches…
                         </span>
                       ) : (
                         <Select
@@ -206,7 +208,7 @@ function TransferForm({ onClose, onSaved }: { onClose: () => void; onSaved?: (t:
                           className="w-56 sm:w-72"
                           aria-label={`Batch for ${l.product.name}`}
                         >
-                          {!l.batches.length && <option value="">No stock</option>}
+                          {!l.batches.length && <option value="">No Stock</option>}
                           {l.batches.map((b) => (
                             <option key={b.id} value={b.id}>
                               {b.batchNo} · {b.expiryDate ? `exp ${date(b.expiryDate)}` : "no expiry"} · {qty(b.quantity)} {l.product.unit}

@@ -109,7 +109,7 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
     <Modal
       open={open}
       onClose={onClose}
-      title={editing ? `Edit ${customer?.name}` : "New customer"}
+      title={editing ? `Edit ${customer?.name}` : "New Customer"}
       size={quick ? "sm" : "lg"}
       footer={
         <>
@@ -117,7 +117,7 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
             Cancel
           </Button>
           <Button type="submit" form="customer-form" loading={saving}>
-            {editing ? "Save changes" : "Add customer"}
+            {editing ? "Save Changes" : "Add Customer"}
           </Button>
         </>
       }
@@ -157,7 +157,7 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
               <Input value={str("city")} onChange={(e) => set("city", e.target.value)} />
             </Field>
             <StateSelect value={str("state")} onChange={(st) => set("state", st)} gstin={str("gstin")} />
-            <Field label="PIN code">
+            <Field label="PIN Code">
               <Input
                 inputMode="numeric"
                 maxLength={6}
@@ -165,15 +165,15 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
                 onChange={(e) => set("pincode", e.target.value.replace(/\D/g, ""))}
               />
             </Field>
-            <Field label="Land (acres)">
+            <Field label="Land (Acres)">
               <Input type="number" step="any" min="0" value={str("landAcres")} onChange={(e) => set("landAcres", e.target.value)} />
             </Field>
             <Field label="Crops" className="sm:col-span-2" hint="e.g. Cotton, Soybean, Tur">
               <Input value={str("crops")} onChange={(e) => set("crops", e.target.value)} />
             </Field>
-            <Field label="Customer type" hint="Automatic discount at the counter">
+            <Field label="Customer Type" hint="Automatic discount at the counter">
               <Select value={str("customerTypeId")} onChange={(e) => set("customerTypeId", e.target.value)}>
-                <option value="">Retail (no type)</option>
+                <option value="">Retail (No Type)</option>
                 {(types ?? []).map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name} · {n(t.discountPct)}% off{n(t.minBill) > 0 ? ` above ₹${n(t.minBill)}` : ""}
@@ -181,13 +181,13 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
                 ))}
               </Select>
             </Field>
-            <Field label="Credit limit (₹)" hint="0 = no limit">
+            <Field label="Credit Limit (₹)" hint="0 = no limit">
               <Input type="number" step="0.01" min="0" value={str("creditLimit")} onChange={(e) => set("creditLimit", e.target.value)} />
             </Field>
-            <Field label="Credit days" hint="Credit bills fall due after this many days">
+            <Field label="Credit Days" hint="Credit bills fall due after this many days">
               <Input type="number" step="1" min="0" max="365" value={str("creditDays")} onChange={(e) => set("creditDays", e.target.value)} />
             </Field>
-            <Field label="Opening balance (₹)" hint="Old dues before using this software">
+            <Field label="Opening Balance (₹)" hint="Old dues before using this software">
               <Input type="number" step="0.01" value={str("openingBalance")} onChange={(e) => set("openingBalance", e.target.value)} />
             </Field>
             <div className="flex items-end pb-2 sm:col-span-3">

@@ -33,15 +33,15 @@ export default function LoginPage() {
 
   return (
     // Light mint page with soft green and wheat-gold glows; the card's deep-green header frames the white logo tile
-    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-gradient-to-br from-[#f6faf2] via-brand-50 to-[#dcefe3] p-4">
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-gradient-to-br from-paper-4 via-brand-50 to-leaf-150 p-4">
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div className="absolute -left-32 -top-32 size-[28rem] rounded-full bg-brand-500/25 blur-3xl" />
         <div className="absolute -bottom-40 -right-24 size-[30rem] rounded-full bg-amber-300/30 blur-3xl" />
         <div className="absolute inset-0 bg-[radial-gradient(#16634114_1px,transparent_1px)] [background-size:22px_22px]" />
       </div>
       <form onSubmit={submit} className="relative w-full max-w-sm">
-        <div className="overflow-hidden rounded-3xl bg-white shadow-2xl shadow-brand-900/20 ring-1 ring-brand-900/5">
-          <div className="relative overflow-hidden bg-gradient-to-br from-brand-900 via-brand-800 to-brand-600  p-4 pb-1 text-center">
+        <div className="overflow-hidden rounded-3xl bg-surface shadow-2xl shadow-brand-900/20 ring-1 ring-forest-900/5">
+          <div className="relative overflow-hidden bg-gradient-to-br from-forest-900 via-forest-800 to-brand-600  p-4 pb-1 text-center">
             <div
               aria-hidden
               className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-brand-400/20 blur-2xl"
@@ -51,14 +51,14 @@ export default function LoginPage() {
               className="pointer-events-none absolute -bottom-20 -left-10 size-44 rounded-full bg-amber-300/15 blur-2xl"
             />
             <Logo priority framed className="relative" imageClassName="w-56" />
-            <p className="relative text-[11px] font-medium uppercase tracking-[0.18em] text-brand-100/80">
+            <p className="relative text-[11px] font-medium uppercase tracking-[0.18em] text-mint-100/80">
               Agri Inputs ERP
             </p>
           </div>
           <div className="h-1 bg-gradient-to-r from-brand-500 via-brand-400 to-amber-400" />
           <div className="px-5 py-4 sm:px-6">
             <div className="mb-2 text-center">
-              <h1 className="text-lg font-semibold text-slate-900">Sign in</h1>
+              <h1 className="text-lg font-semibold text-slate-900">Sign In</h1>
               <p className="text-xs text-slate-500">Use your store account</p>
             </div>
             <div className="space-y-4">
@@ -87,7 +87,7 @@ export default function LoginPage() {
                   onClick={() => router.push("/forgot-password")}
                   className="py-1 text-xs font-medium text-brand-700 hover:text-brand-900 hover:underline transition-colors"
                 >
-                  Forgot password ?
+                  Forgot Password?
                 </button>
               </div>
               {error && (
@@ -96,7 +96,7 @@ export default function LoginPage() {
                 </p>
               )}
               <Button type="submit" loading={busy} className="w-full max-sm:h-10!">
-                Sign in
+                Sign In
               </Button>
             </div>
            

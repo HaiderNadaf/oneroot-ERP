@@ -9,14 +9,14 @@ import { PageHeader, Tabs } from "@/components/ui";
 import { today } from "@/lib/format";
 
 const TABS = [
-  { value: "chart", label: "Chart of accounts" },
-  { value: "daybook", label: "Day book" },
+  { value: "chart", label: "Chart of Accounts" },
+  { value: "daybook", label: "Day Book" },
   { value: "ledger", label: "Ledger" },
-  { value: "parties", label: "Debtors / creditors" },
-  { value: "tb", label: "Trial balance" },
+  { value: "parties", label: "Debtors / Creditors" },
+  { value: "tb", label: "Trial Balance" },
   { value: "pl", label: "Profit & Loss" },
-  { value: "bs", label: "Balance sheet" },
-  { value: "tally", label: "Tally export" },
+  { value: "bs", label: "Balance Sheet" },
+  { value: "tally", label: "Tally Export" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["value"];

@@ -4,11 +4,11 @@ import { ArrowLeft, Download, IndianRupee, MessageCircle, Pencil, PhoneCall, Pri
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { CustomerForm } from "@/components/CustomerForm";
 import {
   Badge,
   Button,
   Card,
+  DateInput,
   EmptyRow,
   ErrorBox,
   Field,
@@ -31,10 +31,12 @@ import {
   useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { date, downloadCsv, inr, n, qty, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { Customer, CustomerReminder, Dec, Ledger, Paged, Payment, PaymentMode, PaymentStatus, ReminderChannel, Sale, StoreSettings } from "@/lib/types";
 import { MONEY_MODES, modeLabel } from "@/lib/types";
+import { LazyCustomerForm } from "@/components/lazy";
 
 interface CustomerDetail extends Customer {
   stats: { totalPurchases: Dec; invoiceCount: number; lastPurchase: string | null };
@@ -51,10 +53,11 @@ interface CustomerDetail extends Customer {
 
 type Tab = "ledger" | "invoices" | "payments" | "reminders";
 const RECEIPT_MODES: PaymentMode[] = [...MONEY_MODES];
-const CHANNEL_LABEL: Record<ReminderChannel, string> = { WHATSAPP: "WhatsApp", SMS: "SMS", CALL: "Phone call", VISIT: "Visit", NOTE: "Note" };
+const CHANNEL_LABEL: Record<ReminderChannel, string> = { WHATSAPP: "WhatsApp", SMS: "SMS", CALL: "Phone Call", VISIT: "Visit", NOTE: "Note" };
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { can } = useAuth();
   const [tab, setTab] = useState<Tab>("ledger");
   const [editOpen, setEditOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
@@ -97,7 +100,7 @@ export default function CustomerDetailPage() {
           <span className="flex flex-wrap items-center gap-2">
             {c.name}
             {!c.isActive && <Badge>Inactive</Badge>}
-            {c.creditHold && <Badge tone="red">Credit on hold</Badge>}
+            {c.creditHold && <Badge tone="red">Credit on Hold</Badge>}
           </span>
         }
         subtitle={[c.phone, c.village, c.crops].filter(Boolean).join(" · ") || "Customer"}
@@ -108,27 +111,33 @@ export default function CustomerDetailPage() {
                 Customers
               </Button>
             </Link>
-            <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
-              Edit
-            </Button>
-            {c.phone && balance > 0 && (
-              <Button variant="secondary" icon={<MessageCircle className="size-4" />} onClick={sendReminder}>
-                Send reminder
+            {can("customers.manage") && (
+              <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
+                Edit
               </Button>
             )}
-            <Button variant="secondary" icon={<IndianRupee className="size-4" />} onClick={() => setPayOpen(true)}>
-              Receive payment
-            </Button>
-            <Link href={`/sales/new?customerId=${c.id}`}>
-              <Button icon={<ShoppingCart className="size-4" />}>New sale</Button>
-            </Link>
+            {c.phone && balance > 0 && can("customers.manage") && (
+              <Button variant="secondary" icon={<MessageCircle className="size-4" />} onClick={sendReminder}>
+                Send Reminder
+              </Button>
+            )}
+            {can("payments.record") && (
+              <Button variant="secondary" icon={<IndianRupee className="size-4" />} onClick={() => setPayOpen(true)}>
+                Receive Payment
+              </Button>
+            )}
+            {can("sales.bill") && (
+              <Link href={`/sales/new?customerId=${c.id}`}>
+                <Button icon={<ShoppingCart className="size-4" />}>New Sale</Button>
+              </Link>
+            )}
           </>
         }
       />
 
       <div className="no-print mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard
-          label="Balance due"
+          label="Balance Due"
           value={<span className={balance > 0 ? "text-red-600" : undefined}>{balance < 0 ? `${inr(-balance)} adv` : inr(balance)}</span>}
           sub={
             c.overdue && c.overdue.amount > 0 ? (
@@ -145,13 +154,13 @@ export default function CustomerDetailPage() {
           icon={<IndianRupee />}
         />
         <StatCard
-          label="Credit limit"
+          label="Credit Limit"
           value={limit > 0 ? inr(limit) : "No limit"}
           sub={[limit > 0 ? `${inr(Math.max(0, limit - balance))} available` : null, c.creditDays > 0 ? `${c.creditDays} days credit` : null].filter(Boolean).join(" · ") || undefined}
         />
-        <StatCard label="Total purchases" value={inr(c.stats.totalPurchases)} />
+        <StatCard label="Total Purchases" value={inr(c.stats.totalPurchases)} />
         <StatCard label="Invoices" value={c.stats.invoiceCount} />
-        <StatCard label="Last purchase" value={<span className="text-lg">{date(c.stats.lastPurchase)}</span>} />
+        <StatCard label="Last Purchase" value={<span className="text-lg">{date(c.stats.lastPurchase)}</span>} />
       </div>
 
       <Card className="no-print mb-4">
@@ -163,8 +172,8 @@ export default function CustomerDetailPage() {
           <Info label="Address">{[c.address, c.city, c.state, c.pincode].filter(Boolean).join(", ")}</Info>
           <Info label="Land">{n(c.landAcres) > 0 ? `${qty(c.landAcres)} acres` : null}</Info>
           <Info label="Crops">{c.crops}</Info>
-          <Info label="Opening balance">{inr(c.openingBalance)}</Info>
-          <Info label="Customer since">{date(c.createdAt)}</Info>
+          <Info label="Opening Balance">{inr(c.openingBalance)}</Info>
+          <Info label="Customer Since">{date(c.createdAt)}</Info>
           {c.notes && (
             <div className="col-span-2 sm:col-span-3">
               <Info label="Notes">{c.notes}</Info>
@@ -178,8 +187,8 @@ export default function CustomerDetailPage() {
         onChange={setTab}
         tabs={[
           { value: "ledger", label: "Ledger" },
-          { value: "invoices", label: `Invoices (${c.stats.invoiceCount})` },
-          { value: "payments", label: "Payments" },
+          ...(can("sales.bill") ? [{ value: "invoices" as const, label: `Invoices (${c.stats.invoiceCount})` }] : []),
+          ...(can("payments.view") ? [{ value: "payments" as const, label: "Payments" }] : []),
           { value: "reminders", label: c.lastReminder ? `Reminders (last ${date(c.lastReminder.sentAt)})` : "Reminders" },
         ]}
       />
@@ -189,7 +198,7 @@ export default function CustomerDetailPage() {
       {tab === "payments" && <PaymentsTab key={version} customerId={c.id} />}
       {tab === "reminders" && <RemindersTab key={version} customer={c} onLogged={refresh} />}
 
-      <CustomerForm
+      <LazyCustomerForm
         open={editOpen}
         customer={c}
         onClose={() => setEditOpen(false)}
@@ -214,6 +223,7 @@ export default function CustomerDetailPage() {
 // ───────────────────────── Ledger ─────────────────────────
 
 function LedgerTab({ customer, settings }: { customer: Customer; settings: StoreSettings | null }) {
+  const { can } = useAuth();
   const { data, error, loading, reload } = useApi<Ledger<Customer>>(`/customers/${customer.id}/ledger`);
 
   function exportCsv() {
@@ -245,7 +255,7 @@ function LedgerTab({ customer, settings }: { customer: Customer; settings: Store
 
       <Card
         bodyClassName="p-0"
-        title={<span className="no-print">Account ledger</span>}
+        title={<span className="no-print">Account Ledger</span>}
         actions={
           <div className="no-print flex gap-2">
             <Button variant="secondary" size="sm" icon={<Printer className="size-4" />} onClick={() => window.print()} disabled={!data}>
@@ -284,7 +294,7 @@ function LedgerTab({ customer, settings }: { customer: Customer; settings: Store
                 </tr>
                 {data.entries.length === 0 && <EmptyRow colSpan={7}>No transactions yet</EmptyRow>}
                 {data.entries.map((e, i) => {
-                  const linkable = e.refId && (e.type === "Sale" || e.type === "Return");
+                  const linkable = e.refId && (e.type === "Sale" || e.type === "Return") && can("sales.bill");
                   return (
                     <tr key={`${e.refNo}-${i}`} className="hover:bg-slate-50">
                       <Td className="whitespace-nowrap">{date(e.date)}</Td>
@@ -395,6 +405,7 @@ function InvoicesTab({ customerId }: { customerId: string }) {
 // ───────────────────────── Payments ─────────────────────────
 
 function PaymentsTab({ customerId }: { customerId: string }) {
+  const { can } = useAuth();
   const [page, setPage] = useState(1);
   const { data, error, loading, reload } = useApi<Paged<Payment>>("/payments", { partyId: customerId, page, pageSize: 20 });
 
@@ -427,10 +438,12 @@ function PaymentsTab({ customerId }: { customerId: string }) {
                   {p.reference && <p className="text-xs text-slate-500">{p.reference}</p>}
                 </Td>
                 <Td>
-                  {p.sale ? (
+                  {p.sale && can("sales.bill") ? (
                     <Link href={`/sales/${p.sale.id}`} className="font-medium text-brand-700 hover:underline">
                       {p.sale.invoiceNo}
                     </Link>
+                  ) : p.sale ? (
+                    <span className="font-medium text-slate-700">{p.sale.invoiceNo}</span>
                   ) : (
                     <span className="text-xs text-slate-500">On account</span>
                   )}
@@ -461,6 +474,8 @@ function PaymentsTab({ customerId }: { customerId: string }) {
 
 function RemindersTab({ customer, onLogged }: { customer: Customer; onLogged: () => void }) {
   const toast = useToast();
+  const { can } = useAuth();
+  const canLog = can("customers.manage");
   const { data, error, loading, reload } = useApi<CustomerReminder[]>(`/reminders/customers/${customer.id}`);
   const [channel, setChannel] = useState<ReminderChannel>("CALL");
   const [note, setNote] = useState("");
@@ -484,15 +499,15 @@ function RemindersTab({ customer, onLogged }: { customer: Customer; onLogged: ()
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div className={canLog ? "grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]" : undefined}>
       <Card bodyClassName="p-0">
         <Table>
           <thead>
             <tr>
               <Th>When</Th>
               <Th>How</Th>
-              <Th right>Balance then</Th>
-              <Th>Message / note</Th>
+              <Th right>Balance Then</Th>
+              <Th>Message / Note</Th>
             </tr>
           </thead>
           <tbody>
@@ -516,25 +531,27 @@ function RemindersTab({ customer, onLogged }: { customer: Customer; onLogged: ()
           </tbody>
         </Table>
       </Card>
-      <Card title="Log a follow-up">
-        <form onSubmit={log} className="space-y-3">
-          <Field label="How">
-            <Select value={channel} onChange={(e) => setChannel(e.target.value as ReminderChannel)}>
-              {(Object.keys(CHANNEL_LABEL) as ReminderChannel[]).map((k) => (
-                <option key={k} value={k}>
-                  {CHANNEL_LABEL[k]}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Note" hint="e.g. Promised to pay after harvest">
-            <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
-          </Field>
-          <Button type="submit" icon={<PhoneCall className="size-4" />} loading={saving} className="w-full">
-            Save follow-up
-          </Button>
-        </form>
-      </Card>
+      {canLog && (
+        <Card title="Log a Follow-Up">
+          <form onSubmit={log} className="space-y-3">
+            <Field label="How">
+              <Select value={channel} onChange={(e) => setChannel(e.target.value as ReminderChannel)}>
+                {(Object.keys(CHANNEL_LABEL) as ReminderChannel[]).map((k) => (
+                  <option key={k} value={k}>
+                    {CHANNEL_LABEL[k]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Note" hint="e.g. Promised to pay after harvest">
+              <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
+            </Field>
+            <Button type="submit" icon={<PhoneCall className="size-4" />} loading={saving} className="w-full">
+              Save Follow-Up
+            </Button>
+          </form>
+        </Card>
+      )}
     </div>
   );
 }
@@ -591,7 +608,7 @@ function ReceivePaymentBody({ open, customer, onClose, onSaved }: ReceiveProps) 
     <Modal
       open={open}
       onClose={onClose}
-      title={`Receive payment · ${customer.name}`}
+      title={`Receive Payment · ${customer.name}`}
       size="sm"
       footer={
         <>
@@ -599,7 +616,7 @@ function ReceivePaymentBody({ open, customer, onClose, onSaved }: ReceiveProps) 
             Cancel
           </Button>
           <Button type="submit" form="customer-pay-form" loading={saving}>
-            Save receipt
+            Save Receipt
           </Button>
         </>
       }
@@ -623,7 +640,7 @@ function ReceivePaymentBody({ open, customer, onClose, onSaved }: ReceiveProps) 
           </Select>
         </Field>
         <Field label="Date">
-          <Input type="date" value={payDate} max={today()} onChange={(e) => setPayDate(e.target.value)} />
+          <DateInput value={payDate} max={today()} onChange={(e) => setPayDate(e.target.value)} />
         </Field>
         <Field label="Reference" hint="UTR / cheque no.">
           <Input value={reference} onChange={(e) => setReference(e.target.value)} disabled={mode === "CASH"} />

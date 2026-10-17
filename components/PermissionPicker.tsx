@@ -6,6 +6,15 @@ import { PERMISSIONS, PERMISSION_SECTIONS, hasPerm, normalizePermissions, type P
 import { Badge, cx } from "./ui";
 
 /**
+ * Whether the signed-in person holds every one of these permissions. The API refuses to save a user or role
+ * whose ticks go beyond the editor's own, so such users and roles are view-only for them.
+ */
+export function useCanGrantAll() {
+  const { user: me } = useAuth();
+  return (keys: readonly string[]) => normalizePermissions(keys).every((k) => hasPerm(me, k));
+}
+
+/**
  * Tick list of everything a user (or custom role) may do, grouped like the sidebar.
  * `defaults` is what "reset" goes back to and what counts as an "extra" tick.
  * The signed-in person can only hand out what they hold themselves.
@@ -84,7 +93,7 @@ export function PermissionPicker({
                   <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{section}</span>
                   {!disabled && allowed.length > 0 && (
                     <button type="button" onClick={() => set(keys, on < allowed.length)} className="text-[11px] font-medium text-brand-700 hover:underline">
-                      {on < allowed.length ? "Select all" : "Clear"}
+                      {on < allowed.length ? "Select All" : "Clear"}
                     </button>
                   )}
                 </legend>

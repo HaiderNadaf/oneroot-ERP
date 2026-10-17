@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Dark mode is a class on <html> (set by lib/theme.tsx before first paint), not the OS setting alone */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* OneRoot ERP theme — agri green brand, neutral slate surfaces */
 @theme {
   --color-brand-50: #effaf3;
@@ -18,6 +21,47 @@
   --color-gold-500: #c9932a;
   --color-gold-700: #8a6316;
 
+  /* Surfaces, lines and text: every screen uses these (or the Tailwind scales) so the dark theme can swap them */
+  --color-surface: #ffffff;
+  --color-paper: #f3f5ef;
+  --color-paper-2: #f7f9f3;
+  --color-paper-3: #eef1e8;
+  --color-paper-4: #f6faf2;
+  --color-frame: #e4e9dc;
+  --color-line: #e1e6d8;
+  --color-line-2: #d5dccb;
+  --color-line-3: #c9d1c0;
+  --color-line-soft: #eef3e6;
+  --color-grid: #e6eadf;
+  --color-ink: #1d2a1f;
+  --color-muted: #5f6e60;
+  --color-muted-2: #8a9a8b;
+  --color-leaf-50: #f3faf3;
+  --color-leaf-100: #e3f1e3;
+  --color-leaf-150: #dcefe3;
+  --color-leaf-600: #2e8b46;
+  --color-rust-50: #fff5f2;
+  --color-rust-100: #fbe4df;
+  --color-rust-200: #f3c9c1;
+  --color-rust-300: #e0a097;
+  --color-rust-600: #c2412d;
+  --color-ochre-100: #fbefd9;
+  --color-ochre-600: #b7791f;
+  --color-ochre-800: #8a5a0f;
+  --color-sea-100: #e0eef5;
+  --color-sea-700: #2a6f97;
+  --color-forest-700: #166341;
+  --color-forest-800: #18432e;
+  --color-forest-900: #123524;
+  --color-night-900: oklch(20.8% 0.042 265.755);
+  --color-crimson-700: oklch(50.5% 0.213 27.518);
+  --color-sidebar-text: #d6e4d4;
+  --color-mint-100: #d8f3e1;
+  --color-sidebar-muted: #8fab93;
+  --color-gold-600: #b07b1c;
+  --color-rust-700: #b91c1c;
+  --color-rust-900: #7f1d1d;
+
   --font-sans: var(--font-body), "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-display-face), "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
@@ -27,6 +71,216 @@
   --background: #f3f5ef;
   --foreground: #1d2a1f;
   color-scheme: light;
+}
+
+/*
+ * Dark theme: the same utilities, different colour values. Screen only, so printing is always light.
+ * Scales are flipped: tints (50-300) turn deep, text shades (700-900) turn light, 500/600 stay solid for buttons.
+ */
+@media screen {
+  .dark {
+    --background: #0e1510;
+    --foreground: #e6ece6;
+    color-scheme: dark;
+    --color-surface: #151e18;
+    --color-paper: #0e1510;
+    --color-paper-2: #18221b;
+    --color-paper-3: #1d2820;
+    --color-paper-4: #17211a;
+    --color-frame: #0a0f0b;
+    --color-line: #2a362d;
+    --color-line-2: #34423a;
+    --color-line-3: #3e4d43;
+    --color-line-soft: #223026;
+    --color-grid: #243028;
+    --color-ink: #e6ece6;
+    --color-muted: #9aa99c;
+    --color-muted-2: #7f8d81;
+    --color-leaf-50: #13241a;
+    --color-leaf-100: #183020;
+    --color-leaf-150: #1c3826;
+    --color-leaf-600: #5cc27d;
+    --color-rust-50: #2a1714;
+    --color-rust-100: #3a1d18;
+    --color-rust-200: #5a2a22;
+    --color-rust-300: #7a3a2f;
+    --color-rust-600: #f08a73;
+    --color-ochre-100: #33260f;
+    --color-ochre-600: #e0a64a;
+    --color-ochre-800: #f0c27a;
+    --color-sea-100: #13283a;
+    --color-sea-700: #7fb8dc;
+    --color-slate-50: #18211b;
+    --color-slate-100: #1e2821;
+    --color-slate-200: #2a352d;
+    --color-slate-300: #3a473e;
+    --color-slate-400: #6f7d72;
+    --color-slate-500: #93a196;
+    --color-slate-600: #b0bcb3;
+    --color-slate-700: #c8d1ca;
+    --color-slate-800: #dce3dd;
+    --color-slate-900: #edf1ee;
+    --color-slate-950: #f6f8f6;
+    --color-brand-50: #12261a;
+    --color-brand-100: #173121;
+    --color-brand-200: #1f442e;
+    --color-brand-300: #2c6444;
+    --color-brand-400: #3f8f62;
+    --color-brand-500: #4fb07a;
+    --color-brand-600: #2f9561;
+    --color-brand-700: #6fcf9a;
+    --color-brand-800: #93ddb4;
+    --color-brand-900: #bdeccf;
+    --color-red-50: #2a1515;
+    --color-red-100: #3a1a1a;
+    --color-red-200: #5c2626;
+    --color-red-300: #803434;
+    --color-red-400: #f07b7b;
+    --color-red-500: #ef5f5f;
+    --color-red-600: #e04f4f;
+    --color-red-700: #fb9a9a;
+    --color-red-800: #fcb9b9;
+    --color-red-900: #fdd5d5;
+    --color-red-950: #fee9e9;
+    --color-amber-50: #2b2010;
+    --color-amber-100: #392a12;
+    --color-amber-200: #574018;
+    --color-amber-300: #7a5a1f;
+    --color-amber-400: #d9a03a;
+    --color-amber-500: #e8ac3c;
+    --color-amber-600: #eab354;
+    --color-amber-700: #f2c46f;
+    --color-amber-800: #f6d595;
+    --color-amber-900: #f9e4b8;
+    --color-amber-950: #fcf1d9;
+    --color-sky-50: #10212d;
+    --color-sky-100: #142a3a;
+    --color-sky-200: #1d3d54;
+    --color-sky-300: #2a5878;
+    --color-sky-500: #3fa6dc;
+    --color-sky-600: #5ab4e3;
+    --color-sky-700: #86c8ec;
+    --color-sky-800: #a9d8f2;
+    --color-sky-900: #cce8f7;
+    --color-violet-50: #1f1830;
+    --color-violet-100: #281e3e;
+    --color-violet-200: #3a2c5a;
+    --color-violet-500: #9a7cf0;
+    --color-violet-600: #a98bf3;
+    --color-violet-700: #bba3f6;
+    --color-violet-800: #cfbdf9;
+    --color-emerald-50: #10261d;
+    --color-emerald-200: #1d4a36;
+    --color-emerald-500: #34c58f;
+    --color-emerald-600: #4fcf9d;
+    --color-emerald-700: #7ddcb6;
+    --color-emerald-900: #c4f0de;
+    --color-gold-50: #2e2410;
+    --color-gold-700: #e0b45a;
+  }
+
+  /* Paper documents (invoice preview, print sheets, labels, barcodes) keep their light look in dark mode */
+  .dark .paper {
+    --background: #ffffff;
+    --foreground: #1d2a1f;
+    color-scheme: light;
+    color: var(--foreground);
+    --color-surface: #ffffff;
+    --color-paper: #f3f5ef;
+    --color-paper-2: #f7f9f3;
+    --color-paper-3: #eef1e8;
+    --color-paper-4: #f6faf2;
+    --color-frame: #e4e9dc;
+    --color-line: #e1e6d8;
+    --color-line-2: #d5dccb;
+    --color-line-3: #c9d1c0;
+    --color-line-soft: #eef3e6;
+    --color-grid: #e6eadf;
+    --color-ink: #1d2a1f;
+    --color-muted: #5f6e60;
+    --color-muted-2: #8a9a8b;
+    --color-leaf-50: #f3faf3;
+    --color-leaf-100: #e3f1e3;
+    --color-leaf-150: #dcefe3;
+    --color-leaf-600: #2e8b46;
+    --color-rust-50: #fff5f2;
+    --color-rust-100: #fbe4df;
+    --color-rust-200: #f3c9c1;
+    --color-rust-300: #e0a097;
+    --color-rust-600: #c2412d;
+    --color-ochre-100: #fbefd9;
+    --color-ochre-600: #b7791f;
+    --color-ochre-800: #8a5a0f;
+    --color-sea-100: #e0eef5;
+    --color-sea-700: #2a6f97;
+    --color-slate-50: oklch(98.4% 0.003 247.858);
+    --color-slate-100: oklch(96.8% 0.007 247.896);
+    --color-slate-200: oklch(92.9% 0.013 255.508);
+    --color-slate-300: oklch(86.9% 0.022 252.894);
+    --color-slate-400: oklch(70.4% 0.04 256.788);
+    --color-slate-500: oklch(55.4% 0.046 257.417);
+    --color-slate-600: oklch(44.6% 0.043 257.281);
+    --color-slate-700: oklch(37.2% 0.044 257.287);
+    --color-slate-800: oklch(27.9% 0.041 260.031);
+    --color-slate-900: oklch(20.8% 0.042 265.755);
+    --color-slate-950: oklch(12.9% 0.042 264.695);
+    --color-brand-50: #effaf3;
+    --color-brand-100: #d8f3e1;
+    --color-brand-200: #b3e5c6;
+    --color-brand-300: #80d1a4;
+    --color-brand-400: #4bb57e;
+    --color-brand-500: #289a62;
+    --color-brand-600: #1a7c4e;
+    --color-brand-700: #166341;
+    --color-brand-800: #18432e;
+    --color-brand-900: #123524;
+    --color-red-50: oklch(97.1% 0.013 17.38);
+    --color-red-100: oklch(93.6% 0.032 17.717);
+    --color-red-200: oklch(88.5% 0.062 18.334);
+    --color-red-300: oklch(80.8% 0.114 19.571);
+    --color-red-400: oklch(70.4% 0.191 22.216);
+    --color-red-500: oklch(63.7% 0.237 25.331);
+    --color-red-600: oklch(57.7% 0.245 27.325);
+    --color-red-700: oklch(50.5% 0.213 27.518);
+    --color-red-800: oklch(44.4% 0.177 26.899);
+    --color-red-900: oklch(39.6% 0.141 25.723);
+    --color-red-950: oklch(25.8% 0.092 26.042);
+    --color-amber-50: oklch(98.7% 0.022 95.277);
+    --color-amber-100: oklch(96.2% 0.059 95.617);
+    --color-amber-200: oklch(92.4% 0.12 95.746);
+    --color-amber-300: oklch(87.9% 0.169 91.605);
+    --color-amber-400: oklch(82.8% 0.189 84.429);
+    --color-amber-500: oklch(76.9% 0.188 70.08);
+    --color-amber-600: oklch(66.6% 0.179 58.318);
+    --color-amber-700: oklch(55.5% 0.163 48.998);
+    --color-amber-800: oklch(47.3% 0.137 46.201);
+    --color-amber-900: oklch(41.4% 0.112 45.904);
+    --color-amber-950: oklch(27.9% 0.077 45.635);
+    --color-sky-50: oklch(97.7% 0.013 236.62);
+    --color-sky-100: oklch(95.1% 0.026 236.824);
+    --color-sky-200: oklch(90.1% 0.058 230.902);
+    --color-sky-300: oklch(82.8% 0.111 230.318);
+    --color-sky-500: oklch(68.5% 0.169 237.323);
+    --color-sky-600: oklch(58.8% 0.158 241.966);
+    --color-sky-700: oklch(50% 0.134 242.749);
+    --color-sky-800: oklch(44.3% 0.11 240.79);
+    --color-sky-900: oklch(39.1% 0.09 240.876);
+    --color-violet-50: oklch(96.9% 0.016 293.756);
+    --color-violet-100: oklch(94.3% 0.029 294.588);
+    --color-violet-200: oklch(89.4% 0.057 293.283);
+    --color-violet-500: oklch(60.6% 0.25 292.717);
+    --color-violet-600: oklch(54.1% 0.281 293.009);
+    --color-violet-700: oklch(49.1% 0.27 292.581);
+    --color-violet-800: oklch(43.2% 0.232 292.759);
+    --color-emerald-50: oklch(97.9% 0.021 166.113);
+    --color-emerald-200: oklch(90.5% 0.093 164.15);
+    --color-emerald-500: oklch(69.6% 0.17 162.48);
+    --color-emerald-600: oklch(59.6% 0.145 163.225);
+    --color-emerald-700: oklch(50.8% 0.118 165.612);
+    --color-emerald-900: oklch(37.8% 0.077 168.94);
+    --color-gold-50: #f8eed6;
+    --color-gold-700: #8a6316;
+  }
 }
 
 body {
@@ -92,11 +346,112 @@ input[type="number"] {
   }
 }
 
-/* Scrolls with wheel, touch and keyboard, but without the visible scrollbar (e.g. the sidebar menu) */
+/*
+ * Common scrollbar for the whole app: thin, rounded, brand green. Colours come from the theme tokens,
+ * so it matches light and dark mode by itself. Applies to every scrolling area; .no-scrollbar still hides it.
+ * Chrome, Edge, Brave and Safari get the rounded style; Firefox (no ::-webkit-scrollbar) its thin native bar.
+ */
+:root {
+  --scrollbar-thumb: var(--color-brand-500);
+  --scrollbar-thumb-hover: var(--color-brand-600);
+  --scrollbar-track: var(--color-brand-50);
+}
+
+@layer base {
+  *::-webkit-scrollbar {
+    width: 3.6px;
+    height: 3.6px;
+  }
+  *::-webkit-scrollbar-track {
+    border-radius: 9999px;
+    background: var(--scrollbar-track);
+  }
+  *::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: var(--scrollbar-thumb);
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+  *::-webkit-scrollbar-corner,
+  *::-webkit-scrollbar-button {
+    display: none;
+    background: transparent;
+  }
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    }
+  }
+}
+
+/* Scrolls with wheel, touch and keyboard, but without the visible scrollbar */
 .no-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* Loader (components/ui.tsx Spinner): a stroke running round the OneRoot "∞" loop */
+.or-loader-run {
+  stroke-dasharray: 52 148;
+  animation: or-loop 1.3s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+@keyframes or-loop {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -200;
+  }
+}
+.or-loader-text {
+  animation: or-breathe 1.3s ease-in-out infinite;
+}
+@keyframes or-breathe {
+  50% {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .or-loader-run {
+    animation-duration: 4s;
+  }
+  .or-loader-text {
+    animation: none;
+  }
+}
+
+/* Every loader turns the "∞" upright and back in 90° steps: turn, rest, turn, rest… */
+.or-loader-turn {
+  animation: or-turn 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes or-turn {
+  0%,
+  12% {
+    rotate: 0deg;
+  }
+  25%,
+  37% {
+    rotate: 90deg;
+  }
+  50%,
+  62% {
+    rotate: 180deg;
+  }
+  75%,
+  87% {
+    rotate: 270deg;
+  }
+  100% {
+    rotate: 360deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .or-loader-turn {
+    animation-duration: 6s;
+  }
 }

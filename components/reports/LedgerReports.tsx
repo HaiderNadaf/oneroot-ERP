@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { Badge, Card, EmptyRow, Input, Select, StatusBadge, Table, Td, Th, cx } from "@/components/ui";
+import { Badge, Card, DateInput, EmptyRow, Select, StatusBadge, Table, Td, Th, cx } from "@/components/ui";
 import { date, dateTime, downloadCsv, inr, n, qty, round2, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { PRODUCT_TYPES, TYPE_LABEL, type DocStatus, type PaymentMode } from "@/lib/types";
-import { ReportFrame, TotalRow } from "./ReportKit";
+import { ReportFrame, ReportLink, TotalRow } from "./ReportKit";
 
 const modeLabel = (m: string) => m.charAt(0) + m.slice(1).toLowerCase();
 
@@ -34,7 +33,7 @@ export function StockValuationReport() {
     if (!data) return;
     downloadCsv(
       `stock-valuation-${today()}.csv`,
-      ["SKU", "Product", "Type", "Category", "Stock", "Unit", "Reorder level", "Sale price", "Value at cost", "Value at sale price"],
+      ["SKU", "Product", "Type", "Category", "Stock", "Unit", "Reorder Level", "Sale Price", "Value at Cost", "Value at Sale Price"],
       [
         ...data.items.map((r) => [r.sku, r.name, r.type, r.category, r.stock, r.unit, r.reorderLevel, r.salePrice, r.costValue, r.saleValue]),
         ["", "TOTAL", "", "", "", "", "", "", data.totals.costValue, data.totals.saleValue],
@@ -50,7 +49,7 @@ export function StockValuationReport() {
       period={`as on ${date(new Date())}`}
       controls={
         <Select value={type} onChange={(e) => setType(e.target.value)} className="w-44">
-          <option value="">All product types</option>
+          <option value="">All Product Types</option>
           {PRODUCT_TYPES.map((t) => (
             <option key={t} value={t}>
               {TYPE_LABEL[t]}
@@ -67,9 +66,9 @@ export function StockValuationReport() {
       {data && (
         <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-3">
-            <Tile label="Value at cost" value={inr(data.totals.costValue)} sub={`${data.items.filter((r) => r.stock > 0).length} products in stock`} />
-            <Tile label="Value at selling price" value={inr(data.totals.saleValue)} sub="incl. GST" />
-            <Tile label="Potential gross margin" value={inr(potential)} sub="selling value − cost (before GST)" />
+            <Tile label="Value at Cost" value={inr(data.totals.costValue)} sub={`${data.items.filter((r) => r.stock > 0).length} products in stock`} />
+            <Tile label="Value at Selling Price" value={inr(data.totals.saleValue)} sub="incl. GST" />
+            <Tile label="Potential Gross Margin" value={inr(potential)} sub="selling value − cost (before GST)" />
           </div>
           <Card bodyClassName="p-0">
             <Table>
@@ -78,9 +77,9 @@ export function StockValuationReport() {
                   <Th>Product</Th>
                   <Th>Type</Th>
                   <Th right>Stock</Th>
-                  <Th right>Sale price</Th>
-                  <Th right>Value at cost</Th>
-                  <Th right>Value at sale price</Th>
+                  <Th right>Sale Price</Th>
+                  <Th right>Value at Cost</Th>
+                  <Th right>Value at Sale Price</Th>
                 </tr>
               </thead>
               <tbody>
@@ -92,9 +91,9 @@ export function StockValuationReport() {
                     return (
                       <tr key={r.id} className="hover:bg-slate-50">
                         <Td>
-                          <Link href={`/products/${r.id}`} className="font-medium text-slate-900 hover:text-brand-700">
+                          <ReportLink href={`/products/${r.id}`} perms={["products.view"]} className="font-medium text-slate-900 hover:text-brand-700">
                             {r.name}
-                          </Link>
+                          </ReportLink>
                           <p className="text-xs text-slate-500">
                             {r.sku}
                             {r.category && ` · ${r.category}`}
@@ -133,7 +132,7 @@ export function StockValuationReport() {
 
 function Tile({ label, value, sub, tone }: { label: string; value: ReactNode; sub?: ReactNode; tone?: "red" | "green" }) {
   return (
-    <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-surface p-3 shadow-sm sm:p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
       <p className={cx("num mt-1 break-words text-lg font-semibold sm:text-xl", tone === "red" ? "text-red-600" : tone === "green" ? "text-brand-700" : "text-slate-900")}>{value}</p>
       {sub && <p className="mt-0.5 text-xs text-slate-500">{sub}</p>}
@@ -172,7 +171,7 @@ export function OutstandingReport() {
     if (!data) return;
     downloadCsv(
       `${isVendor ? "payables" : "receivables"}-${today()}.csv`,
-      ["Name", "Phone", ...BUCKETS.map((b) => b.label), "Balance", "Oldest unpaid bill"],
+      ["Name", "Phone", ...BUCKETS.map((b) => b.label), "Balance", "Oldest Unpaid Bill"],
       [
         ...rows.map((r) => [r.name, r.phone, ...BUCKETS.map((b) => r.aging[b.key]), r.balance, r.oldestDue?.slice(0, 10)]),
         ["TOTAL", "", ...bucketTotals, data.total, ""],
@@ -182,7 +181,7 @@ export function OutstandingReport() {
 
   return (
     <ReportFrame
-      title={isVendor ? "Outstanding payables (vendors)" : "Outstanding receivables (customers)"}
+      title={isVendor ? "Outstanding Payables (Vendors)" : "Outstanding Receivables (Customers)"}
       period={`as on ${date(new Date())}`}
       controls={
         <div className="inline-flex rounded-lg border border-slate-300 p-0.5">
@@ -207,7 +206,7 @@ export function OutstandingReport() {
       {data && data.party === party && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <Tile label={isVendor ? "Total payable" : "Total receivable"} value={inr(data.total)} sub={`${rows.length} ${isVendor ? "vendors" : "customers"}`} />
+            <Tile label={isVendor ? "Total Payable" : "Total Receivable"} value={inr(data.total)} sub={`${rows.length} ${isVendor ? "vendors" : "customers"}`} />
             {BUCKETS.map((b, i) => (
               <Tile key={b.key} label={b.label} value={inr(bucketTotals[i])} tone={b.key === "d90plus" && bucketTotals[i] > 0 ? "red" : undefined} />
             ))}
@@ -217,7 +216,7 @@ export function OutstandingReport() {
               <thead>
                 <tr>
                   <Th>{isVendor ? "Vendor" : "Customer"}</Th>
-                  <Th>Oldest unpaid</Th>
+                  <Th>Oldest Unpaid</Th>
                   {BUCKETS.map((b) => (
                     <Th key={b.key} right className={b.key === "d90plus" ? "text-red-600" : undefined}>
                       {b.label}
@@ -235,9 +234,9 @@ export function OutstandingReport() {
                     return (
                       <tr key={r.id} className="hover:bg-slate-50">
                         <Td>
-                          <Link href={`/${isVendor ? "vendors" : "customers"}/${r.id}`} className="font-medium text-slate-900 hover:text-brand-700">
+                          <ReportLink href={`/${isVendor ? "vendors" : "customers"}/${r.id}`} perms={[isVendor ? "vendors.view" : "customers.view"]} className="font-medium text-slate-900 hover:text-brand-700">
                             {r.name}
-                          </Link>
+                          </ReportLink>
                           <p className="text-xs text-slate-500">{[r.phone, r.village].filter(Boolean).join(" · ") || "—"}</p>
                         </Td>
                         <Td className="whitespace-nowrap text-xs">{date(r.oldestDue)}</Td>
@@ -341,11 +340,11 @@ export function DayBookReport() {
 
   return (
     <ReportFrame
-      title="Day book"
+      title="Day Book"
       period={date(day)}
       controls={
         <div className="flex items-center gap-2">
-          <Input type="date" value={day} max={today()} onChange={(e) => setDay(e.target.value || today())} className="w-40" aria-label="Date" />
+          <DateInput value={day} max={today()} onChange={(e) => setDay(e.target.value || today())} className="w-40" aria-label="Date" />
           {day !== today() && (
             <button type="button" className="text-xs font-medium text-brand-700 hover:underline" onClick={() => setDay(today())}>
               Today
@@ -365,11 +364,11 @@ export function DayBookReport() {
             <Tile label="Sales" value={inr(data.totals.sales)} sub={`${data.sales.filter((s) => s.status === "COMPLETED").length} invoices`} />
             <Tile label="Received" value={inr(data.totals.received)} tone="green" />
             <Tile label="Purchases" value={inr(data.totals.purchases)} sub={`${data.purchases.length} bills`} />
-            <Tile label="Paid out" value={inr(data.totals.paid)} />
+            <Tile label="Paid Out" value={inr(data.totals.paid)} />
             <Tile label="Expenses" value={inr(data.totals.expenses)} />
           </div>
 
-          <Section title="Cash summary by payment mode">
+          <Section title="Cash Summary by Payment Mode">
             <Table>
               <thead>
                 <tr>
@@ -436,9 +435,9 @@ export function DayBookReport() {
                     data.sales.map((s) => (
                       <tr key={s.id} className={cx("hover:bg-slate-50", s.status === "CANCELLED" && "text-slate-400")}>
                         <Td className="whitespace-nowrap">
-                          <Link href={`/sales/${s.id}`} className="font-medium text-brand-700 hover:underline">
+                          <ReportLink href={`/sales/${s.id}`} perms={["sales.bill"]} className="font-medium text-brand-700 hover:underline">
                             {s.invoiceNo}
-                          </Link>
+                          </ReportLink>
                           <p className="text-xs text-slate-500">
                             {new Date(s.saleDate).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} · {modeLabel(s.paymentMode)}
                           </p>
@@ -477,9 +476,9 @@ export function DayBookReport() {
                     data.purchases.map((p) => (
                       <tr key={p.id} className={cx("hover:bg-slate-50", p.status === "CANCELLED" && "text-slate-400")}>
                         <Td className="whitespace-nowrap">
-                          <Link href={`/purchases/${p.id}`} className="font-medium text-brand-700 hover:underline">
+                          <ReportLink href={`/purchases/${p.id}`} perms={["purchases.view"]} className="font-medium text-brand-700 hover:underline">
                             {p.purchaseNo}
-                          </Link>
+                          </ReportLink>
                         </Td>
                         <Td>
                           {p.vendor.name}
@@ -498,7 +497,7 @@ export function DayBookReport() {
               </Table>
             </Section>
 
-            <Section title={`Receipts & payments (${data.payments.length})`}>
+            <Section title={`Receipts & Payments (${data.payments.length})`}>
               <Table>
                 <thead>
                   <tr>
@@ -541,7 +540,7 @@ export function DayBookReport() {
                 <thead>
                   <tr>
                     <Th>Category</Th>
-                    <Th>Paid to</Th>
+                    <Th>Paid To</Th>
                     <Th>Mode</Th>
                     <Th right>Amount</Th>
                   </tr>
@@ -566,12 +565,12 @@ export function DayBookReport() {
               </Table>
             </Section>
 
-            <Section title={`Sales returns (${data.returns.length})`} total={returnsTotal}>
+            <Section title={`Sales Returns (${data.returns.length})`} total={returnsTotal}>
               <Table>
                 <thead>
                   <tr>
                     <Th>Return</Th>
-                    <Th>Against invoice</Th>
+                    <Th>Against Invoice</Th>
                     <Th>Refund</Th>
                     <Th right>Amount</Th>
                   </tr>
@@ -587,9 +586,9 @@ export function DayBookReport() {
                           {r.reason && <p className="max-w-56 truncate text-xs font-normal text-slate-500">{r.reason}</p>}
                         </Td>
                         <Td>
-                          <Link href={`/sales/${r.saleId}`} className="text-brand-700 hover:underline">
+                          <ReportLink href={`/sales/${r.saleId}`} perms={["sales.bill"]} className="text-brand-700 hover:underline">
                             {r.sale.invoiceNo}
-                          </Link>
+                          </ReportLink>
                         </Td>
                         <Td>{r.refundMode === "CREDIT" ? "Adjusted to account" : modeLabel(r.refundMode)}</Td>
                         <Td right>{inr(r.totalAmount)}</Td>

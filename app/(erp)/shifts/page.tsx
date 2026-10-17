@@ -1,12 +1,13 @@
 "use client";
 
-import { Banknote, CheckCircle2, Landmark, LockKeyhole, LockKeyholeOpen, Trash2 } from "lucide-react";
+import { Banknote, CheckCircle2, Landmark, LockKeyhole, LockKeyholeOpen } from "lucide-react";
 import { useState } from "react";
 import { useNeedBranch } from "@/components/BranchNotice";
 import {
   Badge,
   Button,
   Card,
+  DateInput,
   EmptyRow,
   ErrorBox,
   Field,
@@ -15,6 +16,7 @@ import {
   Modal,
   PageHeader,
   Pagination,
+  RowAction,
   Select,
   StatCard,
   Table,
@@ -61,7 +63,7 @@ export default function ShiftsPage() {
   return (
     <>
       <PageHeader
-        title="Shifts & cash"
+        title="Shifts & Cash"
         subtitle="Open the drawer with a float, count it at close, bank the cash next morning — every gap needs a reason"
         actions={
           <>
@@ -71,12 +73,12 @@ export default function ShiftsPage() {
               </Button>
             ) : (
               <Button icon={<LockKeyholeOpen className="size-4" />} onClick={() => setOpenOpen(true)} disabled={needBranch.blocked}>
-                Open shift
+                Open Shift
               </Button>
             )}
             {can("cash.manage") && (
               <Button variant="secondary" icon={<Landmark className="size-4" />} onClick={() => setDepositFor("any")} disabled={needBranch.blocked}>
-                Bank deposit
+                Bank Deposit
               </Button>
             )}
           </>
@@ -85,41 +87,44 @@ export default function ShiftsPage() {
       {needBranch.notice && <div className="mb-4">{needBranch.notice}</div>}
 
       {shift && b && (
-        <Card className="mb-4" title={`Your open shift · ${shift.shiftNo}`} actions={<span className="text-xs text-slate-500">opened {dateTime(shift.openedAt)}</span>}>
+        <Card className="mb-4" title={`Your Open Shift · ${shift.shiftNo}`} actions={<span className="text-xs text-slate-500">opened {dateTime(shift.openedAt)}</span>}>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Mini label="Opening float" value={inr(b.openingFloat)} />
-            <Mini label="Cash sales & receipts" value={inr(b.cashSales)} tone="green" />
-            <Mini label="Cash paid to vendors" value={inr(b.vendorCashPayments)} />
-            <Mini label="Cash expenses" value={inr(b.cashExpenses)} />
-            <Mini label="Cash refunds" value={inr(b.cashRefunds)} />
-            <Mini label="Expected in drawer" value={inr(b.expected)} strong />
+            <Mini label="Opening Float" value={inr(b.openingFloat)} />
+            <Mini label="Cash Sales & Receipts" value={inr(b.cashSales)} tone="green" />
+            <Mini label="Cash Paid to Vendors" value={inr(b.vendorCashPayments)} />
+            <Mini label="Cash Expenses" value={inr(b.cashExpenses)} />
+            <Mini label="Cash Refunds" value={inr(b.cashRefunds)} />
+            <Mini label="Expected in Drawer" value={inr(b.expected)} strong />
           </div>
           {!settings?.requireOpenShift && can("admin.settings") && (
-            <p className="mt-3 text-xs text-slate-500">Billing is allowed without a shift right now. Switch on &quot;No billing without an open shift&quot; in Store settings to enforce it.</p>
+            <p className="mt-3 text-xs text-slate-500">Billing is allowed without a shift right now. Switch on &quot;No billing without an open shift&quot; in Store Settings to enforce it.</p>
           )}
         </Card>
       )}
 
       {recon.data && (
         <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <StatCard label={`To bank (last ${recon.data.days} days)`} value={inr0(recon.data.toDeposit)} icon={<Banknote />} />
+          <StatCard label={`To Bank (Last ${recon.data.days} Days)`} value={inr0(recon.data.toDeposit)} icon={<Banknote />} />
           <StatCard label="Deposited" value={inr0(recon.data.deposited)} tone="green" icon={<Landmark />} />
-          <StatCard label="Not yet banked" value={inr0(recon.data.gap)} tone={recon.data.gap > 0 ? "amber" : "slate"} />
-          <StatCard label="Unexplained gaps" value={recon.data.unexplained} tone={recon.data.unexplained ? "red" : "green"} sub={recon.data.unexplained ? "Need a reason and the owner's sign-off" : "All explained"} />
-          <StatCard label="Open shifts now" value={recon.data.openShifts} />
+          <StatCard label="Not Yet Banked" value={inr0(recon.data.gap)} tone={recon.data.gap > 0 ? "amber" : "slate"} />
+          <StatCard label="Unexplained Gaps" value={recon.data.unexplained} tone={recon.data.unexplained ? "red" : "green"} sub={recon.data.unexplained ? "Need a reason and the owner's sign-off" : "All explained"} />
+          <StatCard label="Open Shifts Now" value={recon.data.openShifts} />
         </div>
       )}
 
-      <Tabs<Tab>
-        value={tab}
-        onChange={setTab}
-        tabs={[
-          { value: "shifts", label: "Shifts" },
-          { value: "deposits", label: "Bank deposits" },
-        ]}
-      />
-      {tab === "shifts" && <ShiftsTab key={version} onDeposit={(s) => setDepositFor(s)} onClose={(s) => setCloseFor(s)} />}
-      {tab === "deposits" && <DepositsTab key={version} onChanged={refresh} />}
+      {/* Bank deposits are only for whoever reconciles the cash */}
+      {can("cash.manage") && (
+        <Tabs<Tab>
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { value: "shifts", label: "Shifts" },
+            { value: "deposits", label: "Bank Deposits" },
+          ]}
+        />
+      )}
+      {(tab === "shifts" || !can("cash.manage")) && <ShiftsTab key={version} onDeposit={(s) => setDepositFor(s)} onClose={(s) => setCloseFor(s)} />}
+      {tab === "deposits" && can("cash.manage") && <DepositsTab key={version} onChanged={refresh} />}
 
       <OpenShiftModal
         open={openOpen}
@@ -173,7 +178,7 @@ function ShiftsTab({ onDeposit, onClose }: { onDeposit: (s: Shift) => void; onCl
     <Card bodyClassName="p-0">
       <div className="flex items-center gap-2 border-b border-slate-100 p-3">
         <Select value={status} onChange={(e) => (setStatus(e.target.value), setPage(1))} className="w-36" aria-label="Status">
-          <option value="">All shifts</option>
+          <option value="">All Shifts</option>
           <option value="OPEN">Open</option>
           <option value="CLOSED">Closed</option>
         </Select>
@@ -189,7 +194,7 @@ function ShiftsTab({ onDeposit, onClose }: { onDeposit: (s: Shift) => void; onCl
             <Th right>Expected</Th>
             <Th right>Counted</Th>
             <Th right>Difference</Th>
-            <Th right>To bank</Th>
+            <Th right>To Bank</Th>
             <Th>Banked</Th>
             <Th />
           </tr>
@@ -220,11 +225,11 @@ function ShiftsTab({ onDeposit, onClose }: { onDeposit: (s: Shift) => void; onCl
                   <Td>
                     {closed ? (
                       n(s.depositGap) <= 0 ? (
-                        <Badge tone={s.unexplainedGap ? "red" : "green"}>{s.unexplainedGap ? "Gap unexplained" : "Banked"}</Badge>
+                        <Badge tone={s.unexplainedGap ? "red" : "green"}>{s.unexplainedGap ? "Gap Unexplained" : "Banked"}</Badge>
                       ) : (s.deposited ?? 0) > 0 ? (
                         <Badge tone="amber">{inr0(n(s.depositGap))} left</Badge>
                       ) : (
-                        <Badge tone="amber">Not banked</Badge>
+                        <Badge tone="amber">Not Banked</Badge>
                       )
                     ) : null}
                   </Td>
@@ -302,8 +307,8 @@ function DepositsTab({ onChanged }: { onChanged: () => void }) {
             <tr>
               <Th>Deposit</Th>
               <Th>Date</Th>
-              <Th>For shift</Th>
-              <Th>Bank / ref</Th>
+              <Th>For Shift</Th>
+              <Th>Bank / Ref</Th>
               <Th right>Amount</Th>
               <Th right>Gap</Th>
               <Th>Reason</Th>
@@ -345,7 +350,7 @@ function DepositsTab({ onChanged }: { onChanged: () => void }) {
                       ) : d.resolvedAt ? (
                         <Badge tone="slate">Resolved {date(d.resolvedAt)}</Badge>
                       ) : (
-                        <Badge tone="red">Gap open</Badge>
+                        <Badge tone="red">Gap Open</Badge>
                       )}
                     </Td>
                     <Td right>
@@ -360,9 +365,7 @@ function DepositsTab({ onChanged }: { onChanged: () => void }) {
                             Resolve
                           </Button>
                         )}
-                        {can("cash.manage") && (
-                          <Button size="sm" variant="ghost" icon={<Trash2 className="size-4" />} onClick={() => remove(d)} aria-label="Delete deposit" />
-                        )}
+                        {can("cash.manage") && <RowAction kind="delete" title={`Delete deposit ${d.depositNo}`} onClick={() => remove(d)} />}
                       </div>
                     </Td>
                   </tr>
@@ -373,7 +376,7 @@ function DepositsTab({ onChanged }: { onChanged: () => void }) {
         </Table>
         {data && <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />}
       </Card>
-      <Modal open={!!slip} onClose={() => setSlip(null)} title="Deposit slip" size="md">
+      <Modal open={!!slip} onClose={() => setSlip(null)} title="Deposit Slip" size="md">
         {slip && <img src={slip} alt="Deposit slip" className="max-h-[65vh] w-full rounded-lg object-contain" />}
       </Modal>
     </>
@@ -406,7 +409,7 @@ function OpenShiftBody({ onClose, onSaved }: { onClose: () => void; onSaved: () 
     <Modal
       open
       onClose={onClose}
-      title="Open shift"
+      title="Open Shift"
       size="sm"
       footer={
         <>
@@ -414,13 +417,13 @@ function OpenShiftBody({ onClose, onSaved }: { onClose: () => void; onSaved: () 
             Cancel
           </Button>
           <Button type="submit" form="open-shift" loading={saving}>
-            Open shift
+            Open Shift
           </Button>
         </>
       }
     >
       <form id="open-shift" onSubmit={save}>
-        <Field label="Opening cash in the drawer (₹)" required hint="Count the float before the first bill">
+        <Field label="Opening Cash in the Drawer (₹)" required hint="Count the float before the first bill">
           <Input type="number" step="1" min="0" value={float} onChange={(e) => setFloat(e.target.value)} autoFocus required className="num text-lg" />
         </Field>
       </form>
@@ -479,7 +482,7 @@ function CloseShiftBody({ shift, onClose, onSaved }: { shift: Shift; onClose: ()
     <Modal
       open
       onClose={onClose}
-      title={`Close shift · ${shift.shiftNo}`}
+      title={`Close Shift · ${shift.shiftNo}`}
       size="lg"
       footer={
         <>
@@ -487,21 +490,21 @@ function CloseShiftBody({ shift, onClose, onSaved }: { shift: Shift; onClose: ()
             Cancel
           </Button>
           <Button type="submit" form="close-shift" loading={saving} disabled={!b}>
-            Close shift
+            Close Shift
           </Button>
         </>
       }
     >
       <form id="close-shift" onSubmit={save} className="grid gap-4 md:grid-cols-3">
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Expected in drawer</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Expected in Drawer</p>
           {b ? (
             <dl className="space-y-1 text-sm">
-              <Row l="Opening float" v={inr(b.openingFloat)} />
-              <Row l="Cash sales & receipts" v={`+ ${inr(b.cashSales)}`} />
-              <Row l="Paid to vendors (cash)" v={`− ${inr(b.vendorCashPayments)}`} />
-              <Row l="Cash expenses" v={`− ${inr(b.cashExpenses)}`} />
-              <Row l="Cash refunds" v={`− ${inr(b.cashRefunds)}`} />
+              <Row l="Opening Float" v={inr(b.openingFloat)} />
+              <Row l="Cash Sales & Receipts" v={`+ ${inr(b.cashSales)}`} />
+              <Row l="Paid to Vendors (Cash)" v={`− ${inr(b.vendorCashPayments)}`} />
+              <Row l="Cash Expenses" v={`− ${inr(b.cashExpenses)}`} />
+              <Row l="Cash Refunds" v={`− ${inr(b.cashRefunds)}`} />
               <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold">
                 <dt>Expected</dt>
                 <dd className="num">{inr(b.expected)}</dd>
@@ -513,7 +516,7 @@ function CloseShiftBody({ shift, onClose, onSaved }: { shift: Shift; onClose: ()
           <p className="mt-2 text-[11px] text-slate-400">Worked out from the bills, receipts and expenses on this shift — never typed.</p>
         </div>
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Count by note</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Count by Note</p>
           <div className="space-y-1.5">
             {NOTES.map((d) => (
               <div key={d} className="flex items-center gap-2 text-sm">
@@ -547,18 +550,18 @@ function CloseShiftBody({ shift, onClose, onSaved }: { shift: Shift; onClose: ()
           </div>
         </div>
         <div className="space-y-3">
-          <Field label="Keep as tomorrow's float (₹)">
+          <Field label="Keep as Tomorrow's Float (₹)">
             <Input type="number" min="0" step="1" value={floatKept} onChange={(e) => setFloatKept(e.target.value)} className="num" />
           </Field>
           <div className="rounded-lg bg-brand-50 px-3 py-2 text-sm">
             <span className="text-slate-600">To deposit</span>
             <span className="num float-right font-semibold text-brand-800">{inr(toBank)}</span>
           </div>
-          <Field label="Cash handed to">
+          <Field label="Cash Handed To">
             <Input value={handedTo} onChange={(e) => setHandedTo(e.target.value)} placeholder="e.g. Store manager · Prakash" />
           </Field>
           {Math.abs(diff) >= 0.5 && (
-            <Field label="Reason for the difference" required>
+            <Field label="Reason for the Difference" required>
               <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. ₹200 paid to auto driver, voucher attached" />
             </Field>
           )}
@@ -637,7 +640,7 @@ function DepositBody({ preset, onClose, onSaved }: { preset: Shift | null; onClo
     <Modal
       open
       onClose={onClose}
-      title="Bank deposit"
+      title="Bank Deposit"
       size="md"
       footer={
         <>
@@ -645,13 +648,13 @@ function DepositBody({ preset, onClose, onSaved }: { preset: Shift | null; onClo
             Cancel
           </Button>
           <Button type="submit" form="deposit-form" loading={saving}>
-            Save deposit
+            Save Deposit
           </Button>
         </>
       }
     >
       <form id="deposit-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="For shift" className="sm:col-span-2" hint="Closed shifts with cash still to bank">
+        <Field label="For Shift" className="sm:col-span-2" hint="Closed shifts with cash still to bank">
           <Select
             value={shiftId}
             onChange={(e) => {
@@ -660,7 +663,7 @@ function DepositBody({ preset, onClose, onSaved }: { preset: Shift | null; onClo
               if (s) setAmount(String(gapOf(s)));
             }}
           >
-            <option value="">Not tied to a shift</option>
+            <option value="">Not Tied to a Shift</option>
             {[...(preset && !pending.some((s) => s.id === preset.id) ? [preset] : []), ...pending].map((s) => (
               <option key={s.id} value={s.id}>
                 {s.shiftNo} · {s.openedBy?.name} · {date(s.openedAt)} · {inr(gapOf(s))} to bank
@@ -668,19 +671,19 @@ function DepositBody({ preset, onClose, onSaved }: { preset: Shift | null; onClo
             ))}
           </Select>
         </Field>
-        <Field label="Amount deposited (₹)" required>
+        <Field label="Amount Deposited (₹)" required>
           <Input type="number" min="1" step="1" value={amount} onChange={(e) => setAmount(e.target.value)} required autoFocus className="num" />
         </Field>
-        <Field label="Deposit date" required>
-          <Input type="date" value={depositDate} max={today()} onChange={(e) => setDepositDate(e.target.value)} />
+        <Field label="Deposit Date" required>
+          <DateInput value={depositDate} max={today()} onChange={(e) => setDepositDate(e.target.value)} />
         </Field>
-        <Field label="Bank account">
+        <Field label="Bank Account">
           <Input value={bank} onChange={(e) => setBank(e.target.value)} placeholder="e.g. Current a/c ending 4417" />
         </Field>
-        <Field label="Slip / reference no.">
+        <Field label="Slip / Reference No.">
           <Input value={reference} onChange={(e) => setReference(e.target.value)} />
         </Field>
-        <Field label="Slip photo" className="sm:col-span-2">
+        <Field label="Slip Photo" className="sm:col-span-2">
           <input
             type="file"
             accept="image/*"
@@ -704,7 +707,7 @@ function DepositBody({ preset, onClose, onSaved }: { preset: Shift | null; onClo
           </p>
         )}
         {chosen && diff !== 0 && (
-          <Field label="Reason for the difference" required className="sm:col-span-2">
+          <Field label="Reason for the Difference" required className="sm:col-span-2">
             <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. ₹3,200 paid to labour, voucher attached" />
           </Field>
         )}

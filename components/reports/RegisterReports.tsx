@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
 import { Card, EmptyRow, StatusBadge, Table, Td, Th, cx } from "@/components/ui";
 import { date, downloadCsv, inr, n, qty, round2 } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { Purchase, Sale } from "@/lib/types";
-import { ReportFrame, SortTh, TotalRow, periodLabel, useSort, type Range } from "./ReportKit";
+import { ReportFrame, ReportLink, SortTh, TotalRow, periodLabel, useSort, type Range } from "./ReportKit";
 
 // ───────────────────────── Sales register ─────────────────────────
 
@@ -46,7 +45,7 @@ export function SalesRegisterReport({ range, rangeBar }: { range: Range; rangeBa
   }
 
   return (
-    <ReportFrame title="Sales register" period={periodLabel(range)} controls={rangeBar} onCsv={csv} loading={loading} error={error} onRetry={reload} hasData={!!data}>
+    <ReportFrame title="Sales Register" period={periodLabel(range)} controls={rangeBar} onCsv={csv} loading={loading} error={error} onRetry={reload} hasData={!!data}>
       {data && (
         <Card bodyClassName="p-0">
           <Table>
@@ -72,9 +71,9 @@ export function SalesRegisterReport({ range, rangeBar }: { range: Range; rangeBa
                   <tr key={s.id} className="hover:bg-slate-50">
                     <Td className="whitespace-nowrap">{date(s.saleDate)}</Td>
                     <Td className="whitespace-nowrap">
-                      <Link href={`/sales/${s.id}`} className="font-medium text-brand-700 hover:underline">
+                      <ReportLink href={`/sales/${s.id}`} perms={["sales.bill"]} className="font-medium text-brand-700 hover:underline">
                         {s.invoiceNo}
-                      </Link>
+                      </ReportLink>
                     </Td>
                     <Td>
                       {party(s)}
@@ -130,7 +129,7 @@ export function PurchaseRegisterReport({ range, rangeBar }: { range: Range; rang
     if (!data) return;
     downloadCsv(
       `purchase-register-${range.from}-to-${range.to}.csv`,
-      ["Date", "Purchase no", "Vendor invoice", "Vendor", "GSTIN", "Taxable", "GST", "Other charges", "Total", "Paid", "Balance", "Status"],
+      ["Date", "Purchase No", "Vendor Invoice", "Vendor", "GSTIN", "Taxable", "GST", "Other Charges", "Total", "Paid", "Balance", "Status"],
       [
         ...data.rows.map((p) => [
           p.purchaseDate.slice(0, 10),
@@ -152,7 +151,7 @@ export function PurchaseRegisterReport({ range, rangeBar }: { range: Range; rang
   }
 
   return (
-    <ReportFrame title="Purchase register" period={periodLabel(range)} controls={rangeBar} onCsv={csv} loading={loading} error={error} onRetry={reload} hasData={!!data}>
+    <ReportFrame title="Purchase Register" period={periodLabel(range)} controls={rangeBar} onCsv={csv} loading={loading} error={error} onRetry={reload} hasData={!!data}>
       {data && (
         <Card bodyClassName="p-0">
           <Table>
@@ -176,9 +175,9 @@ export function PurchaseRegisterReport({ range, rangeBar }: { range: Range; rang
                   <tr key={p.id} className="hover:bg-slate-50">
                     <Td className="whitespace-nowrap">{date(p.purchaseDate)}</Td>
                     <Td className="whitespace-nowrap">
-                      <Link href={`/purchases/${p.id}`} className="font-medium text-brand-700 hover:underline">
+                      <ReportLink href={`/purchases/${p.id}`} perms={["purchases.view"]} className="font-medium text-brand-700 hover:underline">
                         {p.purchaseNo}
-                      </Link>
+                      </ReportLink>
                       {p.vendorInvoiceNo && <p className="text-xs text-slate-500">Bill {p.vendorInvoiceNo}</p>}
                     </Td>
                     <Td>
@@ -247,7 +246,7 @@ export function ProductSalesReport({ range, rangeBar }: { range: Range; rangeBar
   function csv() {
     downloadCsv(
       `product-sales-${range.from}-to-${range.to}.csv`,
-      ["Product", "Unit", "Qty sold", "Revenue (incl. GST)", "Cost", "Profit", "Margin %"],
+      ["Product", "Unit", "Qty Sold", "Revenue (Incl. GST)", "Cost", "Profit", "Margin %"],
       [
         ...sort.sorted.map((r) => [r.name, r.unit, r.quantity, r.revenue, r.cost, r.profit, r.marginPct]),
         ["TOTAL", "", "", totals.revenue, totals.cost, totals.profit, totals.marginPct],
@@ -256,14 +255,14 @@ export function ProductSalesReport({ range, rangeBar }: { range: Range; rangeBar
   }
 
   return (
-    <ReportFrame title="Product-wise sales" period={periodLabel(range)} controls={rangeBar} onCsv={csv} loading={loading} error={error} onRetry={reload} hasData={!!data}>
+    <ReportFrame title="Product-Wise Sales" period={periodLabel(range)} controls={rangeBar} onCsv={csv} loading={loading} error={error} onRetry={reload} hasData={!!data}>
       {data && (
         <Card bodyClassName="p-0">
           <Table>
             <thead>
               <tr>
                 <SortTh label="Product" k="name" sort={sort} />
-                <SortTh label="Qty sold" k="quantity" sort={sort} right />
+                <SortTh label="Qty Sold" k="quantity" sort={sort} right />
                 <SortTh label="Revenue" k="revenue" sort={sort} right />
                 <SortTh label="Cost" k="cost" sort={sort} right />
                 <SortTh label="Profit" k="profit" sort={sort} right />
@@ -277,9 +276,9 @@ export function ProductSalesReport({ range, rangeBar }: { range: Range; rangeBar
                 sort.sorted.map((r) => (
                   <tr key={`${r.productId}-${r.name}`} className="hover:bg-slate-50">
                     <Td>
-                      <Link href={`/products/${r.productId}`} className="font-medium text-slate-900 hover:text-brand-700">
+                      <ReportLink href={`/products/${r.productId}`} perms={["products.view"]} className="font-medium text-slate-900 hover:text-brand-700">
                         {r.name}
-                      </Link>
+                      </ReportLink>
                     </Td>
                     <Td right>
                       {qty(r.quantity)} <span className="text-xs text-slate-500">{r.unit}</span>

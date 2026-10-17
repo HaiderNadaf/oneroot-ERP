@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useBranchOptions } from "@/components/BranchNotice";
 import { ActionsTd, ActionsTh, Button, Card, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, Pagination, RowAction, SearchInput, Select, Table, Td, Th, errMsg, useConfirm, useToast } from "@/components/ui";
@@ -26,7 +26,12 @@ export default function AgentsPage() {
   const q = useDebounced(search);
   const canAdd = can("vendors.manage");
   const canDelete = can("vendors.delete");
-  const { data, error, loading, reload } = useApi<Paged<Agent>>("/agents", { search: q, page, pageSize: 25 });
+  // The full list (branch, paging) needs vendors.view; billing staff read the plain agent options instead
+  const full = can("vendors.view");
+  const listed = useApi<Paged<Agent>>(full ? "/agents" : null, { search: q, page, pageSize: 25 });
+  const options = useApi<Agent[]>(full ? null : "/agents/options");
+  const { error, loading, reload } = full ? listed : options;
+  const data: Paged<Agent> | null = full ? listed.data : options.data && filterOptions(options.data, q);
   const fullName = (a: Agent) => [a.firstName, a.lastName].filter(Boolean).join(" ");
 
   async function remove(a: Agent) {
@@ -40,6 +45,8 @@ export default function AgentsPage() {
     }
   }
 
+  const cols = 4 + (full ? 2 : 0) + (canAdd || canDelete ? 1 : 0);
+
   return (
     <>
       <PageHeader
@@ -48,7 +55,7 @@ export default function AgentsPage() {
         actions={
           canAdd && (
             <Button icon={<Plus className="size-4" />} onClick={() => openForm(null)}>
-              New agent
+              New Agent
             </Button>
           )
         }
@@ -76,23 +83,23 @@ export default function AgentsPage() {
             <thead>
               <tr>
                 <Th>Agent ID</Th>
-                <Th>First name</Th>
-                <Th>Last name</Th>
+                <Th>First Name</Th>
+                <Th>Last Name</Th>
                 <Th>Mobile</Th>
-                <Th>Branch</Th>
-                <Th>Added on</Th>
-                <ActionsTh />
+                {full && <Th>Branch</Th>}
+                {full && <Th>Added On</Th>}
+                {(canAdd || canDelete) && <ActionsTh />}
               </tr>
             </thead>
             <tbody>
               {loading && !data ? (
-                <LoadingRow colSpan={7} />
+                <LoadingRow colSpan={cols} />
               ) : !data?.items.length ? (
-                <EmptyRow colSpan={7}>
+                <EmptyRow colSpan={cols}>
                   {search ? "No agents match this search." : "No agents yet."}{" "}
                   {canAdd && !search && (
                     <button className="font-medium text-brand-700 underline" onClick={() => openForm(null)}>
-                      Add your first agent
+                      Add Your First Agent
                     </button>
                   )}
                 </EmptyRow>
@@ -103,14 +110,14 @@ export default function AgentsPage() {
                     <Td>{a.firstName}</Td>
                     <Td>{a.lastName || "—"}</Td>
                     <Td className="whitespace-nowrap">{a.mobile ? <a href={`tel:${a.mobile}`} className="hover:text-brand-700">{a.mobile}</a> : "—"}</Td>
-                    <Td>{a.branch ? `${a.branch.name} (${a.branch.code})` : "—"}</Td>
-                    <Td className="text-slate-500">{date(a.createdAt)}</Td>
-                    <ActionsTd>
-                      {canAdd && <RowAction kind="edit" title={`Edit ${a.agentId}`} onClick={() => openForm(a)} />}
-                      {canDelete && (
-                        <Button variant="ghost" size="sm" icon={<Trash2 className="size-4" />} onClick={() => remove(a)} aria-label={`Delete ${a.agentId}`} />
-                      )}
-                    </ActionsTd>
+                    {full && <Td>{a.branch ? `${a.branch.name} (${a.branch.code})` : "—"}</Td>}
+                    {full && <Td className="text-slate-500">{date(a.createdAt)}</Td>}
+                    {(canAdd || canDelete) && (
+                      <ActionsTd>
+                        {canAdd && <RowAction kind="edit" title={`Edit ${a.agentId}`} onClick={() => openForm(a)} />}
+                        {canDelete && <RowAction kind="delete" title={`Delete ${a.agentId}`} onClick={() => remove(a)} />}
+                      </ActionsTd>
+                    )}
                   </tr>
                 ))
               )}
@@ -132,6 +139,13 @@ export default function AgentsPage() {
       />
     </>
   );
+}
+
+/** Search the plain agent options in the browser, shaped like one page of the full list */
+function filterOptions(items: Agent[], q: string): Paged<Agent> {
+  const s = q.trim().toLowerCase();
+  const hits = s ? items.filter((a) => [a.agentId, a.firstName, a.lastName, a.mobile].some((v) => v?.toLowerCase().includes(s))) : items;
+  return { items: hits, total: hits.length, page: 1, pageSize: hits.length, totalPages: 1 };
 }
 
 /** Add or edit an agent: only the first name is required; the ORAGENT code comes from the database and never changes */
@@ -183,7 +197,7 @@ function AgentForm({ agent, open, onClose, onSaved }: { agent: Agent | null; ope
     <Modal
       open={open}
       onClose={onClose}
-      title={agent ? `Edit agent ${agent.agentId}` : "New agent"}
+      title={agent ? `Edit Agent ${agent.agentId}` : "New Agent"}
       size="sm"
       footer={
         <>
@@ -191,7 +205,7 @@ function AgentForm({ agent, open, onClose, onSaved }: { agent: Agent | null; ope
             Cancel
           </Button>
           <Button type="submit" form="agent-form" loading={saving}>
-            {agent ? "Save" : "Add agent"}
+            {agent ? "Save" : "Add Agent"}
           </Button>
         </>
       }
@@ -205,10 +219,10 @@ function AgentForm({ agent, open, onClose, onSaved }: { agent: Agent | null; ope
             className="font-mono bg-slate-50"
           />
         </Field>
-        <Field label="First name" required>
+        <Field label="First Name" required>
           <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} autoFocus />
         </Field>
-        <Field label="Last name">
+        <Field label="Last Name">
           <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
         </Field>
         <Field label="Mobile" hint="10 digits">
@@ -223,7 +237,7 @@ function AgentForm({ agent, open, onClose, onSaved }: { agent: Agent | null; ope
         </Field>
         <Field label="Branch">
           <Select value={branchId} onChange={(e) => setBranchId(e.target.value)} disabled={branchesLoading && !branches.length}>
-            <option value="">{branchesLoading && !branches.length ? "Loading branches…" : "Choose branch…"}</option>
+            <option value="">{branchesLoading && !branches.length ? "Loading Branches…" : "Choose Branch…"}</option>
             {branches.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name} ({b.code})

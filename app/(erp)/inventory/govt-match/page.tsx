@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { useNeedBranch } from "@/components/BranchNotice";
-import { Badge, Button, Card, EmptyRow, ErrorBox, Field, Input, PageHeader, Spinner, Table, Td, Textarea, Th, cx, errMsg, useToast } from "@/components/ui";
+import { Badge, Button, Card, DateInput, EmptyRow, ErrorBox, Field, Input, PageHeader, Spinner, Table, Td, Textarea, Th, cx, errMsg, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { date, inr, qty, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { GovtMatch, GovtMatchRow } from "@/lib/types";
@@ -23,6 +24,8 @@ type Draft = Record<string, { govtSales: string; portalStock: string; note: stri
 
 function GovtMatchView() {
   const toast = useToast();
+  // Bills open under Invoices; without it the bill numbers are plain text
+  const canBill = useAuth().can("sales.bill");
   const needBranch = useNeedBranch("match its figures");
   const [day, setDay] = useState(today());
   const { data, error, loading, reload, setData } = useApi<GovtMatch>(needBranch.blocked ? null : "/govt-fertiliser/match", { date: day });
@@ -86,13 +89,13 @@ function GovtMatchView() {
   return (
     <>
       <PageHeader
-        title="Govt fertiliser match"
+        title="Govt Fertiliser Match"
         subtitle="Daily check that subsidised fertiliser sales and closing stock agree with the government POS portal"
         actions={
           <>
-            <Input type="date" value={day} max={today()} onChange={(e) => setDay(e.target.value)} className="w-40" aria-label="Date" />
+            <DateInput value={day} max={today()} onChange={(e) => setDay(e.target.value)} className="w-40" aria-label="Date" />
             <Button icon={<Save className="size-4" />} loading={saving} onClick={save} disabled={!data?.rows.length}>
-              Save portal figures
+              Save Portal Figures
             </Button>
           </>
         }
@@ -109,15 +112,15 @@ function GovtMatchView() {
               No product is marked <b>Govt-subsidised</b> yet. Tick it on the fertiliser products (Products → Edit) and they will appear here; their bills will then require the govt POS receipt no.
             </div>
           )}
-          <Card title={`Sales and stock · ${date(data.date)}`} bodyClassName="p-0">
+          <Card title={`Sales and Stock · ${date(data.date)}`} bodyClassName="p-0">
             <Table>
               <thead>
                 <tr>
                   <Th>Product</Th>
-                  <Th right>Our sales</Th>
-                  <Th right>Govt POS sales</Th>
-                  <Th right>Our closing stock</Th>
-                  <Th right>Portal stock</Th>
+                  <Th right>Our Sales</Th>
+                  <Th right>Govt POS Sales</Th>
+                  <Th right>Our Closing Stock</Th>
+                  <Th right>Portal Stock</Th>
                   <Th>Status</Th>
                   <Th>Note</Th>
                   <Th />
@@ -174,7 +177,7 @@ function GovtMatchView() {
           </Card>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Card title="Govt POS receipts with no matching bill">
+            <Card title="Govt POS Receipts With No Matching Bill">
               <Field label="Paste receipt numbers from the govt device (one per line)">
                 <Textarea rows={4} value={receipts} onChange={(e) => setReceipts(e.target.value)} placeholder={"R2026100612345\nR2026100612346"} className="font-mono text-xs" />
               </Field>
@@ -193,9 +196,11 @@ function GovtMatchView() {
                   {checkResult.unmatched.map((r) => (
                     <li key={r} className="flex items-center justify-between gap-2 break-all rounded-lg bg-red-50 px-3 py-1.5 font-mono text-xs text-red-700">
                       {r}
-                      <Link href={`/sales/new`} className="shrink-0 break-normal font-sans font-medium text-brand-700 hover:underline">
-                        Bill it
-                      </Link>
+                      {canBill && (
+                        <Link href={`/sales/new`} className="shrink-0 break-normal font-sans font-medium text-brand-700 hover:underline">
+                          Bill It
+                        </Link>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -206,7 +211,7 @@ function GovtMatchView() {
                 <thead>
                   <tr>
                     <Th>Bill</Th>
-                    <Th>Govt receipt</Th>
+                    <Th>Govt Receipt</Th>
                     <Th>Aadhaar</Th>
                     <Th right>Amount</Th>
                   </tr>
@@ -218,9 +223,13 @@ function GovtMatchView() {
                     data.receiptsOnBills.map((b) => (
                       <tr key={b.id} className="hover:bg-slate-50">
                         <Td>
-                          <Link href={`/sales/${b.id}`} className="font-medium text-brand-700 hover:underline">
-                            {b.invoiceNo}
-                          </Link>
+                          {canBill ? (
+                            <Link href={`/sales/${b.id}`} className="font-medium text-brand-700 hover:underline">
+                              {b.invoiceNo}
+                            </Link>
+                          ) : (
+                            <span className="font-medium text-slate-900">{b.invoiceNo}</span>
+                          )}
                           <p className="text-xs text-slate-500">{b.customerName ?? "Walk-in"}</p>
                         </Td>
                         <Td className="font-mono text-xs">{b.govtReceiptNo}</Td>

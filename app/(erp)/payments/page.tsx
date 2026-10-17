@@ -1,18 +1,19 @@
 "use client";
 
-import { Download, Plus, Trash2 } from "lucide-react";
+import { Download, Plus } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { CASH_MODES, PartyPaymentForm, modeLabel } from "@/components/PartyPaymentForm";
 import {
   Button,
   Card,
+  DateInput,
   EmptyRow,
   ErrorBox,
-  Input,
   LoadingRow,
   PageHeader,
   Pagination,
+  RowAction,
   Select,
   Table,
   Tabs,
@@ -26,19 +27,23 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { date, downloadCsv, inr, monthStart, n, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import type { Permission } from "@/lib/permissions";
 import type { Paged, Payment } from "@/lib/types";
 
 type Direction = "IN" | "OUT";
 
-function partyOf(p: Payment) {
-  if (p.customer) return { name: p.customer.name, href: `/customers/${p.customer.id}` };
-  if (p.vendor) return { name: p.vendor.name, href: `/vendors/${p.vendor.id}` };
+type Can = (...keys: Permission[]) => boolean;
+
+/** Links only point at pages the user can open; otherwise the name shows as plain text */
+function partyOf(p: Payment, can: Can) {
+  if (p.customer) return { name: p.customer.name, href: can("customers.view") ? `/customers/${p.customer.id}` : null };
+  if (p.vendor) return { name: p.vendor.name, href: can("vendors.view") ? `/vendors/${p.vendor.id}` : null };
   return { name: p.sale?.customerName || "Walk-in customer", href: null };
 }
 
-function againstOf(p: Payment) {
-  if (p.sale) return { label: p.sale.invoiceNo, href: `/sales/${p.sale.id}` };
-  if (p.purchase) return { label: p.purchase.purchaseNo, href: `/purchases/${p.purchase.id}` };
+function againstOf(p: Payment, can: Can) {
+  if (p.sale) return { label: p.sale.invoiceNo, href: can("sales.bill") ? `/sales/${p.sale.id}` : null };
+  if (p.purchase) return { label: p.purchase.purchaseNo, href: can("purchases.view") ? `/purchases/${p.purchase.id}` : null };
   return null;
 }
 
@@ -55,6 +60,9 @@ export default function PaymentsPage() {
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const canDelete = can("payments.delete");
+  // Recording needs the permission plus the party list the form picks from
+  const canReceive = can("payments.record") && can("customers.view");
+  const canPayVendor = can("payments.vendor") && can("vendors.view");
 
   const filters = { direction, from, to, mode };
   const { data, error, loading, reload } = useApi<Paged<Payment>>("/payments", { ...filters, page, pageSize: 25 });
@@ -66,12 +74,12 @@ export default function PaymentsPage() {
       const all = await api.get<Paged<Payment>>("/payments", { ...filters, pageSize: 500 });
       downloadCsv(
         `${isIn ? "receipts" : "vendor-payments"}-${from || "all"}-to-${to || "today"}.csv`,
-        ["Payment no", "Date", isIn ? "Customer" : "Vendor", "Against", "Mode", "Reference", "Amount", "Notes"],
+        ["Payment No", "Date", isIn ? "Customer" : "Vendor", "Against", "Mode", "Reference", "Amount", "Notes"],
         all.items.map((p) => [
           p.paymentNo,
           date(p.paymentDate),
-          partyOf(p).name,
-          againstOf(p)?.label ?? "On account",
+          partyOf(p, can).name,
+          againstOf(p, can)?.label ?? "On account",
           p.mode,
           p.reference,
           n(p.amount),
@@ -86,12 +94,12 @@ export default function PaymentsPage() {
   }
 
   async function remove(p: Payment) {
-    const party = partyOf(p).name;
+    const party = partyOf(p, can).name;
     const ok = await confirm(
       `Delete ${p.paymentNo} (${inr(p.amount)} ${isIn ? "from" : "to"} ${party})? This reverses the payment: ${
         isIn ? "the customer's balance due" : "the amount payable to the vendor"
       } goes back up by ${inr(p.amount)} and the linked bill${p.sale || p.purchase ? "" : "s"} become unpaid again.`,
-      { danger: true, confirmLabel: "Delete payment" },
+      { danger: true, confirmLabel: "Delete Payment" },
     );
     if (!ok) return;
     setDeleting(p.id);
@@ -118,9 +126,11 @@ export default function PaymentsPage() {
             <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv} loading={exporting}>
               Export
             </Button>
-            <Button icon={<Plus className="size-4" />} onClick={() => setFormOpen(true)}>
-              New payment
-            </Button>
+            {(canReceive || canPayVendor) && (
+              <Button icon={<Plus className="size-4" />} onClick={() => setFormOpen(true)}>
+                New Payment
+              </Button>
+            )}
           </>
         }
       />
@@ -132,20 +142,20 @@ export default function PaymentsPage() {
           setPage(1);
         }}
         tabs={[
-          { value: "IN", label: "Received (from customers)" },
-          { value: "OUT", label: "Paid (to vendors)" },
+          { value: "IN", label: "Received (From Customers)" },
+          { value: "OUT", label: "Paid (To Vendors)" },
         ]}
       />
 
       <Card bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
           <div className="flex w-full items-center gap-1.5 sm:w-auto">
-            <Input type="date" value={from} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="From date" />
+            <DateInput value={from} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="From date" />
             <span className="text-xs text-slate-400">to</span>
-            <Input type="date" value={to} onChange={(e) => (setTo(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="To date" />
+            <DateInput value={to} onChange={(e) => (setTo(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="To date" />
           </div>
           <Select value={mode} onChange={(e) => (setMode(e.target.value), setPage(1))} className="w-full sm:w-40" aria-label="Mode">
-            <option value="">All modes</option>
+            <option value="">All Modes</option>
             {CASH_MODES.map((m) => (
               <option key={m} value={m}>
                 {modeLabel(m)}
@@ -161,7 +171,7 @@ export default function PaymentsPage() {
                 setPage(1);
               }}
             >
-              All dates
+              All Dates
             </Button>
           )}
           {data && (
@@ -180,7 +190,7 @@ export default function PaymentsPage() {
           <Table>
             <thead>
               <tr>
-                <Th>Payment no.</Th>
+                <Th>Payment No.</Th>
                 <Th>Date</Th>
                 <Th>{isIn ? "Customer" : "Vendor"}</Th>
                 <Th>Against</Th>
@@ -197,8 +207,8 @@ export default function PaymentsPage() {
                 <EmptyRow colSpan={cols}>No {isIn ? "receipts" : "vendor payments"} for these filters</EmptyRow>
               ) : (
                 data.items.map((p) => {
-                  const party = partyOf(p);
-                  const against = againstOf(p);
+                  const party = partyOf(p, can);
+                  const against = againstOf(p, can);
                   return (
                     <tr key={p.id} className="hover:bg-slate-50">
                       <Td className="font-medium text-slate-900">{p.paymentNo}</Td>
@@ -217,6 +227,8 @@ export default function PaymentsPage() {
                           <Link href={against.href} className="text-brand-700 hover:underline">
                             {against.label}
                           </Link>
+                        ) : against ? (
+                          against.label
                         ) : (
                           <span className="text-xs text-slate-500">On account</span>
                         )}
@@ -228,15 +240,7 @@ export default function PaymentsPage() {
                       </Td>
                       {canDelete && (
                         <Td right>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => remove(p)}
-                            loading={deleting === p.id}
-                            icon={<Trash2 className="size-4" />}
-                            aria-label={`Delete ${p.paymentNo}`}
-                            className="text-slate-400 hover:bg-red-50 hover:text-red-600"
-                          />
+                          <RowAction kind="delete" title={`Delete ${p.paymentNo}`} loading={deleting === p.id} onClick={() => remove(p)} />
                         </Td>
                       )}
                     </tr>
@@ -251,7 +255,7 @@ export default function PaymentsPage() {
 
       <PartyPaymentForm
         open={formOpen}
-        defaultType={isIn ? "CUSTOMER" : "VENDOR"}
+        defaultType={(isIn && canReceive) || !canPayVendor ? "CUSTOMER" : "VENDOR"}
         onClose={() => setFormOpen(false)}
         onSaved={(p) => {
           setFormOpen(false);

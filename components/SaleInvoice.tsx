@@ -34,7 +34,7 @@ export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSet
   const rates = [...byRate.entries()].sort((a, b) => a[0] - b[0]);
 
   return (
-    <div className="relative bg-white text-[13px] leading-snug text-slate-900">
+    <div className="relative bg-surface text-[13px] leading-snug text-slate-900">
       {cancelled && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
           <span className="-rotate-[25deg] select-none border-8 border-red-500/30 px-8 py-2 text-7xl font-black tracking-widest text-red-500/25">
@@ -63,7 +63,7 @@ export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSet
       {/* Bill-to and invoice meta */}
       <div className="grid grid-cols-2 gap-4 border-b border-slate-300 py-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase text-slate-500">Bill to</p>
+          <p className="text-[11px] font-semibold uppercase text-slate-500">Bill To</p>
           <p className="font-semibold">{c?.name ?? sale.customerName ?? "Cash customer"}</p>
           {(c?.phone ?? sale.customerPhone) && <p className="text-xs">Ph: {c?.phone ?? sale.customerPhone}</p>}
           {billAddress && <p className="text-xs">{billAddress}</p>}
@@ -216,9 +216,9 @@ export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSet
         </div>
 
         <dl className="space-y-1 text-[12px]">
-          <Row label="Gross (incl. GST)" value={inr(grossBeforeDiscount)} />
+          <Row label="Gross (Incl. GST)" value={inr(grossBeforeDiscount)} />
           {n(sale.discount) > 0 && <Row label="Discount" value={`− ${inr(sale.discount)}`} />}
-          <Row label="Taxable value" value={inr(sale.subtotal)} />
+          <Row label="Taxable Value" value={inr(sale.subtotal)} />
           {sale.isInterState ? (
             <Row label="IGST" value={inr(sale.igst)} />
           ) : (
@@ -227,15 +227,15 @@ export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSet
               <Row label="SGST" value={inr(sale.sgst)} />
             </>
           )}
-          {n(sale.roundOff) !== 0 && <Row label="Round off" value={`${n(sale.roundOff) > 0 ? "+" : "−"} ${inr(Math.abs(n(sale.roundOff)))}`} />}
+          {n(sale.roundOff) !== 0 && <Row label="Round Off" value={`${n(sale.roundOff) > 0 ? "+" : "−"} ${inr(Math.abs(n(sale.roundOff)))}`} />}
           <div className="flex justify-between border-y-2 border-slate-800 py-1.5 text-base font-bold">
-            <dt>Grand total</dt>
+            <dt>Grand Total</dt>
             <dd className="num">{inr(total)}</dd>
           </div>
           {!cancelled && (
             <>
               <Row label="Paid" value={inr(paid)} />
-              <Row label="Balance due" value={inr(balance)} strong={balance > 0} />
+              <Row label="Balance Due" value={inr(balance)} strong={balance > 0} />
             </>
           )}
         </dl>

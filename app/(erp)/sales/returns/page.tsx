@@ -3,9 +3,10 @@
 import { Download } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { Badge, Button, Card, EmptyRow, ErrorBox, Input, LoadingRow, PageHeader, Pagination, Table, Td, Th } from "@/components/ui";
+import { Badge, Button, Card, DateInput, EmptyRow, ErrorBox, LoadingRow, PageHeader, Pagination, Table, Td, Th } from "@/components/ui";
 import { date, downloadCsv, inr, monthStart, n, qty, today } from "@/lib/format";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
 import type { Paged, SaleReturn } from "@/lib/types";
 
@@ -13,6 +14,7 @@ const itemsSummary = (r: SaleReturn) =>
   r.items.map((i) => `${i.product?.name ?? "Item"} × ${qty(i.quantity)}${i.product?.unit ? ` ${i.product.unit}` : ""}`).join(", ");
 
 export default function SaleReturnsPage() {
+  const { can } = useAuth();
   const [from, setFrom] = useState(monthStart());
   const [to, setTo] = useState(today());
   const [page, setPage] = useState(1);
@@ -26,7 +28,7 @@ export default function SaleReturnsPage() {
     const all = (await api.get<Paged<SaleReturn>>("/sales/returns", { from, to, pageSize: 500 })).items;
     downloadCsv(
       `sales_returns_${from || "all"}_${to || "all"}.csv`,
-      ["Return no", "Date", "Invoice", "Customer", "Items", "Refund mode", "Reason", "Amount"],
+      ["Return No", "Date", "Invoice", "Customer", "Items", "Refund Mode", "Reason", "Amount"],
       all.map((r) => [
         r.returnNo,
         date(r.returnDate),
@@ -43,7 +45,7 @@ export default function SaleReturnsPage() {
   return (
     <>
       <PageHeader
-        title="Sales returns"
+        title="Sales Returns"
         subtitle="Goods taken back from customers"
         actions={
           <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv} disabled={!data?.length}>
@@ -54,12 +56,14 @@ export default function SaleReturnsPage() {
 
       <Card bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
-          <Input type="date" value={from} max={to || undefined} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="From date" />
+          <DateInput value={from} max={to || undefined} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="From date" />
           <span className="text-xs text-slate-400">to</span>
-          <Input type="date" value={to} min={from || undefined} onChange={(e) => (setTo(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="To date" />
-          <p className="ml-auto text-xs text-slate-500">
-            Returns are created from an invoice&apos;s <span className="font-medium">Return items</span> button.
-          </p>
+          <DateInput value={to} min={from || undefined} onChange={(e) => (setTo(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="To date" />
+          {can("sales.bill") && (
+            <p className="ml-auto text-xs text-slate-500">
+              Returns are created from an invoice&apos;s <span className="font-medium">Return items</span> button.
+            </p>
+          )}
         </div>
 
         {error ? (
@@ -91,9 +95,13 @@ export default function SaleReturnsPage() {
                       <p className="text-xs text-slate-500">{date(r.returnDate)}</p>
                     </Td>
                     <Td>
-                      <Link href={`/sales/${r.saleId}`} className="font-medium text-brand-700 hover:underline">
-                        {r.sale?.invoiceNo ?? "View invoice"}
-                      </Link>
+                      {can("sales.bill") ? (
+                        <Link href={`/sales/${r.saleId}`} className="font-medium text-brand-700 hover:underline">
+                          {r.sale?.invoiceNo ?? "View Invoice"}
+                        </Link>
+                      ) : (
+                        <span className="font-medium text-slate-700">{r.sale?.invoiceNo ?? "—"}</span>
+                      )}
                     </Td>
                     <Td>{r.customer?.name ?? r.sale?.customerName ?? <span className="text-slate-400">Cash customer</span>}</Td>
                     <Td className="max-w-80 text-xs text-slate-600">
@@ -101,7 +109,7 @@ export default function SaleReturnsPage() {
                       {r.reason && <p className="mt-0.5 italic text-slate-400">{r.reason}</p>}
                     </Td>
                     <Td>
-                      <Badge tone={r.refundMode === "CREDIT" ? "violet" : "slate"}>{r.refundMode === "CREDIT" ? "Credit note" : r.refundMode}</Badge>
+                      <Badge tone={r.refundMode === "CREDIT" ? "violet" : "slate"}>{r.refundMode === "CREDIT" ? "Credit Note" : r.refundMode}</Badge>
                     </Td>
                     <Td right className="font-medium">
                       {inr(r.totalAmount)}

@@ -4,10 +4,10 @@ import { Download, FileUp, Upload } from "lucide-react";
 import type { Workbook } from "exceljs";
 import Link from "next/link";
 import { useRef, useState } from "react";
+import { RequirePerm } from "@/components/AppShell";
 import { useNeedBranch } from "@/components/BranchNotice";
 import { Badge, Button, Card, Checkbox, PageHeader, Table, Td, Th, cx, errMsg, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
 import { parseCsv, type ParsedCsv } from "@/lib/csv";
 import { downloadWorkbook, readSheet } from "@/lib/excel";
 import { useApi } from "@/lib/hooks";
@@ -48,11 +48,11 @@ type ImportResult = { rows: RowResult[]; created: number; updated: number; skipp
 const norm = (s: string) => s.trim().toLowerCase().replace(/[\s_-]+/g, " ");
 
 export default function ImportPage() {
-  const { can } = useAuth();
-  if (!can("products.manage")) {
-    return <p className="mx-auto mt-20 max-w-md text-center text-sm text-slate-500">You don&apos;t have access to this page. Ask an administrator for the &quot;Add, edit and delete products&quot; permission.</p>;
-  }
-  return <Importer />;
+  return (
+    <RequirePerm perms={["products.manage"]}>
+      <Importer />
+    </RequirePerm>
+  );
 }
 
 function Importer() {

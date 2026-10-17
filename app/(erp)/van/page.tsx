@@ -21,19 +21,19 @@ export default function VanTripsPage() {
   return (
     <>
       <PageHeader
-        title="Van trips"
+        title="Van Trips"
         subtitle="Load stock onto the van in the morning, bill farmers in the villages against the trip, and reconcile returns and cash in the evening"
         actions={
           <Button icon={<Plus className="size-4" />} onClick={() => setOpening(true)}>
-            Load a van
+            Load a Van
           </Button>
         }
       />
       <Card bodyClassName="p-0">
         <div className="flex items-center gap-2 border-b border-slate-100 p-3">
           <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-40" aria-label="Status">
-            <option value="">All trips</option>
-            <option value="OPEN">On the road</option>
+            <option value="">All Trips</option>
+            <option value="OPEN">On the Road</option>
             <option value="CLOSED">Closed</option>
           </Select>
         </div>
@@ -48,7 +48,7 @@ export default function VanTripsPage() {
                 <Th>Trip</Th>
                 <Th>Date</Th>
                 <Th>Salesperson</Th>
-                <Th>Vehicle · route</Th>
+                <Th>Vehicle · Route</Th>
                 <Th right>Products</Th>
                 <Th right>Bills</Th>
                 <Th right>Sales</Th>
@@ -74,7 +74,7 @@ export default function VanTripsPage() {
                     <Td right className="font-semibold">{inr(t.salesTotal)}</Td>
                     <Td>
                       {t.status === "OPEN" ? (
-                        <Badge tone="amber">On the road</Badge>
+                        <Badge tone="amber">On the Road</Badge>
                       ) : n(t.cashDifference) !== 0 ? (
                         <Badge tone="red">Closed · cash {n(t.cashDifference) > 0 ? "over" : "short"} {inr(Math.abs(n(t.cashDifference)))}</Badge>
                       ) : (
@@ -131,7 +131,7 @@ function OpenTripModal({ onClose, onOpened }: { onClose: () => void; onOpened: (
     <Modal
       open
       onClose={onClose}
-      title="Load a van"
+      title="Load a Van"
       size="lg"
       footer={
         <>
@@ -139,26 +139,26 @@ function OpenTripModal({ onClose, onOpened }: { onClose: () => void; onOpened: (
             Cancel
           </Button>
           <Button type="submit" form="van-open" loading={busy} disabled={needBranch.blocked} icon={<Truck className="size-4" />}>
-            Start trip
+            Start Trip
           </Button>
         </>
       }
     >
       {needBranch.notice && <div className="mb-3">{needBranch.notice}</div>}
       <form id="van-open" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Field label="Vehicle no.">
+        <Field label="Vehicle No.">
           <Input value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value.toUpperCase())} placeholder="TN 33 AB 1234" />
         </Field>
-        <Field label="Route / villages" className="sm:col-span-2">
+        <Field label="Route / Villages" className="sm:col-span-2">
           <Input value={route} onChange={(e) => setRoute(e.target.value)} placeholder="Perundurai – Kodumudi – Chennimalai" />
         </Field>
-        <Field label="Opening cash (change)" hint="Cash given to the van for change">
+        <Field label="Opening Cash (Change)" hint="Cash given to the van for change">
           <Input type="number" min="0" step="1" value={openingCash} onChange={(e) => setOpeningCash(e.target.value)} className="num" />
         </Field>
         <Field label="Notes" className="sm:col-span-2">
           <Textarea rows={1} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
-        <Field label="Stock loaded" required className="sm:col-span-3" hint="Loaded stock stays in the branch's books but is reserved for the van until it comes back">
+        <Field label="Stock Loaded" required className="sm:col-span-3" hint="Loaded stock stays in the branch's books but is reserved for the van until it comes back">
           <LoadLines lines={lines} setLines={setLines} />
         </Field>
       </form>

@@ -46,17 +46,17 @@ export function NotesPanel({
         bodyClassName="p-0"
         title={
           <span className="inline-flex items-center gap-1.5">
-            <ReceiptText className="size-4 text-slate-400" /> Debit &amp; credit notes
+            <ReceiptText className="size-4 text-slate-400" /> Debit &amp; Credit Notes
           </span>
         }
         actions={
           canRaise && (
             <div className="flex flex-wrap justify-end gap-1.5">
               <Button size="sm" variant="secondary" icon={<FileMinus className="size-4" />} onClick={() => setFormType("DEBIT")}>
-                Raise debit note
+                Raise Debit Note
               </Button>
               <Button size="sm" variant="secondary" icon={<FilePlus className="size-4" />} onClick={() => setFormType("CREDIT")}>
-                Record credit note
+                Record Credit Note
               </Button>
             </div>
           )
@@ -74,12 +74,17 @@ export function NotesPanel({
                 <li key={d.id} className={cx("flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-2.5 text-sm", d.status === "CANCELLED" && "opacity-60")}>
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-1.5">
-                      <Link
-                        href={`/debit-notes${d.noteType === "CREDIT" ? "?type=credit" : ""}`}
-                        className="font-medium text-brand-700 hover:underline"
-                      >
-                        {d.dnNo}
-                      </Link>
+                      {/* Named PO approvers can see this panel without the Purchases section */}
+                      {can("purchases.view") ? (
+                        <Link
+                          href={`/debit-notes${d.noteType === "CREDIT" ? "?type=credit" : ""}`}
+                          className="font-medium text-brand-700 hover:underline"
+                        >
+                          {d.dnNo}
+                        </Link>
+                      ) : (
+                        <span className="font-medium text-slate-800">{d.dnNo}</span>
+                      )}
                       <NoteTypeBadge type={d.noteType} />
                       <span className="text-slate-700">{NOTE_REASON_LABEL[d.reasonType] ?? d.reasonType}</span>
                     </p>

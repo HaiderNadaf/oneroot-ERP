@@ -29,6 +29,7 @@ import {
   useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { amountInWords, date, inr, n, qty } from "@/lib/format";
 import { placeOfSupply } from "@/lib/gst";
 import { useApi } from "@/lib/hooks";
@@ -65,6 +66,9 @@ function Notes() {
   const toast = useToast();
   const confirm = useConfirm();
   const router = useRouter();
+  const { can } = useAuth();
+  const canManage = can("purchases.manage");
+  const canVendors = can("vendors.view");
   const pathname = usePathname();
   const params = useSearchParams();
   const tab: TypeTab = params.get("type") === "credit" ? "credit" : "debit";
@@ -113,7 +117,7 @@ function Notes() {
 
   async function cancel(dn: DebitNote) {
     const msg = `Cancel ${noteTypeName(dn.noteType)} ${dn.dnNo}? It hasn't been ${dn.noteType === "DEBIT" ? "sent" : "applied"} yet, so stock and balances are unaffected.`;
-    if (!(await confirm(msg, { danger: true, confirmLabel: "Cancel note" }))) return;
+    if (!(await confirm(msg, { danger: true, confirmLabel: "Cancel Note" }))) return;
     setBusy(dn.id);
     try {
       await api.post(`/debit-notes/${dn.id}/cancel`);
@@ -128,6 +132,7 @@ function Notes() {
   }
 
   const actions = (dn: DebitNote, size: "sm" | "md" = "sm") =>
+    canManage &&
     dn.status === "DRAFT" && (
       <>
         <Button
@@ -155,13 +160,13 @@ function Notes() {
               : "Credit notes vendors give you, reducing what you owe — scheme incentives, price protection, cash discounts, accepted debit notes"
           }
           actions={
-            isDebit ? (
+            !canManage ? undefined : isDebit ? (
               <Button icon={<FileMinus className="size-4" />} onClick={() => setFormOpen(true)}>
-                New debit note
+                New Debit Note
               </Button>
             ) : (
               <Button icon={<FilePlus className="size-4" />} onClick={() => setFormOpen(true)}>
-                Record credit note
+                Record Credit Note
               </Button>
             )
           }
@@ -171,8 +176,8 @@ function Notes() {
           value={tab}
           onChange={changeTab}
           tabs={[
-            { value: "debit", label: "Debit notes" },
-            { value: "credit", label: "Credit notes" },
+            { value: "debit", label: "Debit Notes" },
+            { value: "credit", label: "Credit Notes" },
           ]}
         />
 
@@ -212,17 +217,19 @@ function Notes() {
                 </button>
               ))}
             </div>
-            <div className="w-full sm:w-80">
-              <p className="mb-1 text-xs font-medium text-slate-600">Filter by vendor</p>
-              <VendorPicker
-                value={vendor}
-                placeholder="All vendors — search to filter…"
-                onChange={(v) => {
-                  setVendor(v);
-                  setPage(1);
-                }}
-              />
-            </div>
+            {canVendors && (
+              <div className="w-full sm:w-80">
+                <p className="mb-1 text-xs font-medium text-slate-600">Filter by vendor</p>
+                <VendorPicker
+                  value={vendor}
+                  placeholder="All vendors — search to filter…"
+                  onChange={(v) => {
+                    setVendor(v);
+                    setPage(1);
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           {error ? (
@@ -233,12 +240,12 @@ function Notes() {
             <Table>
               <thead>
                 <tr>
-                  <Th>{isDebit ? "Debit note" : "Credit note"}</Th>
+                  <Th>{isDebit ? "Debit Note" : "Credit Note"}</Th>
                   <Th>Vendor</Th>
                   <Th>Reason</Th>
                   <Th>Against</Th>
-                  <Th className="hidden md:table-cell">Vendor ref</Th>
-                  <Th right>Value incl. GST</Th>
+                  <Th className="hidden md:table-cell">Vendor Ref</Th>
+                  <Th right>Value Incl. GST</Th>
                   <Th>Status</Th>
                   <ActionsTh />
                 </tr>
@@ -260,9 +267,13 @@ function Notes() {
                         <p className="text-xs text-slate-500">{date(dn.noteDate)}</p>
                       </Td>
                       <Td className="min-w-36">
-                        <Link href={`/vendors/${dn.vendor.id}`} className="hover:text-brand-700">
-                          {dn.vendor.name}
-                        </Link>
+                        {canVendors ? (
+                          <Link href={`/vendors/${dn.vendor.id}`} className="hover:text-brand-700">
+                            {dn.vendor.name}
+                          </Link>
+                        ) : (
+                          dn.vendor.name
+                        )}
                       </Td>
                       <Td className="min-w-48 max-w-64">
                         <ReasonBadge reason={dn.reasonType} />
@@ -367,7 +378,7 @@ function NoteDoc({ dn, store }: { dn: DebitNote; store: StoreSettings | null }) 
     dn.grn && `${dn.grn.grnNo}${dn.reasonType === "REJECTED_AT_INWARD" ? " (rejected at inward)" : ""}`,
   ].filter(Boolean);
   return (
-    <div className="text-sm text-slate-800">
+    <div className="paper rounded-md bg-white p-1 text-sm text-slate-800">
       <div className="mb-4 border-b border-slate-200 pb-3 text-center">
         <p className="text-lg font-semibold">{store?.storeName ?? (isDebit ? "Debit note" : "Credit note")}</p>
         {store && (

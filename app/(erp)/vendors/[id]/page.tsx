@@ -17,7 +17,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { PartyPaymentForm, modeLabel, type FixedParty } from "@/components/PartyPaymentForm";
-import { VendorForm } from "@/components/VendorForm";
 import {
   Badge,
   Button,
@@ -42,6 +41,7 @@ import { date, downloadCsv, inr, n } from "@/lib/format";
 import { placeOfSupply } from "@/lib/gst";
 import { useApi } from "@/lib/hooks";
 import type { Dec, Ledger, Paged, Payment, Purchase, StoreSettings, Vendor } from "@/lib/types";
+import { LazyVendorForm } from "@/components/lazy";
 
 type VendorDetail = Vendor & {
   stats: { totalPurchases: Dec; billCount: number; lastPurchase: string | null };
@@ -58,6 +58,8 @@ export default function VendorDetailPage() {
   const router = useRouter();
   const { can } = useAuth();
   const canBuy = can("purchases.manage");
+  const canSeePurchases = can("purchases.view");
+  const canSeePayments = can("payments.view");
   const [tab, setTab] = useState<Tab>("ledger");
   const [editOpen, setEditOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
@@ -108,32 +110,36 @@ export default function VendorDetailPage() {
                   icon={<ShoppingCart className="size-4" />}
                   onClick={() => router.push(`/purchases/new?vendorId=${v.id}`)}
                 >
-                  New purchase
-                </Button>
-                <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
-                  Edit
+                  New Purchase
                 </Button>
               </>
             )}
-            <Button icon={<Banknote className="size-4" />} onClick={() => setPayOpen(true)}>
-              Pay vendor
-            </Button>
+            {can("vendors.manage") && (
+              <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
+                Edit
+              </Button>
+            )}
+            {can("payments.vendor") && (
+              <Button icon={<Banknote className="size-4" />} onClick={() => setPayOpen(true)}>
+                Pay Vendor
+              </Button>
+            )}
           </>
         }
       />
 
       <div className="no-print mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label={bal < 0 ? "Advance with vendor" : "Payable balance"}
+          label={bal < 0 ? "Advance With Vendor" : "Payable Balance"}
           value={inr(Math.abs(bal))}
           tone={bal > 0 ? "amber" : "green"}
           icon={<Wallet />}
           sub={bal > 0 ? "You owe this vendor" : bal < 0 ? "Paid in advance" : "All settled"}
         />
-        <StatCard label="Total purchases" value={inr(v.stats.totalPurchases)} icon={<ReceiptIndianRupee />} tone="blue" />
+        <StatCard label="Total Purchases" value={inr(v.stats.totalPurchases)} icon={<ReceiptIndianRupee />} tone="blue" />
         <StatCard label="Bills" value={v.stats.billCount} icon={<FileText />} sub="Completed purchase bills" />
         <StatCard
-          label="Last purchase"
+          label="Last Purchase"
           value={<span className="text-lg">{date(v.stats.lastPurchase)}</span>}
           icon={<CalendarClock />}
           sub={v.paymentTermsDays ? `Terms: ${v.paymentTermsDays} days credit` : "Terms: immediate payment"}
@@ -143,11 +149,11 @@ export default function VendorDetailPage() {
       <div className="no-print mb-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card title="Contact">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 break-words">
-            <Info label="Contact person">{v.contactPerson}</Info>
+            <Info label="Contact Person">{v.contactPerson}</Info>
             <Info label="Phone">{v.phone && <a href={`tel:${v.phone}`} className="hover:text-brand-700">{v.phone}</a>}</Info>
             <Info label="Email">{v.email && <a href={`mailto:${v.email}`} className="hover:text-brand-700">{v.email}</a>}</Info>
             <Info label="GSTIN">{v.gstin && <span className="font-mono">{v.gstin}</span>}</Info>
-            <Info label="Place of supply">{placeOfSupply(v, store).label}</Info>
+            <Info label="Place of Supply">{placeOfSupply(v, store).label}</Info>
             <div className="col-span-2">
               <Info label="Address">{[v.address, v.city, v.state, v.pincode].filter(Boolean).join(", ")}</Info>
             </div>
@@ -158,12 +164,12 @@ export default function VendorDetailPage() {
             )}
           </dl>
         </Card>
-        <Card title="Bank details">
+        <Card title="Bank Details">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 break-words">
             <Info label="Bank">{v.bankName}</Info>
             <Info label="IFSC">{v.ifsc && <span className="font-mono">{v.ifsc}</span>}</Info>
-            <Info label="Account number">{v.bankAccount && <span className="font-mono">{v.bankAccount}</span>}</Info>
-            <Info label="Opening balance">{inr(v.openingBalance)}</Info>
+            <Info label="Account Number">{v.bankAccount && <span className="font-mono">{v.bankAccount}</span>}</Info>
+            <Info label="Opening Balance">{inr(v.openingBalance)}</Info>
           </dl>
         </Card>
       </div>
@@ -173,16 +179,16 @@ export default function VendorDetailPage() {
         onChange={setTab}
         tabs={[
           { value: "ledger", label: "Ledger" },
-          ...(canBuy ? [{ value: "purchases" as Tab, label: `Purchases (${v.stats.billCount})` }] : []),
-          { value: "payments", label: "Payments" },
+          ...(canSeePurchases ? [{ value: "purchases" as Tab, label: `Purchases (${v.stats.billCount})` }] : []),
+          ...(canSeePayments ? [{ value: "payments" as Tab, label: "Payments" }] : []),
         ]}
       />
 
-      {tab === "ledger" && <VendorLedger key={ledgerKey} vendor={v} />}
-      {tab === "purchases" && canBuy && <VendorPurchases vendorId={v.id} />}
-      {tab === "payments" && <VendorPayments key={ledgerKey} vendorId={v.id} />}
+      {tab === "ledger" && <VendorLedger key={ledgerKey} vendor={v} linkPurchases={canSeePurchases} />}
+      {tab === "purchases" && canSeePurchases && <VendorPurchases vendorId={v.id} />}
+      {tab === "payments" && canSeePayments && <VendorPayments key={ledgerKey} vendorId={v.id} linkPurchases={canSeePurchases} />}
 
-      <VendorForm
+      <LazyVendorForm
         open={editOpen}
         vendor={v}
         onClose={() => setEditOpen(false)}
@@ -213,14 +219,14 @@ const LEDGER_TONE: Record<string, "blue" | "green" | "red" | "violet"> = {
   "Credit note": "violet",
 };
 
-function VendorLedger({ vendor }: { vendor: Vendor }) {
+function VendorLedger({ vendor, linkPurchases }: { vendor: Vendor; linkPurchases: boolean }) {
   const { data, error, loading, reload } = useApi<Ledger<Vendor>>(`/vendors/${vendor.id}/ledger`);
 
   function exportCsv() {
     if (!data) return;
     downloadCsv(
       `ledger-${vendor.name.replace(/\W+/g, "-").toLowerCase()}.csv`,
-      ["Date", "Type", "Reference", "Note", "Bill amount (Dr)", "Paid (Cr)", "Balance"],
+      ["Date", "Type", "Reference", "Note", "Bill Amount (Dr)", "Paid (Cr)", "Balance"],
       [
         ["", "Opening balance", "", "", "", "", data.openingBalance],
         ...data.entries.map((e) => [date(e.date), e.type, e.refNo, e.note, e.debit || "", e.credit || "", e.balance]),
@@ -235,7 +241,7 @@ function VendorLedger({ vendor }: { vendor: Vendor }) {
     <Card
       className="print-area"
       bodyClassName="p-0"
-      title={<span className="no-print">Account statement</span>}
+      title={<span className="no-print">Account Statement</span>}
       actions={
         <div className="no-print flex gap-2">
           <Button variant="secondary" size="sm" icon={<Download className="size-4" />} onClick={exportCsv} disabled={!data}>
@@ -269,7 +275,7 @@ function VendorLedger({ vendor }: { vendor: Vendor }) {
               <Th>Reference</Th>
               <Th>Note</Th>
               <Th right>Bill (Dr)</Th>
-              <Th right>Paid / notes (Cr)</Th>
+              <Th right>Paid / Notes (Cr)</Th>
               <Th right>Balance</Th>
             </tr>
           </thead>
@@ -294,7 +300,9 @@ function VendorLedger({ vendor }: { vendor: Vendor }) {
                       <Badge tone={LEDGER_TONE[e.type] ?? "slate"}>{e.type}</Badge>
                     </Td>
                     <Td className="whitespace-nowrap">
-                      {e.type === "Purchase" && e.refId ? (
+                      {!linkPurchases ? (
+                        e.refNo
+                      ) : e.type === "Purchase" && e.refId ? (
                         <Link href={`/purchases/${e.refId}`} className="font-medium text-brand-700 hover:underline">
                           {e.refNo}
                         </Link>
@@ -358,8 +366,8 @@ function VendorPurchases({ vendorId }: { vendorId: string }) {
         <Table>
           <thead>
             <tr>
-              <Th>Bill no.</Th>
-              <Th>Vendor invoice</Th>
+              <Th>Bill No.</Th>
+              <Th>Vendor Invoice</Th>
               <Th>Date</Th>
               <Th>Due</Th>
               <Th right>Total</Th>
@@ -408,7 +416,7 @@ function VendorPurchases({ vendorId }: { vendorId: string }) {
   );
 }
 
-function VendorPayments({ vendorId }: { vendorId: string }) {
+function VendorPayments({ vendorId, linkPurchases }: { vendorId: string; linkPurchases: boolean }) {
   const [page, setPage] = useState(1);
   const { data, error, loading, reload } = useApi<Paged<Payment>>("/payments", { partyId: vendorId, page, pageSize: 20 });
 
@@ -422,7 +430,7 @@ function VendorPayments({ vendorId }: { vendorId: string }) {
         <Table>
           <thead>
             <tr>
-              <Th>Payment no.</Th>
+              <Th>Payment No.</Th>
               <Th>Date</Th>
               <Th>Against</Th>
               <Th>Mode</Th>
@@ -441,7 +449,9 @@ function VendorPayments({ vendorId }: { vendorId: string }) {
                   <Td className="whitespace-nowrap font-medium text-slate-900">{p.paymentNo}</Td>
                   <Td className="whitespace-nowrap">{date(p.paymentDate)}</Td>
                   <Td>
-                    {p.purchase ? (
+                    {p.purchase && !linkPurchases ? (
+                      p.purchase.purchaseNo
+                    ) : p.purchase ? (
                       <Link href={`/purchases/${p.purchase.id}`} className="text-brand-700 hover:underline">
                         {p.purchase.purchaseNo}
                       </Link>

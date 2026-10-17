@@ -1,11 +1,12 @@
 "use client";
 
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { clearApiCache, useApi } from "@/lib/hooks";
 import type { Department, RoleTemplate } from "@/lib/types";
-import { Button, Card, Field, Input, Modal, Spinner, errMsg, useConfirm, useToast } from "./ui";
+import { useCanGrantAll } from "./PermissionPicker";
+import { Button, Card, Field, Input, Modal, RowAction, Spinner, errMsg, useConfirm, useToast } from "./ui";
 
 /**
  * Departments (Procurement, Sales, Warehouse...) and the roles that sit inside each one.
@@ -61,7 +62,7 @@ export function DepartmentsPanel({
         actions={
           canManage && (
             <Button size="sm" icon={<Plus className="size-4" />} onClick={() => setForm({ department: null })}>
-              New department
+              New Department
             </Button>
           )
         }
@@ -93,7 +94,7 @@ export function DepartmentsPanel({
               );
             })}
             {loose.length > 0 && (
-              <Section title="No department" roles={loose} canManage={canManage} onEditRole={onEditRole} onAddRole={() => onNewRole(null)} />
+              <Section title="No Department" roles={loose} canManage={canManage} onEditRole={onEditRole} onAddRole={() => onNewRole(null)} />
             )}
           </div>
         )}
@@ -135,6 +136,7 @@ function Section({
   deleteDisabled?: boolean;
   deleteHint?: string;
 }) {
+  const canGrantAll = useCanGrantAll();
   return (
     <div className="px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -147,20 +149,8 @@ function Section({
             <Button variant="secondary" size="sm" icon={<Plus className="size-4" />} onClick={onAddRole}>
               Role
             </Button>
-            {onEdit && (
-              <Button variant="ghost" size="sm" icon={<Pencil className="size-4" />} onClick={onEdit} aria-label="Edit department" />
-            )}
-            {onDelete && (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={<Trash2 className="size-4" />}
-                onClick={onDelete}
-                disabled={deleteDisabled}
-                title={deleteHint}
-                aria-label="Delete department"
-              />
-            )}
+            {onEdit && <RowAction kind="edit" title="Edit department" onClick={onEdit} />}
+            {onDelete && <RowAction kind="delete" title={deleteHint ?? "Delete department"} disabled={deleteDisabled} onClick={onDelete} />}
           </div>
         )}
       </div>
@@ -169,7 +159,7 @@ function Section({
           <li key={t.id}>
             <button
               type="button"
-              disabled={!canManage}
+              disabled={!canManage || !canGrantAll(t.permissions)}
               onClick={() => onEditRole(t)}
               className="flex w-full flex-wrap items-baseline gap-x-2 rounded-md px-2 py-1.5 text-left hover:bg-slate-50 disabled:cursor-default disabled:hover:bg-transparent"
             >
@@ -212,20 +202,20 @@ function DepartmentForm({ department, onClose, onSaved }: { department: Departme
     <Modal
       open
       onClose={onClose}
-      title={department ? `Edit ${department.name}` : "New department"}
+      title={department ? `Edit ${department.name}` : "New Department"}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" form="department-form" loading={saving}>
-            {department ? "Save" : "Create department"}
+            {department ? "Save" : "Create Department"}
           </Button>
         </>
       }
     >
       <form id="department-form" onSubmit={save} className="grid gap-3">
-        <Field label="Department name" required hint="e.g. Procurement, Sales, Warehouse, Accounts, IT">
+        <Field label="Department Name" required hint="e.g. Procurement, Sales, Warehouse, Accounts, IT">
           <Input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} autoFocus />
         </Field>
         <Field label="Description">

@@ -9,9 +9,13 @@ import { BranchBadge, useNeedBranch } from "@/components/BranchNotice";
 // Payment now (hidden for now): import { CASH_MODES, modeLabel } from "@/components/PartyPaymentForm";
 import { ProductPicker, VendorPicker } from "@/components/pickers";
 import {
+  // Notes (hidden for now)
+  Th,
+  // Textarea,
   Button,
   Card,
   Checkbox,
+  DateInput,
   ErrorBox,
   Field,
   Input,
@@ -20,8 +24,6 @@ import {
   Spinner,
   Table,
   Td,
-  // Textarea, // Notes (hidden for now)
-  Th,
   cx,
   errMsg,
   useConfirm,
@@ -184,7 +186,7 @@ function NewPurchase() {
     if (noExpiry.length) warnings.push(`No expiry date for: ${noExpiry.join(", ")}.`);
     const expired = lines.filter((l) => l.expiryDate && l.expiryDate < today()).map((l) => l.product.name);
     if (expired.length) warnings.push(`Already expired: ${expired.join(", ")}.`);
-    if (warnings.length && !(await confirm(`${warnings.join(" ")} Save the bill anyway?`, { confirmLabel: "Save anyway" }))) return;
+    if (warnings.length && !(await confirm(`${warnings.join(" ")} Save the bill anyway?`, { confirmLabel: "Save Anyway" }))) return;
 
     setSaving(true);
     try {
@@ -235,7 +237,7 @@ function NewPurchase() {
       <PageHeader
         title={
           <span className="flex flex-wrap items-center gap-2">
-            Direct purchase <BranchBadge label="Stock goes to" />
+            Direct Purchase <BranchBadge label="Stock Goes To" />
           </span>
         }
         subtitle="Quick buy without a purchase order — the bill is recorded and the goods go into stock immediately"
@@ -262,16 +264,15 @@ function NewPurchase() {
           <Field label="Vendor" required className="sm:col-span-2">
             <VendorPicker value={vendor} onChange={(v) => setVendor(v)} autoFocus={!vendor} />
           </Field>
-          <Field label="Vendor invoice no.">
+          <Field label="Vendor Invoice No.">
             <Input value={vendorInvoiceNo} onChange={(e) => setVendorInvoiceNo(e.target.value)} placeholder="As printed on their bill" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Bill date" required>
-              <Input type="date" value={purchaseDate} max={today()} onChange={(e) => changePurchaseDate(e.target.value)} required />
+            <Field label="Bill Date" required>
+              <DateInput value={purchaseDate} max={today()} onChange={(e) => changePurchaseDate(e.target.value)} required />
             </Field>
-            <Field label="Due date" hint={vendor ? `${vendor.paymentTermsDays ?? 0} days terms` : undefined}>
-              <Input
-                type="date"
+            <Field label="Due Date" hint={vendor ? `${vendor.paymentTermsDays ?? 0} days terms` : undefined}>
+              <DateInput
                 value={dueDate}
                 min={purchaseDate}
                 onChange={(e) => {
@@ -312,7 +313,7 @@ function NewPurchase() {
               <Th right>Disc %</Th>
               <Th right>GST %</Th>
               <Th right>MRP</Th>
-              <Th right>New sale price</Th>
+              <Th right>New Sale Price</Th>
               <Th right>Taxable</Th>
               <Th right>Tax</Th>
               <Th right>Amount</Th>
@@ -351,8 +352,7 @@ function NewPurchase() {
                       />
                     </Td>
                     <Td>
-                      <Input
-                        type="date"
+                      <DateInput
                         className={cx(cell, "w-38")}
                         value={l.mfgDate}
                         max={today()}
@@ -361,8 +361,7 @@ function NewPurchase() {
                       />
                     </Td>
                     <Td>
-                      <Input
-                        type="date"
+                      <DateInput
                         className={cx(
                           cell,
                           "w-38",
@@ -501,9 +500,9 @@ function NewPurchase() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Payment now and Notes — hidden for now; the purchase is saved on credit
-        <Card title="Payment now" className="lg:col-span-1">
+        <Card title="Payment Now" className="lg:col-span-1">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Amount paid (₹)" className="col-span-2" hint={paid > 0 && paid < total ? `${inr(total - paid)} will stay payable` : undefined}>
+            <Field label="Amount Paid (₹)" className="col-span-2" hint={paid > 0 && paid < total ? `${inr(total - paid)} will stay payable` : undefined}>
               <div className="flex gap-2">
                 <Input
                   type="number"
@@ -540,7 +539,7 @@ function NewPurchase() {
 
         */}
 
-        <Card title="Bill total" className="lg:col-span-1 lg:col-start-3">
+        <Card title="Bill Total" className="lg:col-span-1 lg:col-start-3">
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
               <dt className="text-slate-500">Taxable value</dt>
@@ -586,7 +585,7 @@ function NewPurchase() {
             )} */}
           </dl>
           <Button className="mt-4 w-full" onClick={submit} loading={saving} disabled={!vendor || !lines.length || needBranch.blocked}>
-            Save purchase · {inr(total)}
+            Save Purchase · {inr(total)}
           </Button>
         </Card>
       </div>

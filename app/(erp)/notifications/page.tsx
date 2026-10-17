@@ -3,14 +3,17 @@
 import { CheckCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { canOpenPath } from "@/components/AppShell";
 import { NotificationRow, useCounts } from "@/components/Notifications";
 import { Button, Card, ErrorBox, PageHeader, Pagination, Spinner, Tabs } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
 import type { AppNotification, Paged } from "@/lib/types";
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const { can } = useAuth();
   const { refresh } = useCounts();
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [page, setPage] = useState(1);
@@ -25,7 +28,8 @@ export default function NotificationsPage() {
       await api.patch(`/notifications/${n.id}/read`).catch(() => {});
       refresh();
     }
-    if (n.link) router.push(n.link);
+    // Links to pages the user can't open just mark the note read
+    if (n.link && canOpenPath(n.link, can)) router.push(n.link);
     else void reload();
   }
 
@@ -42,7 +46,7 @@ export default function NotificationsPage() {
         subtitle="Approvals, goods inward, stock and payment alerts for you"
         actions={
           <Button variant="secondary" icon={<CheckCheck className="size-4" />} onClick={readAll} disabled={!data?.unread}>
-            Mark all read
+            Mark All Read
           </Button>
         }
       />

@@ -57,7 +57,7 @@ function Body({ onClose, onScan }: { onClose: () => void; onScan: (code: string)
   }, [supported, onScan]);
 
   return (
-    <Modal open onClose={onClose} title="Scan with camera" size="sm" footer={<Button variant="secondary" onClick={onClose}>Close</Button>}>
+    <Modal open onClose={onClose} title="Scan With Camera" size="sm" footer={<Button variant="secondary" onClick={onClose}>Close</Button>}>
       {!supported ? (
         <p className="text-sm text-slate-600">
           This browser cannot read barcodes from the camera. Use Chrome or Edge (or Chrome on Android), or plug in a USB barcode scanner — it works on every page without setup.

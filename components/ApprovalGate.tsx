@@ -87,7 +87,7 @@ function GateBody({ need, onApproved, onClose }: { need: ApprovalNeed; onApprove
     <Modal
       open
       onClose={onClose}
-      title="Manager approval needed"
+      title="Manager Approval Needed"
       size="sm"
       footer={
         <>
@@ -96,7 +96,7 @@ function GateBody({ need, onApproved, onClose }: { need: ApprovalNeed; onApprove
           </Button>
           {!request && (
             <Button type="submit" form={mode === "pin" ? "gate-pin" : "gate-ask"} loading={busy} icon={mode === "pin" ? <KeyRound className="size-4" /> : <Send className="size-4" />}>
-              {mode === "pin" ? "Approve with PIN" : "Send request"}
+              {mode === "pin" ? "Approve With PIN" : "Send Request"}
             </Button>
           )}
         </>
@@ -128,9 +128,9 @@ function GateBody({ need, onApproved, onClose }: { need: ApprovalNeed; onApprove
                 key={m}
                 type="button"
                 onClick={() => setMode(m)}
-                className={cx("flex-1 rounded-md px-3 py-1.5 font-medium", mode === m ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}
+                className={cx("flex-1 rounded-md px-3 py-1.5 font-medium", mode === m ? "bg-surface text-slate-900 shadow-sm" : "text-slate-500")}
               >
-                {m === "pin" ? "Manager is here (PIN)" : "Ask a manager"}
+                {m === "pin" ? "Manager Is Here (PIN)" : "Ask a Manager"}
               </button>
             ))}
           </div>
@@ -148,13 +148,13 @@ function GateBody({ need, onApproved, onClose }: { need: ApprovalNeed; onApprove
                   className="num text-center text-lg tracking-[0.5em]"
                 />
               </Field>
-              <Field label="Reason (optional)">
+              <Field label="Reason (Optional)">
                 <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Regular customer, bulk purchase" />
               </Field>
             </form>
           ) : (
             <form id="gate-ask" onSubmit={ask} className="mt-3 space-y-3">
-              <Field label="Reason for the manager" required>
+              <Field label="Reason for the Manager" required>
                 <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} required autoFocus placeholder="e.g. Farmer buying 20 bags, asks 6% off" />
               </Field>
               <p className="text-xs text-slate-500">Managers get a notification; you can keep this open or come back later from Approvals.</p>

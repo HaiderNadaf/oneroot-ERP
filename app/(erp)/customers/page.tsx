@@ -3,7 +3,6 @@
 import { Download, Plus } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { CustomerForm } from "@/components/CustomerForm";
 import {
   ActionsTd,
   ActionsTh,
@@ -26,12 +25,16 @@ import {
   useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { downloadCsv, inr, n, qty } from "@/lib/format";
 import { useApi, useDebounced } from "@/lib/hooks";
 import type { Customer, Paged } from "@/lib/types";
+import { LazyCustomerForm } from "@/components/lazy";
 
 export default function CustomersPage() {
   const toast = useToast();
+  const { can } = useAuth();
+  const canManage = can("customers.manage");
   const [search, setSearch] = useState("");
   const [withDues, setWithDues] = useState(false);
   const [status, setStatus] = useState("active");
@@ -55,7 +58,7 @@ export default function CustomersPage() {
       const all = await api.get<Paged<Customer>>("/customers", { ...filters, pageSize: 500 });
       downloadCsv(
         withDues ? "customer_dues.csv" : "customers.csv",
-        ["Name", "Phone", "Email", "GSTIN", "Village", "Address", "City", "State", "PIN", "Land (acres)", "Crops", "Credit limit", "Opening balance", "Balance due", "Active"],
+        ["Name", "Phone", "Email", "GSTIN", "Village", "Address", "City", "State", "PIN", "Land (Acres)", "Crops", "Credit Limit", "Opening Balance", "Balance Due", "Active"],
         all.items.map((c) => [
           c.name,
           c.phone,
@@ -91,9 +94,11 @@ export default function CustomersPage() {
             <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv} loading={exporting}>
               Export
             </Button>
-            <Button icon={<Plus className="size-4" />} onClick={openNew}>
-              New customer
-            </Button>
+            {canManage && (
+              <Button icon={<Plus className="size-4" />} onClick={openNew}>
+                New Customer
+              </Button>
+            )}
           </>
         }
       />
@@ -115,7 +120,7 @@ export default function CustomersPage() {
             <option value="all">All</option>
           </Select>
           <div className="px-1">
-            <Checkbox label="With dues only" checked={withDues} onChange={(v) => (setWithDues(v), setPage(1))} />
+            <Checkbox label="With Dues Only" checked={withDues} onChange={(v) => (setWithDues(v), setPage(1))} />
           </div>
         </div>
 
@@ -131,8 +136,8 @@ export default function CustomersPage() {
                 <Th>Phone</Th>
                 <Th>Village</Th>
                 <Th>Crops</Th>
-                <Th right>Credit limit</Th>
-                <Th right>Balance due</Th>
+                <Th right>Credit Limit</Th>
+                <Th right>Balance Due</Th>
                 <ActionsTh />
               </tr>
             </thead>
@@ -146,9 +151,11 @@ export default function CustomersPage() {
                   ) : (
                     <>
                       No customers found.{" "}
-                      <button className="font-medium text-brand-700 underline" onClick={openNew}>
-                        Add a customer
-                      </button>
+                      {canManage && (
+                        <button className="font-medium text-brand-700 underline" onClick={openNew}>
+                          Add a Customer
+                        </button>
+                      )}
                     </>
                   )}
                 </EmptyRow>
@@ -193,14 +200,16 @@ export default function CustomersPage() {
                       </Td>
                       <ActionsTd>
                         <RowAction kind="view" href={`/customers/${c.id}`} title={`View ${c.name}`} />
-                        <RowAction
-                          kind="edit"
-                          title={`Edit ${c.name}`}
-                          onClick={() => {
-                            setEditing(c);
-                            setFormOpen(true);
-                          }}
-                        />
+                        {canManage && (
+                          <RowAction
+                            kind="edit"
+                            title={`Edit ${c.name}`}
+                            onClick={() => {
+                              setEditing(c);
+                              setFormOpen(true);
+                            }}
+                          />
+                        )}
                       </ActionsTd>
                     </tr>
                   );
@@ -212,7 +221,7 @@ export default function CustomersPage() {
         {data && <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />}
       </Card>
 
-      <CustomerForm
+      <LazyCustomerForm
         open={formOpen}
         customer={editing}
         onClose={() => setFormOpen(false)}

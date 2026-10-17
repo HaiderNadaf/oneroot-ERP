@@ -10,13 +10,14 @@ import type { Product } from "@/lib/types";
 import { ApprovalGate, approvalNeeded, type ApprovalNeed } from "./ApprovalGate";
 import { BranchBadge, useNeedBranch } from "./BranchNotice";
 import { ProductPicker } from "./pickers";
-import { Button, Field, Info, Input, Modal, Select, Textarea, cx, errMsg, useToast } from "./ui";
+import { useSeeCostPrice } from "./StockBits";
+import { Button, DateInput, Field, Info, Input, Modal, Select, Textarea, cx, errMsg, useToast } from "./ui";
 
 export type AdjustType = "ADJUSTMENT_IN" | "ADJUSTMENT_OUT" | "DAMAGED" | "EXPIRED";
 
 const TYPES: { value: AdjustType; label: string; hint: string }[] = [
-  { value: "ADJUSTMENT_IN", label: "Add stock", hint: "Found stock, count correction" },
-  { value: "ADJUSTMENT_OUT", label: "Remove stock", hint: "Shortage, samples, count correction" },
+  { value: "ADJUSTMENT_IN", label: "Add Stock", hint: "Found stock, count correction" },
+  { value: "ADJUSTMENT_OUT", label: "Remove Stock", hint: "Shortage, samples, count correction" },
   { value: "DAMAGED", label: "Damaged", hint: "Torn bags, leaked bottles" },
   { value: "EXPIRED", label: "Expired", hint: "Write off expired batches" },
 ];
@@ -66,6 +67,7 @@ function AdjustForm({
   initial?: StockAdjustInitial;
 }) {
   const toast = useToast();
+  const showCost = useSeeCostPrice();
   const [picked, setPicked] = useState<Product | null>(null);
   const productId = fixed?.id ?? picked?.id ?? null;
   const { data: detail, loading } = useApi<Product>(productId ? `/products/${productId}` : null);
@@ -150,20 +152,20 @@ function AdjustForm({
     <Modal
       open
       onClose={onClose}
-      title="Adjust stock"
+      title="Adjust Stock"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" form="stock-adjust-form" loading={saving} disabled={needBranch.blocked} variant={isIn ? "primary" : "danger"}>
-            {isIn ? "Add stock" : "Remove stock"}
+            {isIn ? "Add Stock" : "Remove Stock"}
           </Button>
         </>
       }
     >
       <form id="stock-adjust-form" onSubmit={save} className="space-y-4">
-        {needBranch.notice ?? <BranchBadge label="Adjusting stock in" />}
+        {needBranch.notice ?? <BranchBadge label="Adjusting Stock In" />}
         <Field label="Product" required>
           {fixed ? (
             <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-800">
@@ -208,14 +210,14 @@ function AdjustForm({
         {productId && (
           <>
             {detail && (
-              <dl className="grid grid-cols-3 gap-3 rounded-lg bg-slate-50 px-3 py-2">
-                <Info label="Current stock">
+              <dl className={cx("grid gap-3 rounded-lg bg-slate-50 px-3 py-2", showCost ? "grid-cols-3" : "grid-cols-2")}>
+                <Info label="Current Stock">
                   <span className="num">
                     {qty(detail.stock)} {unit}
                   </span>
                 </Info>
-                <Info label="Batches in stock">{batches.length || "None"}</Info>
-                <Info label="Purchase rate">{inr(detail.purchasePrice)}</Info>
+                <Info label="Batches in Stock">{batches.length || "None"}</Info>
+                {showCost && <Info label="Purchase Rate">{inr(detail.purchasePrice)}</Info>}
               </dl>
             )}
 
@@ -226,9 +228,9 @@ function AdjustForm({
               >
                 <Select value={batchSel} onChange={(e) => setBatchSel(e.target.value)} disabled={loading && !detail}>
                   {isIn ? (
-                    <option value={NEW_BATCH}>New batch…</option>
+                    <option value={NEW_BATCH}>New Batch…</option>
                   ) : (
-                    <option value={AUTO}>Auto (earliest expiry)</option>
+                    <option value={AUTO}>Auto (Earliest Expiry)</option>
                   )}
                   {batches.map((b) => (
                     <option key={b.id} value={b.id}>
@@ -242,11 +244,11 @@ function AdjustForm({
 
             {isIn && tracksBatch && batchSel === NEW_BATCH && (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="Batch no." hint="Leave blank for the default batch">
+                <Field label="Batch No." hint="Leave blank for the default batch">
                   <Input value={batchNo} onChange={(e) => setBatchNo(e.target.value)} />
                 </Field>
-                <Field label="Expiry date">
-                  <Input type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
+                <Field label="Expiry Date">
+                  <DateInput value={expiry} onChange={(e) => setExpiry(e.target.value)} />
                 </Field>
               </div>
             )}
@@ -275,7 +277,7 @@ function AdjustForm({
                 )}
               </Field>
               {isIn && (
-                <Field label="Unit cost (excl. GST)" hint={detail ? `Defaults to ${inr(selectedBatch?.costPrice ?? detail.purchasePrice)}` : undefined}>
+                <Field label="Unit Cost (Excl. GST)" hint={detail && showCost ? `Defaults to ${inr(selectedBatch?.costPrice ?? detail.purchasePrice)}` : undefined}>
                   <Input type="number" step="0.01" min="0" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
                 </Field>
               )}
@@ -289,7 +291,7 @@ function AdjustForm({
           </Field>
         )}
         {detail?.trackSerial && (
-          <Field label={isIn ? "Serial numbers of the units added" : "Serial numbers of the units removed"} hint="One per line; optional">
+          <Field label={isIn ? "Serial Numbers of the Units Added" : "Serial Numbers of the Units Removed"} hint="One per line; optional">
             <Textarea rows={3} value={serials} onChange={(e) => setSerials(e.target.value)} className="font-mono" />
           </Field>
         )}

@@ -96,7 +96,7 @@ export function ThermalReceipt({ data, settings, width = 80 }: { data: ReceiptDa
   const narrow = width === 58;
   return (
     <div
-      className={`thermal-area thermal-${width} bg-white text-black`}
+      className={`paper thermal-area thermal-${width} bg-surface text-black`}
       style={{ width: narrow ? "48mm" : "72mm", fontFamily: "ui-monospace, Consolas, 'Courier New', monospace", fontSize: narrow ? "9.5px" : "11px", lineHeight: 1.25 }}
     >
       <div className="text-center">
@@ -116,10 +116,10 @@ export function ThermalReceipt({ data, settings, width = 80 }: { data: ReceiptDa
         <p className="mt-1 font-bold">{d.cancelled ? "CANCELLED" : d.provisional ? "PROVISIONAL BILL" : "TAX INVOICE"}</p>
       </div>
       <div className="my-1 border-t border-dashed border-black" />
-      <Row l={d.provisional ? "Ref" : "Bill no"} r={d.invoiceNo} />
+      <Row l={d.provisional ? "Ref" : "Bill No"} r={d.invoiceNo} />
       <Row l="Date" r={dateTime(d.date)} />
       {(d.customerName || d.customerPhone) && <Row l="Customer" r={[d.customerName, d.customerPhone].filter(Boolean).join(" ")} />}
-      {d.govtReceiptNo && <Row l="Govt POS rcpt" r={d.govtReceiptNo} />}
+      {d.govtReceiptNo && <Row l="Govt POS Rcpt" r={d.govtReceiptNo} />}
       <div className="my-1 border-t border-dashed border-black" />
       {d.lines.map((l, i) => (
         <div key={i} className="mb-0.5">
@@ -148,7 +148,7 @@ export function ThermalReceipt({ data, settings, width = 80 }: { data: ReceiptDa
           <Row l="SGST" r={inr(d.tax / 2)} />
         </>
       )}
-      {d.roundOff !== 0 && <Row l="Round off" r={inr(d.roundOff)} />}
+      {d.roundOff !== 0 && <Row l="Round Off" r={inr(d.roundOff)} />}
       <div className="my-1 border-t border-black" />
       <Row l="TOTAL" r={inr(d.total)} bold big />
       {d.payments && d.payments.length > 1 ? (
@@ -161,7 +161,7 @@ export function ThermalReceipt({ data, settings, width = 80 }: { data: ReceiptDa
       ) : (
         <Row l={`Paid (${d.payments?.[0]?.mode ?? d.paymentMode})`} r={inr(d.paid)} />
       )}
-      {due > 0 && <Row l="Balance due" r={inr(due)} bold />}
+      {due > 0 && <Row l="Balance Due" r={inr(due)} bold />}
       {byRate.size > 0 && (
         <>
           <div className="my-1 border-t border-dashed border-black" />

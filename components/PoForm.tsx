@@ -6,15 +6,16 @@ import { useEffect, useState } from "react";
 import { useBranchOptions } from "@/components/BranchNotice";
 import { useCounts } from "@/components/Notifications";
 import { ProductPicker, VendorPicker } from "@/components/pickers";
-import { PoTermsModal } from "@/components/PoTermsModal";
-import { Button, Card, Field, Input, Select, Spinner, Table, Td, Textarea, Th, cx, errMsg, useToast } from "@/components/ui";
+import { Button, Card, DateInput, Field, Input, Select, Spinner, Table, Td, Textarea, Th, cx, errMsg, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
 import { CHARGES_GST_RATE, gstSlabs, halfRate, placeOfSupply } from "@/lib/gst";
 import { date, inr, inr0, n, qty, round2, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { GST_RATES } from "@/lib/types";
 import type { ApprovalConfig, Product, PurchaseOrder, StoreSettings, Vendor } from "@/lib/types";
+import { LazyPoTermsModal } from "@/components/lazy";
 
 interface LowStockRow {
   id: string;
@@ -72,6 +73,7 @@ const PO_EXPIRY_DAYS = [7, 14];
 export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendorId?: string | null }) {
   const router = useRouter();
   const toast = useToast();
+  const { can } = useAuth();
   const { refresh } = useCounts();
   const editing = !!po;
 
@@ -297,18 +299,17 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
             <VendorPicker value={vendor} onChange={setVendor} autoFocus={!vendor} />
           </Field>
           {/* Past dates are allowed, e.g. to record an order already placed with the vendor */}
-          <Field label="Invoice date" required>
-            <Input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} required />
+          <Field label="Invoice Date" required>
+            <DateInput value={orderDate} onChange={(e) => setOrderDate(e.target.value)} required />
           </Field>
-          <Field label="Expected delivery" required hint={expectedLocked ? "Fixed when the PO was created" : undefined}>
+          <Field label="Expected Delivery" required hint={expectedLocked ? "Fixed when the PO was created" : undefined}>
             {expectedLocked ? (
               <div className="flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-800">
                 <Lock className="size-3.5 text-slate-400" />
                 {date(expectedDate)}
               </div>
             ) : (
-              <Input
-                type="date"
+              <DateInput
                 value={expectedDate}
                 min={orderDate}
                 onChange={(e) => setExpectedDate(e.target.value)}
@@ -318,14 +319,14 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
             )}
           </Field>
           {showBranch && (
-            <Field label="Deliver to branch" required>
+            <Field label="Deliver to Branch" required>
               <Select
                 value={branchId}
                 onChange={(e) => setBranchPick(e.target.value)}
                 className={cx(!branchId && "border-amber-400 bg-amber-50")}
                 disabled={branchesLoading && !branchOptions.length}
               >
-                <option value="">{branchesLoading && !branchOptions.length ? "Loading branches…" : "Choose branch…"}</option>
+                <option value="">{branchesLoading && !branchOptions.length ? "Loading Branches…" : "Choose Branch…"}</option>
                 {branchOptions.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name} ({b.code})
@@ -343,7 +344,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
               <option value="">Choose…</option>
               {PO_EXPIRY_DAYS.map((d) => (
                 <option key={d} value={d}>
-                  {d} days
+                  {d} Days
                 </option>
               ))}
             </Select>
@@ -363,9 +364,11 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
         bodyClassName="p-0"
         title={`Items${lines.length ? ` (${lines.length})` : ""}`}
         actions={
-          <Button variant="secondary" size="sm" icon={<ListPlus className="size-4" />} onClick={addLowStock} loading={loadingLow}>
-            Add low-stock items
-          </Button>
+          can("inventory.view") && (
+            <Button variant="secondary" size="sm" icon={<ListPlus className="size-4" />} onClick={addLowStock} loading={loadingLow}>
+              Add Low-Stock Items
+            </Button>
+          )
         }
       >
         <div className="border-b border-slate-100 p-3">
@@ -375,13 +378,13 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
           <thead>
             <tr>
               <Th>Product</Th>
-              <Th right>In stock</Th>
+              <Th right>In Stock</Th>
               <Th right>Qty</Th>
               <Th>UOM</Th>
-              <Th right>Rate (excl. GST)</Th>
+              <Th right>Rate (Excl. GST)</Th>
               <Th right>Disc. %</Th>
               <Th right>GST</Th>
-              <Th right>Amount (incl. GST)</Th>
+              <Th right>Amount (Incl. GST)</Th>
               <Th />
             </tr>
           </thead>
@@ -470,7 +473,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
           <Card
             title={
               <span className="inline-flex items-center gap-1.5">
-                <Route className="size-4 text-slate-400" /> Approval route for this value
+                <Route className="size-4 text-slate-400" /> Approval Route for This Value
               </span>
             }
           >
@@ -501,7 +504,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
               </>
             )}
           </Card>
-          <Card title="Notes to approver">
+          <Card title="Notes to Approver">
             <Textarea
               rows={3}
               value={notes}
@@ -514,29 +517,29 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
               className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-800 hover:underline"
             >
               <FileText className="size-4" />
-              Terms & conditions
+              Terms & Conditions
               <span className="text-red-500">*</span>
             </button>
-            <PoTermsModal open={termsOpen} onClose={() => setTermsOpen(false)} />
+            <LazyPoTermsModal open={termsOpen} onClose={() => setTermsOpen(false)} />
           </Card>
         </div>
 
         <Card className="h-fit lg:sticky lg:top-4">
           <dl className="space-y-1.5 text-sm">
-            {discountTotal > 0 && <TotalRow label="Gross value" value={inr(round2(subtotal + discountTotal))} />}
+            {discountTotal > 0 && <TotalRow label="Gross Value" value={inr(round2(subtotal + discountTotal))} />}
             {discountTotal > 0 && <TotalRow label="Discount" value={`−${inr(discountTotal)}`} />}
-            <TotalRow label="Items value" value={inr(subtotal)} />
+            <TotalRow label="Items Value" value={inr(subtotal)} />
             {/* Charges come before GST: each is taxed at its own rate (18% by default) */}
             <div className="space-y-2 border-y border-dashed border-slate-200 py-2">
               <ChargeInput
-                label="Transportation (excl. GST)"
+                label="Transportation (Excl. GST)"
                 value={transportCharges}
                 onChange={setTransportCharges}
                 gstRate={transportGstRate}
                 onGstRate={setTransportGstRate}
               />
               <ChargeInput
-                label="Other charges (excl. GST)"
+                label="Other Charges (Excl. GST)"
                 value={otherCharges}
                 onChange={setOtherCharges}
                 gstRate={otherChargesGstRate}
@@ -552,7 +555,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
                 />
               )}
             </div>
-            <TotalRow label="Taxable value" value={inr(taxable)} />
+            <TotalRow label="Taxable Value" value={inr(taxable)} />
             {/* Rate-wise GST: items at their own rates, charges at theirs */}
             {slabs.map((x) =>
               igst ? (
@@ -565,9 +568,9 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
               ),
             )}
             {slabs.length > 1 && <TotalRow label="Total GST" value={inr(tax)} />}
-            {roundOff !== 0 && <TotalRow label="Round off" value={`${roundOff > 0 ? "+" : "−"}${inr(Math.abs(roundOff))}`} />}
+            {roundOff !== 0 && <TotalRow label="Round Off" value={`${roundOff > 0 ? "+" : "−"}${inr(Math.abs(roundOff))}`} />}
             <div className="flex items-baseline justify-between border-t border-slate-200 pt-2">
-              <dt className="font-semibold text-slate-900">PO total</dt>
+              <dt className="font-semibold text-slate-900">PO Total</dt>
               <dd className="num text-xl font-semibold text-slate-900">{inr(total)}</dd>
             </div>
           </dl>
@@ -579,7 +582,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
               loading={saving === "submit"}
               disabled={!vendor || !lines.length || !!saving}
             >
-              Submit for approval
+              Submit for Approval
             </Button>
             <Button
               variant="secondary"
@@ -589,7 +592,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
               loading={saving === "draft"}
               disabled={!vendor || !lines.length || !!saving}
             >
-              Save draft
+              Save Draft
             </Button>
           </div>
           <p className="mt-2 text-xs text-slate-500">

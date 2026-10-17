@@ -41,6 +41,8 @@ function GoodsInward() {
   const router = useRouter();
   const { can } = useAuth();
   const canReceive = can("purchases.receive");
+  const canInvoice = can("purchases.manage");
+  const canVendors = can("vendors.view");
   // With "All branches" selected, tag each PO / GRN with the branch it belongs to
   const { currentId, branches } = useBranch();
   const showBranch = currentId === "all";
@@ -132,9 +134,13 @@ function GoodsInward() {
                       <p className="text-xs text-slate-500">Ordered {date(po.orderDate)}</p>
                     </Td>
                     <Td className="min-w-36">
-                      <Link href={`/vendors/${po.vendor.id}`} className="hover:text-brand-700">
-                        {po.vendor.name}
-                      </Link>
+                      {canVendors ? (
+                        <Link href={`/vendors/${po.vendor.id}`} className="hover:text-brand-700">
+                          {po.vendor.name}
+                        </Link>
+                      ) : (
+                        po.vendor.name
+                      )}
                     </Td>
                     <Td className="hidden max-w-80 md:table-cell">
                       <p className="truncate text-slate-700" title={po.products.join(", ")}>
@@ -163,14 +169,10 @@ function GoodsInward() {
                       {po.status === "PARTIALLY_RECEIVED" && <p className="mt-0.5 text-xs text-violet-700">Balance open</p>}
                     </Td>
                     <Td right>
-                      {canReceive ? (
+                      {canReceive && (
                         <Button size="sm" icon={<PackageCheck className="size-4" />} onClick={() => router.push(`/goods-inward/new?po=${po.id}`)}>
                           Receive
                         </Button>
-                      ) : (
-                        <span className="text-xs text-slate-400" title="Only a manager can post goods inward">
-                          Manager receives
-                        </span>
                       )}
                     </Td>
                   </tr>
@@ -221,7 +223,7 @@ function GoodsInward() {
                 <Th>GRN</Th>
                 <Th>PO</Th>
                 <Th>Vendor</Th>
-                <Th className="hidden md:table-cell">Received by</Th>
+                <Th className="hidden md:table-cell">Received By</Th>
                 <Th right>Received</Th>
                 <Th right>Passed</Th>
                 <Th right className="hidden md:table-cell">Rejected</Th>
@@ -259,9 +261,13 @@ function GoodsInward() {
                       </Link>
                     </Td>
                     <Td className="min-w-36">
-                      <Link href={`/vendors/${g.vendor.id}`} className="hover:text-brand-700">
-                        {g.vendor.name}
-                      </Link>
+                      {canVendors ? (
+                        <Link href={`/vendors/${g.vendor.id}`} className="hover:text-brand-700">
+                          {g.vendor.name}
+                        </Link>
+                      ) : (
+                        g.vendor.name
+                      )}
                     </Td>
                     <Td className="hidden text-slate-600 md:table-cell">{g.receivedBy?.name ?? "—"}</Td>
                     <Td right className="font-semibold text-slate-900">
@@ -280,18 +286,18 @@ function GoodsInward() {
                           <span className="mt-0.5 text-xs text-brand-700 hover:underline">{g.purchase.purchaseNo}</span>
                         </Link>
                       ) : (
-                        <Badge tone="amber">Invoice pending</Badge>
+                        <Badge tone="amber">Invoice Pending</Badge>
                       )}
                     </Td>
                     <Td right>
-                      {!g.purchase && (
+                      {!g.purchase && canInvoice && (
                         <Button
                           size="sm"
                           variant="secondary"
                           icon={<FileText className="size-4" />}
                           onClick={() => router.push(`/goods-inward/${g.id}/invoice`)}
                         >
-                          Book invoice
+                          Book Invoice
                         </Button>
                       )}
                     </Td>

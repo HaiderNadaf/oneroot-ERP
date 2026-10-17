@@ -139,28 +139,28 @@ function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (
   return (
     <form onSubmit={save}>
       <PageHeader
-        title="Store settings"
+        title="Store Settings"
         subtitle="Store profile, GST registration, licences, printing, credit rules and reminders"
         actions={
           <>
             {dirty && (
               <Button variant="ghost" onClick={() => setF(saved)}>
-                Discard changes
+                Discard Changes
               </Button>
             )}
             <Button type="submit" icon={<Save className="size-4" />} loading={saving} disabled={!dirty}>
-              Save settings
+              Save Settings
             </Button>
           </>
         }
       />
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Section title="Store profile" note="Shown on the invoice header.">
-          <Field label="Store name" required className="sm:col-span-2">
+        <Section title="Store Profile" note="Shown on the invoice header.">
+          <Field label="Store Name" required className="sm:col-span-2">
             {text("storeName", { required: true })}
           </Field>
-          <Field label="Proprietor / owner">{text("ownerName")}</Field>
+          <Field label="Proprietor / Owner">{text("ownerName")}</Field>
           <Field label="Phone">{text("phone", { type: "tel" })}</Field>
           <Field label="Email" className="sm:col-span-2">
             {text("email", { type: "email" })}
@@ -168,16 +168,16 @@ function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (
           <Field label="Address" className="sm:col-span-2">
             <Textarea rows={2} value={f.address} onChange={(e) => set("address", e.target.value)} />
           </Field>
-          <Field label="City / town">{text("city")}</Field>
-          <Field label="PIN code">{text("pincode", { inputMode: "numeric", maxLength: 6 })}</Field>
+          <Field label="City / Town">{text("city")}</Field>
+          <Field label="PIN Code">{text("pincode", { inputMode: "numeric", maxLength: 6 })}</Field>
           <StateSelect value={f.state} onChange={setState} gstin={gstin} />
-          <Field label="GST state code" hint="Set from the state — decides CGST + SGST vs IGST on every bill">
+          <Field label="GST State Code" hint="Set from the state — decides CGST + SGST vs IGST on every bill">
             <Input value={f.stateCode ? `${f.stateCode} · ${GST_STATES[f.stateCode] ?? "unknown code"}` : ""} readOnly placeholder="Choose a state" className="bg-slate-50" />
           </Field>
         </Section>
 
         <div className="space-y-4">
-          <Section title="GST & licences" note="These numbers print on every invoice. Agri-input dealers must show valid licence numbers.">
+          <Section title="GST & Licences" note="These numbers print on every invoice. Agri-input dealers must show valid licence numbers.">
             <GstinField
               label="Store GSTIN"
               className="sm:col-span-2"
@@ -187,30 +187,30 @@ function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (
               showTaxType={false}
               hint="Leave blank if unregistered. The state is taken from the first two digits."
             />
-            <Field label="Fertilizer licence no.">{text("fertilizerLicenseNo")}</Field>
-            <Field label="Pesticide (insecticide) licence no.">{text("pesticideLicenseNo")}</Field>
-            <Field label="Seed licence no.">{text("seedLicenseNo")}</Field>
+            <Field label="Fertilizer Licence No.">{text("fertilizerLicenseNo")}</Field>
+            <Field label="Pesticide (Insecticide) Licence No.">{text("pesticideLicenseNo")}</Field>
+            <Field label="Seed Licence No.">{text("seedLicenseNo")}</Field>
           </Section>
 
-          <Section title="Counter, printing & stock alerts">
+          <Section title="Counter, Printing & Stock Alerts">
             <div className="sm:col-span-2">
               <Checkbox label="No billing without an open shift (cashier enters the opening cash first)" checked={f.requireOpenShift} onChange={(v) => setF((s) => ({ ...s, requireOpenShift: v }))} />
             </div>
-            <Field label="Bill print layout" hint="Thermal receipts suit 80 mm / 58 mm roll printers at the counter; A4 is the full GST invoice">
+            <Field label="Bill Print Layout" hint="Thermal receipts suit 80 mm / 58 mm roll printers at the counter; A4 is the full GST invoice">
               <Select value={f.receiptFormat} onChange={(e) => set("receiptFormat", e.target.value)}>
-                <option value="A4">A4 tax invoice</option>
-                <option value="THERMAL_80">Thermal receipt · 80 mm</option>
-                <option value="THERMAL_58">Thermal receipt · 58 mm</option>
+                <option value="A4">A4 Tax Invoice</option>
+                <option value="THERMAL_80">Thermal Receipt · 80 mm</option>
+                <option value="THERMAL_58">Thermal Receipt · 58 mm</option>
               </Select>
             </Field>
-            <Field label="Expiry alert days" hint="Batches expiring within this many days are flagged on the dashboard and stock pages">
+            <Field label="Expiry Alert Days" hint="Batches expiring within this many days are flagged on the dashboard and stock pages">
               {text("expiryAlertDays", { type: "number", min: 1, max: 365, step: 1 })}
             </Field>
           </Section>
         </div>
 
-        <Section title="Credit control & due reminders" note="Bills on credit fall due after each customer's credit days. After the grace period they count as overdue.">
-          <Field label="Grace days after due date" hint="Overdue reminders and credit checks start after this">
+        <Section title="Credit Control & Due Reminders" note="Bills on credit fall due after each customer's credit days. After the grace period they count as overdue.">
+          <Field label="Grace Days After Due Date" hint="Overdue reminders and credit checks start after this">
             {text("reminderGraceDays", { type: "number", min: 0, max: 90, step: 1 })}
           </Field>
           <div className="flex flex-col justify-end gap-2 pb-1">
@@ -222,7 +222,7 @@ function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (
             />
           </div>
           <Field
-            label="Reminder message"
+            label="Reminder Message"
             className="sm:col-span-2"
             hint="Placeholders: {name} {amount} {overdue} {days} {store} {phone} {date}. Leave blank for the default."
           >
@@ -234,23 +234,23 @@ function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (
         </Section>
 
         <div className="space-y-4">
-          <Section title="Document numbering" note="Numbers restart every financial year (April–March). Changing a prefix only affects new documents.">
+          <Section title="Document Numbering" note="Numbers restart every financial year (April–March). Changing a prefix only affects new documents.">
             {(
               [
-                ["invoicePrefix", "Sales invoice"],
-                ["purchasePrefix", "Purchase entry"],
-                ["poPrefix", "Purchase order"],
-                ["receiptPrefix", "Payment / receipt"],
+                ["invoicePrefix", "Sales Invoice"],
+                ["purchasePrefix", "Purchase Entry"],
+                ["poPrefix", "Purchase Order"],
+                ["receiptPrefix", "Payment / Receipt"],
               ] as const
             ).map(([k, label]) => (
-              <Field key={k} label={`${label} prefix`} hint={`e.g. ${example(f[k])}`}>
+              <Field key={k} label={`${label} Prefix`} hint={`e.g. ${example(f[k])}`}>
                 <Input value={f[k]} onChange={(e) => set(k, e.target.value.toUpperCase())} maxLength={8} className="font-mono" />
               </Field>
             ))}
           </Section>
 
-          <Section title="Invoice footer" note="Printed at the bottom of every sales invoice and receipt — terms, bank details, a thank-you note.">
-            <Field label="Footer text" className="sm:col-span-2">
+          <Section title="Invoice Footer" note="Printed at the bottom of every sales invoice and receipt — terms, bank details, a thank-you note.">
+            <Field label="Footer Text" className="sm:col-span-2">
               <Textarea
                 rows={4}
                 value={f.invoiceFooter}

@@ -9,7 +9,7 @@ import { dateTime, inr } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { ApprovalKind, ApprovalRequest, Paged } from "@/lib/types";
 
-const KIND: Record<ApprovalKind, string> = { DISCOUNT: "Discount", RETURN: "Return / refund", ADJUSTMENT: "Stock adjustment", OTHER: "Override" };
+const KIND: Record<ApprovalKind, string> = { DISCOUNT: "Discount", RETURN: "Return / Refund", ADJUSTMENT: "Stock Adjustment", OTHER: "Override" };
 const amountOf = (r: ApprovalRequest) => (r.kind === "DISCOUNT" ? `${Number(r.amount)}%` : inr(r.amount));
 
 export default function ApprovalsPage() {
@@ -60,12 +60,12 @@ export default function ApprovalsPage() {
   return (
     <>
       <PageHeader
-        title={manager ? "Approvals inbox" : "My approval requests"}
+        title={manager ? "Approvals Inbox" : "My Approval Requests"}
         subtitle={manager ? "Overrides above a cashier's limit: discounts, cash refunds and stock adjustments wait here until you decide" : "Requests you sent to a manager and what they decided"}
       />
       {manager && (
         <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard label="Waiting for you" value={data?.pending ?? 0} tone={(data?.pending ?? 0) > 0 ? "amber" : "green"} />
+          <StatCard label="Waiting for You" value={data?.pending ?? 0} tone={(data?.pending ?? 0) > 0 ? "amber" : "green"} />
         </div>
       )}
       <Card bodyClassName="p-0">
@@ -79,7 +79,7 @@ export default function ApprovalsPage() {
           </Select>
           {manager && (
             <label className="flex items-center gap-1.5 text-sm text-slate-600">
-              <input type="checkbox" checked={mine} onChange={(e) => (setMine(e.target.checked), setPage(1))} /> Only my requests
+              <input type="checkbox" checked={mine} onChange={(e) => (setMine(e.target.checked), setPage(1))} /> Only My Requests
             </label>
           )}
         </div>
@@ -92,19 +92,19 @@ export default function ApprovalsPage() {
             <thead>
               <tr>
                 <Th>When</Th>
-                <Th>Who asks</Th>
+                <Th>Who Asks</Th>
                 <Th>For</Th>
                 <Th right>Amount</Th>
-                <Th>Details / reason</Th>
+                <Th>Details / Reason</Th>
                 <Th>Status</Th>
-                <Th />
+                {manager && <Th />}
               </tr>
             </thead>
             <tbody>
               {loading && !data ? (
-                <LoadingRow colSpan={7} />
+                <LoadingRow colSpan={manager ? 7 : 6} />
               ) : !data?.items.length ? (
-                <EmptyRow colSpan={7}>{status === "PENDING" ? "Nothing waiting" : "No requests"}</EmptyRow>
+                <EmptyRow colSpan={manager ? 7 : 6}>{status === "PENDING" ? "Nothing waiting" : "No requests"}</EmptyRow>
               ) : (
                 data.items.map((r) => (
                   <tr key={r.id} className={cx("hover:bg-slate-50", r.status === "PENDING" && "bg-amber-50/40")}>
@@ -132,18 +132,20 @@ export default function ApprovalsPage() {
                         </Badge>
                       )}
                     </Td>
-                    <Td right>
-                      {manager && r.status === "PENDING" && (
-                        <div className="flex justify-end gap-1">
-                          <Button size="sm" variant="secondary" icon={<X className="size-4" />} onClick={() => setDeciding({ r, action: "reject" })}>
-                            Reject
-                          </Button>
-                          <Button size="sm" icon={<Check className="size-4" />} onClick={() => setDeciding({ r, action: "approve" })}>
-                            Approve
-                          </Button>
-                        </div>
-                      )}
-                    </Td>
+                    {manager && (
+                      <Td right>
+                        {r.status === "PENDING" && (
+                          <div className="flex justify-end gap-1">
+                            <Button size="sm" variant="secondary" icon={<X className="size-4" />} onClick={() => setDeciding({ r, action: "reject" })}>
+                              Reject
+                            </Button>
+                            <Button size="sm" icon={<Check className="size-4" />} onClick={() => setDeciding({ r, action: "approve" })}>
+                              Approve
+                            </Button>
+                          </div>
+                        )}
+                      </Td>
+                    )}
                   </tr>
                 ))
               )}

@@ -10,9 +10,9 @@ import {
   Badge,
   Button,
   Card,
+  DateInput,
   EmptyRow,
   ErrorBox,
-  Input,
   LoadingRow,
   PageHeader,
   Pagination,
@@ -28,6 +28,7 @@ import {
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { date, daysUntil, downloadCsv, inr, monthStart, n, today } from "@/lib/format";
+import { useAuth } from "@/lib/auth";
 import { useApi, useDebounced } from "@/lib/hooks";
 import type { Paged, Purchase, Vendor } from "@/lib/types";
 
@@ -42,6 +43,9 @@ export default function PurchasesPage() {
 function Purchases() {
   const router = useRouter();
   const toast = useToast();
+  const { can } = useAuth();
+  const canBook = can("purchases.manage");
+  const canVendors = can("vendors.view");
   const [search, setSearch] = useState("");
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [from, setFrom] = useState(monthStart());
@@ -65,7 +69,7 @@ function Purchases() {
       const all = await api.get<Paged<Purchase>>("/purchases", { ...filters, pageSize: 500 });
       downloadCsv(
         `purchases-${from || "all"}-to-${to || "today"}.csv`,
-        ["Bill no", "Vendor invoice", "GRN", "Rate mismatch", "Date", "Due date", "Vendor", "Items", "Total", "Paid", "Balance", "Payment status", "Status"],
+        ["Bill No", "Vendor Invoice", "GRN", "Rate Mismatch", "Date", "Due Date", "Vendor", "Items", "Total", "Paid", "Balance", "Payment Status", "Status"],
         all.items.map((p) => [
           p.purchaseNo,
           p.vendorInvoiceNo,
@@ -110,13 +114,15 @@ function Purchases() {
             <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv} loading={exporting}>
               Export
             </Button>
-            <Button
-              icon={<Plus className="size-4" />}
-              onClick={() => router.push("/purchases/new")}
-              title="For quick buys without a purchase order — stock is added immediately"
-            >
-              Direct purchase
-            </Button>
+            {canBook && (
+              <Button
+                icon={<Plus className="size-4" />}
+                onClick={() => router.push("/purchases/new")}
+                title="For quick buys without a purchase order — stock is added immediately"
+              >
+                Direct Purchase
+              </Button>
+            )}
           </>
         }
       />
@@ -124,16 +130,16 @@ function Purchases() {
       <Card bodyClassName="p-0">
         <div className="grid grid-cols-1 gap-2 border-b border-slate-100 p-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto_auto_auto_auto]">
           <SearchInput value={search} onChange={reset(setSearch)} placeholder="Bill no., vendor invoice, vendor…" />
-          <VendorPicker value={vendor} onChange={reset(setVendor)} />
+          {canVendors && <VendorPicker value={vendor} onChange={reset(setVendor)} />}
           <div className="flex items-center gap-1.5">
-            <Input type="date" value={from} onChange={(e) => reset(setFrom)(e.target.value)} className="min-w-0 flex-1 lg:w-38 lg:flex-none" aria-label="From date" />
+            <DateInput value={from} onChange={(e) => reset(setFrom)(e.target.value)} className="min-w-0 flex-1 lg:w-38 lg:flex-none" aria-label="From date" />
             <span className="shrink-0 text-xs text-slate-400">to</span>
-            <Input type="date" value={to} onChange={(e) => reset(setTo)(e.target.value)} className="min-w-0 flex-1 lg:w-38 lg:flex-none" aria-label="To date" />
+            <DateInput value={to} onChange={(e) => reset(setTo)(e.target.value)} className="min-w-0 flex-1 lg:w-38 lg:flex-none" aria-label="To date" />
           </div>
           <Select value={paymentStatus} onChange={(e) => reset(setPaymentStatus)(e.target.value)} className="lg:w-36" aria-label="Payment status">
-            <option value="">Any payment</option>
+            <option value="">Any Payment</option>
             <option value="UNPAID">Unpaid</option>
-            <option value="PARTIAL">Partly paid</option>
+            <option value="PARTIAL">Partly Paid</option>
             <option value="PAID">Paid</option>
           </Select>
           <Select value={status} onChange={(e) => reset(setStatus)(e.target.value)} className="lg:w-32" aria-label="Status">
@@ -150,7 +156,7 @@ function Purchases() {
                 setPage(1);
               }}
             >
-              All dates
+              All Dates
             </Button>
           )}
         </div>
@@ -199,9 +205,11 @@ function Purchases() {
               ) : !data?.items.length ? (
                 <EmptyRow colSpan={8}>
                   No purchase invoices found for these filters.{" "}
-                  <Link href="/goods-inward" className="font-medium text-brand-700 underline">
-                    Book one from Goods Inward
-                  </Link>
+                  {canBook && (
+                    <Link href="/goods-inward" className="font-medium text-brand-700 underline">
+                      Book One From Goods Inward
+                    </Link>
+                  )}
                 </EmptyRow>
               ) : (
                 data.items.map((p) => {
@@ -222,16 +230,18 @@ function Purchases() {
                         )}
                         {p.rateMismatch && (
                           <span className="mt-0.5 inline-block">
-                            <Badge tone="amber">Rate mismatch</Badge>
+                            <Badge tone="amber">Rate Mismatch</Badge>
                           </span>
                         )}
                       </Td>
                       <Td className="whitespace-nowrap">{date(p.purchaseDate)}</Td>
                       <Td className="min-w-36">
-                        {p.vendor ? (
+                        {p.vendor && canVendors ? (
                           <Link href={`/vendors/${p.vendor.id}`} className="hover:text-brand-700">
                             {p.vendor.name}
                           </Link>
+                        ) : p.vendor ? (
+                          p.vendor.name
                         ) : (
                           "—"
                         )}

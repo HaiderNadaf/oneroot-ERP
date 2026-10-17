@@ -10,6 +10,7 @@ import {
   Badge,
   Button,
   Card,
+  DateInput,
   ErrorBox,
   Field,
   Info,
@@ -267,7 +268,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
 
       <Card className="mb-4">
         <dl className="mb-4 grid grid-cols-2 gap-4 break-words sm:grid-cols-4">
-          <Info label="Purchase order">
+          <Info label="Purchase Order">
             <Link href={`/purchase-orders/${po.id}`} className="text-brand-700 hover:underline">
               {po.poNo}
             </Link>
@@ -277,10 +278,10 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
             {date(po.orderDate)}
             {po.expectedDate && <span className="font-normal text-slate-500"> · expected {date(po.expectedDate)}</span>}
           </Info>
-          <Info label="Received so far">{po.receivedPct}%</Info>
+          <Info label="Received So Far">{po.receivedPct}%</Info>
         </dl>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Supplier invoice no." required hint="As printed on the bill; the purchase invoice is booked under it">
+          <Field label="Supplier Invoice No." required hint="As printed on the bill; the purchase invoice is booked under it">
             <Input
               value={supplierInvoiceNo}
               onChange={(e) => setSupplierInvoiceNo(e.target.value)}
@@ -289,13 +290,13 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
               className={cx(!supplierInvoiceNo.trim() && (submitted ? "border-red-400" : "border-amber-400 bg-amber-50"))}
             />
           </Field>
-          <Field label="Vehicle no.">
+          <Field label="Vehicle No.">
             <Input value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value.toUpperCase())} placeholder="KA 01 AB 1234" />
           </Field>
-          <Field label="Received date" required>
-            <Input type="date" value={receivedAt} max={today()} onChange={(e) => setReceivedAt(e.target.value)} />
+          <Field label="Received Date" required>
+            <DateInput value={receivedAt} max={today()} onChange={(e) => setReceivedAt(e.target.value)} />
           </Field>
-          <Field label="Received by">
+          <Field label="Received By">
             <Input value={user?.name ?? ""} readOnly disabled />
           </Field>
         </div>
@@ -327,7 +328,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                   </p>
                 </div>
                 <Badge tone="green">
-                  <CheckCircle2 className="mr-1 size-3.5" /> Fully received
+                  <CheckCircle2 className="mr-1 size-3.5" /> Fully Received
                 </Badge>
               </Card>
             );
@@ -364,10 +365,10 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                     variant="ghost"
                     onClick={() => update(item.id, { passed: String(pending), rejected: "", damaged: "", expired: "" })}
                   >
-                    All passed
+                    All Passed
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => update(item.id, { passed: "", rejected: "", damaged: "", expired: "" })}>
-                    Not arrived
+                    Not Arrived
                   </Button>
                 </div>
               </div>
@@ -395,7 +396,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
               )}
 
               <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-3">
-                <Field label="Batch no." required={p.trackBatch && (num(l.passed) > 0 || num(l.expired) > 0)}>
+                <Field label="Batch No." required={p.trackBatch && (num(l.passed) > 0 || num(l.expired) > 0)}>
                   <Input
                     id={`grn-batch-${item.id}`}
                     className={cx(show("batchNo") && "border-red-400")}
@@ -405,9 +406,8 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                   />
                   <FieldError msg={show("batchNo")} />
                 </Field>
-                <Field label="Mfg date">
-                  <Input
-                    type="date"
+                <Field label="Mfg Date">
+                  <DateInput
                     max={today()}
                     className={cx(show("mfgDate") && "border-red-400")}
                     value={l.mfgDate}
@@ -415,9 +415,8 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                   />
                   <FieldError msg={show("mfgDate")} />
                 </Field>
-                <Field label="Expiry date" required={p.trackBatch && num(l.passed) > 0}>
-                  <Input
-                    type="date"
+                <Field label="Expiry Date" required={p.trackBatch && num(l.passed) > 0}>
+                  <DateInput
                     className={cx(show("expiryDate") && "border-red-400")}
                     value={l.expiryDate}
                     min={l.mfgDate || undefined}
@@ -429,7 +428,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                   <Input value={l.location} onChange={(e) => update(item.id, { location: e.target.value })} placeholder={p.location ?? ""} />
                 </Field>
                 {p.trackSerial && (
-                  <Field label="Serial numbers of the passed units" className="sm:col-span-2" hint="One per line, scan them one after another">
+                  <Field label="Serial Numbers of the Passed Units" className="sm:col-span-2" hint="One per line, scan them one after another">
                     <Textarea rows={2} value={l.serialNos} onChange={(e) => update(item.id, { serialNos: e.target.value })} className="font-mono" />
                   </Field>
                 )}
@@ -447,7 +446,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
             <Total label="Rejected" value={qty(totals.rejected)} className={totals.rejected ? "text-red-600" : undefined} />
             <Total label="Damaged" value={qty(totals.damaged)} className={totals.damaged ? "text-amber-700" : undefined} />
             <Total label="Expired" value={qty(totals.expired)} className={totals.expired ? "text-amber-700" : undefined} />
-            <Total label="Passed value (PO rate)" value={inr(passedValue)} />
+            <Total label="Passed Value (PO Rate)" value={inr(passedValue)} />
           </dl>
           <div className="flex w-full items-center gap-2 sm:w-auto">
             <Button variant="secondary" className="flex-1 sm:flex-none" onClick={() => router.push("/goods-inward")}>

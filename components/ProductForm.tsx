@@ -10,7 +10,8 @@ import { AttributeFields } from "./AttributeFields";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
 import { BranchNotice } from "./BranchNotice";
-import { Button, Checkbox, Dropdown, Field, Input, Modal, Select, Textarea, errMsg, useToast, type DropdownOption } from "./ui";
+import { useSeeCostPrice } from "./StockBits";
+import { Button, Checkbox, DateInput, Dropdown, Field, Input, Modal, Select, Textarea, errMsg, type DropdownOption, useToast } from "./ui";
 
 /** Typical HSN + GST defaults for agri inputs; the user can override */
 const TYPE_DEFAULTS: Record<ProductType, { gstRate: number; unit: string; hsnCode: string; trackBatch: boolean }> = {
@@ -71,13 +72,16 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
   const toast = useToast();
   const { can } = useAuth();
   const { data: categories } = useApi<Category[]>("/categories");
-  // Brand and manufacturer are picked from the vendor list
-  const { data: vendors } = useApi<Paged<Vendor>>(can("vendors.view") ? "/vendors" : null, { pageSize: 500 });
+  // Brand and manufacturer are picked from the vendor list; without Vendors they are typed in
+  const canVendors = can("vendors.view");
+  const { data: vendors } = useApi<Paged<Vendor>>(canVendors ? "/vendors" : null, { pageSize: 500 });
+  // A hidden purchase rate keeps the product's saved value
+  const showCost = useSeeCostPrice();
   const [f, setF] = useState<FormState>(() => toForm(product));
   const [attrs, setAttrs] = useState<Attributes>(() => ({ ...(product?.attributes ?? {}) }));
   const [saving, setSaving] = useState(false);
   const editing = !!product;
-  // Preview of the SKU a new product will get: ORI + category code + sub-category code + running number (11 digits in all)
+  // Preview of the SKU a new product will get: ORI + category code + sub-category code + the sub-category's next number (11 digits in all)
   // Sub-categories are fetched for the chosen category only
   const { data: subCategories, loading: subsLoading } = useApi<SubCategory[]>(f.category ? `/categories/${f.category}/sub-categories` : null);
   const nextSku = useApi<{ sku: string | null }>(editing || !f.subCategoryId ? null : "/products/next-sku", {
@@ -187,13 +191,13 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
             Cancel
           </Button>
           <Button type="submit" form="product-form" loading={saving} disabled={openingBlocked}>
-            {editing ? "Save changes" : "Create product"}
+            {editing ? "Save Changes" : "Create Product"}
           </Button>
         </>
       }
     >
       <form id="product-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Field label="Product name" required className="sm:col-span-2">
+        <Field label="Product Name" required className="sm:col-span-2">
           <Input value={str("name")} onChange={(e) => set("name", e.target.value)} required autoFocus placeholder="e.g. Urea 45 kg" />
         </Field>
         <Field label="Category" required>
@@ -219,38 +223,46 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
           />
         </Field>
         <Field label="Brand">
-          <Dropdown
-            options={vendorOptions}
-            value={str("brand")}
-            onChange={(v) => set("brand", v)}
-            placeholder="Select brand"
-            isSearch
-            searchPlaceholder="Search vendors…"
-            allowClear
-            emptyText="No vendors yet — add them under Vendors"
-            aria-label="Brand"
-          />
+          {canVendors ? (
+            <Dropdown
+              options={vendorOptions}
+              value={str("brand")}
+              onChange={(v) => set("brand", v)}
+              placeholder="Select brand"
+              isSearch
+              searchPlaceholder="Search vendors…"
+              allowClear
+              emptyText="No vendors yet — add them under Vendors"
+              aria-label="Brand"
+            />
+          ) : (
+            <Input value={str("brand")} onChange={(e) => set("brand", e.target.value)} />
+          )}
         </Field>
         <Field label="Manufacturer">
-          <Dropdown
-            options={vendorOptions}
-            value={str("manufacturer")}
-            onChange={(v) => set("manufacturer", v)}
-            placeholder="Select manufacturer"
-            isSearch
-            searchPlaceholder="Search vendors…"
-            allowClear
-            emptyText="No vendors yet — add them under Vendors"
-            aria-label="Manufacturer"
-          />
+          {canVendors ? (
+            <Dropdown
+              options={vendorOptions}
+              value={str("manufacturer")}
+              onChange={(v) => set("manufacturer", v)}
+              placeholder="Select manufacturer"
+              isSearch
+              searchPlaceholder="Search vendors…"
+              allowClear
+              emptyText="No vendors yet — add them under Vendors"
+              aria-label="Manufacturer"
+            />
+          ) : (
+            <Input value={str("manufacturer")} onChange={(e) => set("manufacturer", e.target.value)} />
+          )}
         </Field>
-        <Field label="Technical Name/Composition/Serial No/Chasis No" className="sm:col-span-2" hint="e.g. Imidacloprid 17.8% SL, NPK 19:19:19">
+        <Field label="Technical name / composition / serial no. / chassis no." className="sm:col-span-2" hint="e.g. Imidacloprid 17.8% SL, NPK 19:19:19">
           <Input value={str("technicalName")} onChange={(e) => set("technicalName", e.target.value)} />
         </Field>
-        <Field label="Pack size" hint="e.g. 50 kg bag, 250 ml">
+        <Field label="Pack Size" hint="e.g. 50 kg bag, 250 ml">
           <Input value={str("packSize")} onChange={(e) => set("packSize", e.target.value)} />
         </Field>
-        <Field label="Location in store" hint="Rack / bin / shelf, e.g. Rack A3">
+        <Field label="Location in Store" hint="Rack / bin / shelf, e.g. Rack A3">
           <Input value={str("location")} onChange={(e) => set("location", e.target.value)} />
         </Field>
         <Field
@@ -304,7 +316,7 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
             ))}
           </Select>
         </Field>
-        <Field label="HSN code">
+        <Field label="HSN Code">
           <Input value={str("hsnCode")} onChange={(e) => set("hsnCode", e.target.value)} />
         </Field>
         <Field label="GST %" required>
@@ -316,13 +328,15 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
             ))}
           </Select>
         </Field>
-        <Field label="Reorder level" hint="Alert when stock falls to this">
+        <Field label="Reorder Level" hint="Alert when stock falls to this">
           <Input type="number" step="any" min="0" value={str("reorderLevel")} onChange={(e) => set("reorderLevel", e.target.value)} />
         </Field>
-        <Field label="Purchase rate (excl. GST)">
-          <Input type="number" step="0.01" min="0" value={str("purchasePrice")} onChange={(e) => set("purchasePrice", e.target.value)} />
-        </Field>
-        <Field label="Selling price (incl. GST)" required>
+        {showCost && (
+          <Field label="Purchase Rate (Excl. GST)">
+            <Input type="number" step="0.01" min="0" value={str("purchasePrice")} onChange={(e) => set("purchasePrice", e.target.value)} />
+          </Field>
+        )}
+        <Field label="Selling Price (Incl. GST)" required>
           <Input type="number" step="0.01" min="0" value={str("salePrice")} onChange={(e) => set("salePrice", e.target.value)} required />
         </Field>
         <Field label="MRP">
@@ -340,7 +354,7 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
           <Textarea rows={2} value={str("description")} onChange={(e) => set("description", e.target.value)} />
         </Field>
         <div className="flex flex-wrap gap-5 sm:col-span-3">
-          <Checkbox label="Track batches & expiry" checked={!!f.trackBatch} onChange={(v) => set("trackBatch", v)} />
+          <Checkbox label="Track Batches & Expiry" checked={!!f.trackBatch} onChange={(v) => set("trackBatch", v)} />
           <Checkbox label="Track serial numbers (each unit, e.g. sprayers and pumps)" checked={!!f.trackSerial} onChange={(v) => set("trackSerial", v)} />
           <Checkbox label="Govt-subsidised fertiliser (bills need the govt POS receipt no.)" checked={!!f.isSubsidised} onChange={(v) => set("isSubsidised", v)} />
           {editing && <Checkbox label="Active" checked={!!f.isActive} onChange={(v) => set("isActive", v)} />}
@@ -358,16 +372,16 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
               </Field>
               {f.trackBatch && (
                 <>
-                  <Field label="Batch no.">
+                  <Field label="Batch No.">
                     <Input value={str("openBatch")} onChange={(e) => set("openBatch", e.target.value)} />
                   </Field>
-                  <Field label="Expiry date">
-                    <Input type="date" value={str("openExpiry")} onChange={(e) => set("openExpiry", e.target.value)} />
+                  <Field label="Expiry Date">
+                    <DateInput value={str("openExpiry")} onChange={(e) => set("openExpiry", e.target.value)} />
                   </Field>
                 </>
               )}
               {f.trackSerial && (
-                <Field label="Serial numbers" className="sm:col-span-3" hint="One per unit, one per line — or register them later on the product page">
+                <Field label="Serial Numbers" className="sm:col-span-3" hint="One per unit, one per line — or register them later on the product page">
                   <Textarea rows={3} value={str("openSerials")} onChange={(e) => set("openSerials", e.target.value)} className="font-mono" />
                 </Field>
               )}

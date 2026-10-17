@@ -27,14 +27,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNeedBranch } from "@/components/BranchNotice";
-import { CameraScanner } from "@/components/CameraScanner";
 import { ApprovalGate, approvalNeeded, type ApprovalNeed } from "@/components/ApprovalGate";
-import { CustomerForm } from "@/components/CustomerForm";
 import { CustomerPicker } from "@/components/pickers";
 import { PrintPortal } from "@/components/PrintPortal";
 import { SerialPicker } from "@/components/SerialPicker";
 import { ThermalReceipt, receiptFromSale, type ReceiptData } from "@/components/ThermalReceipt";
-import { Button, Checkbox, Dropdown, Input, Modal, PageHeaderExtraSlot, Select, Spinner, Textarea, cx, errMsg, useConfirm, useToast, type DropdownOption } from "@/components/ui";
+import { Button, Checkbox, Dropdown, Input, Modal, Select, Spinner, Textarea, cx, errMsg, useConfirm, useToast, type DropdownOption } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
@@ -46,6 +44,7 @@ import { priceLines, type PricedLine } from "@/lib/pricing";
 import { defaultPrintMode, printReceipt, receiptWidth } from "@/lib/print";
 import { useScanner } from "@/lib/scanner";
 import { MONEY_MODES, modeLabel, type Batch, type Category, type Customer, type HeldBill, type Paged, type PaymentMode, type Product, type RoleLimit, type Sale, type Scheme, type Shift, type StoreSettings, type VanTripDetail } from "@/lib/types";
+import { LazyCameraScanner, LazyCustomerForm } from "@/components/lazy";
 
 /** Product list row with the POS extras from `withExpiry=true` */
 type PosProduct = Product & { sellable?: number; nextExpiry?: string | null };
@@ -144,7 +143,8 @@ export default function PosPage() {
   const { data: categories } = useApi<Category[]>("/categories");
   const { data: store } = useApi<StoreSettings>("/settings");
   // The cashier's open shift (counter cash is counted against it at close)
-  const shiftQ = useApi<Shift | null>(needBranch.blocked ? null : "/shifts/current");
+  const canShift = can("cash.shifts");
+  const shiftQ = useApi<Shift | null>(needBranch.blocked || !canShift ? null : "/shifts/current");
   const shift = shiftQ.data ?? null;
   // Running company schemes and this role's authority limits (both kept on the device for offline billing)
   const { data: schemes } = useApi<Scheme[]>(needBranch.blocked ? null : "/schemes/active");
@@ -203,7 +203,7 @@ export default function PosPage() {
   const alertDays = store?.expiryAlertDays ?? 60;
   // Van mode (?vanTripId=…): the grid shows only what is on the van, with the van's quantities
   const vanTripId = params.get("vanTripId");
-  const vanQ = useApi<VanTripDetail>(vanTripId ? `/van-trips/${vanTripId}` : null);
+  const vanQ = useApi<VanTripDetail>(vanTripId && can("sales.van") ? `/van-trips/${vanTripId}` : null);
   const van = vanQ.data && vanQ.data.status === "OPEN" ? vanQ.data : null;
   const products = useMemo(() => {
     const all = catalogue.data?.items ?? [];
@@ -222,15 +222,15 @@ export default function PosPage() {
       if (c?.phone) setPhone(c.phone);
       if (!c && mode === "CREDIT") setMode("CASH");
       // Credit position (overdue dues, hold) comes from the detail endpoint
-      if (c) api.get<Customer>(`/customers/${c.id}`).then(setCredit).catch(() => {});
+      if (c && can("customers.view")) api.get<Customer>(`/customers/${c.id}`).then(setCredit).catch(() => {});
     },
-    [store, mode],
+    [store, mode, can],
   );
 
   // Preselect a customer from ?customerId=
   const presetId = params.get("customerId");
   useEffect(() => {
-    if (!presetId) return;
+    if (!presetId || !can("customers.view")) return;
     api
       .get<Customer>(`/customers/${presetId}`)
       .then((c) => {
@@ -239,14 +239,14 @@ export default function PosPage() {
         setPhone(c.phone ?? "");
       })
       .catch((e) => toast.error(errMsg(e)));
-  }, [presetId, toast]);
+  }, [presetId, toast, can]);
 
   // Typing a 10-digit mobile number looks the farmer up
   async function changePhone(v: string) {
     const digits = v.replace(/\D/g, "").slice(0, 10);
     setPhone(digits);
     if (customer && customer.phone !== digits) pickCustomer(null);
-    if (digits.length !== 10) return;
+    if (digits.length !== 10 || !can("customers.view")) return;
     try {
       const r = await api.get<Paged<Customer>>("/customers", { search: digits, pageSize: 5 });
       const match = r.items.find((c) => c.phone === digits);
@@ -426,7 +426,8 @@ export default function PosPage() {
   const subsidisedLines = lines.filter((l) => l.product.isSubsidised);
   const needsGovt = subsidisedLines.length > 0;
   const govtMissing = needsGovt && !govtReceipt.trim();
-  const shiftMissing = !vanTripId && !!store?.requireOpenShift && online && shiftQ.data === null && !shiftQ.loading;
+  // Without cash.shifts there is no shift to read or open, so the store's open-shift rule blocks billing outright
+  const shiftMissing = !vanTripId && !!store?.requireOpenShift && online && (!canShift || (shiftQ.data === null && !shiftQ.loading));
 
   async function doOpenShift(e: React.FormEvent) {
     e.preventDefault();
@@ -492,7 +493,7 @@ export default function PosPage() {
       if (creditNoteUsed > availableCredit + 0.004) return `Only ${inr(availableCredit)} of credit note is available for ${customer?.name}`;
     }
     if (govtMissing) return "Sell the subsidised fertiliser on the govt POS device first, then enter its receipt no.";
-    if (shiftMissing) return "Open your shift (enter the opening cash) before billing";
+    if (shiftMissing) return canShift ? "Open your shift (enter the opening cash) before billing" : "Billing needs an open shift, and your role can't open one — ask an administrator";
     return null;
   }
 
@@ -697,7 +698,7 @@ export default function PosPage() {
         .then((full) => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, batches: full.batches ?? [] } : x))))
         .catch(() => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, batches: [] } : x))));
     }
-    if (p.customerId) {
+    if (p.customerId && can("customers.view")) {
       try {
         const c = await api.get<Customer>(`/customers/${p.customerId}`);
         setCustomer(c);
@@ -774,20 +775,20 @@ export default function PosPage() {
       {/* Heading */}
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[12.5px] text-[#5f6e60]">
+          <p className="text-[12.5px] text-muted">
             <Link href="/sales" className="text-brand-700 hover:underline">
               Sales
             </Link>{" "}
             / POS
           </p>
-          <h1 className="break-words text-[22px] font-bold tracking-tight text-[#1d2a1f] sm:text-[26px]">POS · {current?.name ?? "All branches"}</h1>
-          <p className="text-[13px] text-[#5f6e60]">
+          <h1 className="break-words text-[22px] font-bold tracking-tight text-ink sm:text-[26px]">POS · {current?.name ?? "All Branches"}</h1>
+          <p className="text-[13px] text-muted">
             {needBranch.blocked ? "Choose a branch in the top bar to bill from it. " : ""}
             Scan a barcode or tap a product. The earliest-expiring batch is picked automatically; expired stock can&apos;t be billed.
             <span className="hidden lg:inline">
               {" "}
-              <kbd className="rounded border border-slate-300 bg-white px-1 text-[11px]">F2</kbd> search ·{" "}
-              <kbd className="rounded border border-slate-300 bg-white px-1 text-[11px]">F9</kbd> complete sale
+              <kbd className="rounded border border-slate-300 bg-surface px-1 text-[11px]">F2</kbd> search ·{" "}
+              <kbd className="rounded border border-slate-300 bg-surface px-1 text-[11px]">F9</kbd> complete sale
             </span>
           </p>
         </div>
@@ -803,6 +804,7 @@ export default function PosPage() {
             </Button>
           )}
           {!needBranch.blocked &&
+            canShift &&
             (shift ? (
               <Link
                 href="/shifts"
@@ -818,12 +820,12 @@ export default function PosPage() {
                 onClick={() => setOpenShift(true)}
                 title="Enter the opening cash to start your shift"
               >
-                Open shift
+                Open Shift
               </Button>
             ))}
           {lines.length > 0 && online && !needBranch.blocked && (
             <Button variant="secondary" icon={<PauseCircle className="size-4" />} onClick={() => setHoldLabel("")} title="Park this cart and serve the next farmer; recall it later on any counter">
-              Hold bill
+              Hold Bill
             </Button>
           )}
           {online && !needBranch.blocked && (holds.data?.length ?? 0) > 0 && (
@@ -839,9 +841,6 @@ export default function PosPage() {
         </div>
       </div>
 
-      {/* Quick actions, as under every page heading */}
-      <PageHeaderExtraSlot className="-mt-1" />
-
       {needBranch.notice && <div className="mb-4">{needBranch.notice}</div>}
       {vanTripId && (
         <div className={cx("mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg px-4 py-2.5 text-sm", van ? "bg-sky-50 text-sky-900" : "bg-amber-50 text-amber-900")}>
@@ -854,11 +853,13 @@ export default function PosPage() {
             <span>{vanQ.loading ? "Loading the van trip…" : "This van trip is closed or not available."}</span>
           )}
           <span className="flex gap-3">
-            <Link href={`/van/${vanTripId}`} className="font-semibold underline">
-              Trip
-            </Link>
+            {can("sales.van") && (
+              <Link href={`/van/${vanTripId}`} className="font-semibold underline">
+                Trip
+              </Link>
+            )}
             <Link href="/sales/new" className="font-semibold underline">
-              Back to the counter
+              Back to the Counter
             </Link>
           </span>
         </div>
@@ -878,7 +879,7 @@ export default function PosPage() {
                 autoFocus
                 placeholder="Scan barcode or search product"
                 aria-label="Scan barcode or search product"
-                className="h-11 w-full rounded-[10px] border border-[#e1e6d8] bg-white pl-9 pr-9 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                className="h-11 w-full rounded-[10px] border border-line bg-surface pl-9 pr-9 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
               />
               {search && (
                 <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700" aria-label="Clear search">
@@ -889,7 +890,7 @@ export default function PosPage() {
             <button
               type="button"
               onClick={() => setCamOpen(true)}
-              className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-[10px] border border-[#e1e6d8] bg-white px-3 text-sm font-medium text-[#1d2a1f] hover:border-brand-500"
+              className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-[10px] border border-line bg-surface px-3 text-sm font-medium text-ink hover:border-brand-500"
               title="Scan with the camera"
             >
               <Camera className="size-4" />
@@ -905,7 +906,7 @@ export default function PosPage() {
                 onClick={() => setCategory(c.id)}
                 className={cx(
                   "shrink-0 rounded-full border px-4 py-1.5 text-[13.5px] font-medium transition-colors",
-                  category === c.id ? "border-brand-600 bg-brand-600 text-white" : "border-[#e1e6d8] bg-white text-[#1d2a1f] hover:border-brand-500",
+                  category === c.id ? "border-brand-600 bg-brand-600 text-white" : "border-line bg-surface text-ink hover:border-brand-500",
                 )}
               >
                 {c.name}
@@ -921,7 +922,7 @@ export default function PosPage() {
               {online ? catalogue.error : "You are offline and this device has no saved copy yet. Open the POS once while online."}
             </div>
           ) : visible.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[#d5dccb] bg-white px-4 py-16 text-center text-sm text-slate-500">
+            <div className="rounded-xl border border-dashed border-line-2 bg-surface px-4 py-16 text-center text-sm text-slate-500">
               <b className="block text-slate-700">No products found</b>
               Try another name or barcode.
             </div>
@@ -942,33 +943,33 @@ export default function PosPage() {
                     onClick={() => addProduct(p)}
                     disabled={sellable <= 0}
                     className={cx(
-                      "relative flex min-h-[148px] flex-col rounded-[10px] border bg-white p-3.5 text-left transition-colors",
-                      sellable <= 0 ? "cursor-not-allowed border-[#e1e6d8] opacity-55" : "border-[#e1e6d8] hover:border-brand-500 hover:shadow-sm",
+                      "relative flex min-h-[148px] flex-col rounded-[10px] border bg-surface p-3.5 text-left transition-colors",
+                      sellable <= 0 ? "cursor-not-allowed border-line opacity-55" : "border-line hover:border-brand-500 hover:shadow-sm",
                       count > 0 && "border-brand-500 ring-1 ring-brand-500/30",
                     )}
                   >
                     <span className="flex items-start justify-between gap-2">
-                      <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-[#5f6e60]">
+                      <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted">
                         {p.category?.name ?? p.type.toLowerCase()}
                       </span>
                       {expiring && sellable > 0 && (
                         <span
-                          className="shrink-0 rounded-full bg-[#fbe4df] px-2 py-0.5 text-[11px] font-semibold text-[#c2412d]"
-                          title={`Earliest batch expires ${date(p.nextExpiry)}`}
+                          className="shrink-0 rounded-full bg-rust-100 px-2 py-0.5 text-[11px] font-semibold text-rust-600"
+                          title={`Earliest Batch Expires ${date(p.nextExpiry)}`}
                         >
                           Expiring
                         </span>
                       )}
                     </span>
-                    <b className="mt-1 line-clamp-2 text-[15px] font-bold leading-snug text-[#1d2a1f]">{p.name}</b>
-                    <span className="text-[13px] text-[#5f6e60]">{p.packSize || p.unit}</span>
-                    <span className="num mt-auto pt-2 text-[17px] font-bold text-[#1d2a1f]">{inr(p.salePrice)}</span>
-                    <span className={cx("text-[12.5px]", sellable <= 0 || blocked ? "text-[#c2412d]" : "text-[#5f6e60]")}>
+                    <b className="mt-1 line-clamp-2 text-[15px] font-bold leading-snug text-ink">{p.name}</b>
+                    <span className="text-[13px] text-muted">{p.packSize || p.unit}</span>
+                    <span className="num mt-auto pt-2 text-[17px] font-bold text-ink">{inr(p.salePrice)}</span>
+                    <span className={cx("text-[12.5px]", sellable <= 0 || blocked ? "text-rust-600" : "text-muted")}>
                       {sellable <= 0
                         ? total > 0
-                          ? "Only expired stock · blocked"
-                          : "Out of stock"
-                        : `${qty(sellable)} in stock`}
+                          ? "Only Expired Stock · Blocked"
+                          : "Out of Stock"
+                        : `${qty(sellable)} in Stock`}
                     </span>
                     {count > 0 && (
                       <span className="num absolute -right-1.5 -top-1.5 flex size-6 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white shadow">
@@ -986,17 +987,17 @@ export default function PosPage() {
         <aside
           ref={billRef}
           aria-label="Bill"
-          className="flex h-fit flex-col overflow-hidden rounded-xl border border-[#e1e6d8] bg-white shadow-sm xl:sticky xl:top-20"
+          className="flex h-fit flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm xl:sticky xl:top-0"
         >
-          <header className="flex items-center justify-between border-b border-[#e1e6d8] px-4 py-3">
-            <h2 className="text-base font-bold text-[#1d2a1f]">Bill</h2>
-            <span className="text-[13px] text-[#5f6e60]">
+          <header className="flex items-center justify-between border-b border-line px-4 py-3">
+            <h2 className="text-base font-bold text-ink">Bill</h2>
+            <span className="text-[13px] text-muted">
               {qty(summary.count)} item{summary.count === 1 ? "" : "s"}
             </span>
           </header>
 
           {/* Customer */}
-          <div className="space-y-2 border-b border-[#e1e6d8] p-4">
+          <div className="space-y-2 border-b border-line p-4">
             <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
               <Input
                 type="tel"
@@ -1018,27 +1019,31 @@ export default function PosPage() {
                 <Input
                   value={walkinName}
                   onChange={(e) => setWalkinName(e.target.value)}
-                  placeholder="Walk-in Farmer"
+                  placeholder="Walk-in farmer"
                   aria-label="Walk-in name"
                   className="h-11"
                 />
               )}
             </div>
-            {!customer && (
+            {!customer && can("customers.view", "customers.manage") && (
               <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <CustomerPicker value={null} onChange={pickCustomer} />
-                </div>
-                <Button variant="secondary" size="sm" className="h-9" icon={<UserPlus className="size-4" />} onClick={() => setQuickAdd(true)}>
-                  New
-                </Button>
+                {can("customers.view") && (
+                  <div className="min-w-0 flex-1">
+                    <CustomerPicker value={null} onChange={pickCustomer} />
+                  </div>
+                )}
+                {can("customers.manage") && (
+                  <Button variant="secondary" size="sm" className="h-9" icon={<UserPlus className="size-4" />} onClick={() => setQuickAdd(true)}>
+                    New
+                  </Button>
+                )}
               </div>
             )}
             {customer && (
-              <p className="text-xs text-[#5f6e60]">
+              <p className="text-xs text-muted">
                 {[customer.village, customer.gstin && `GSTIN ${customer.gstin}`, customer.customerType?.name && `${customer.customerType.name} · ${n(customer.customerType.discountPct)}% off`].filter(Boolean).join(" · ") || "Registered customer"}
                 {" · "}
-                <span className={n(customer.balance) > 0 ? "font-semibold text-[#c2412d]" : ""}>due {inr(customer.balance)}</span>
+                <span className={n(customer.balance) > 0 ? "font-semibold text-rust-600" : ""}>due {inr(customer.balance)}</span>
                 {n(customer.creditLimit) > 0 && ` · limit ${inr0(customer.creditLimit)}`}
                 {customer.creditDays > 0 && ` · ${customer.creditDays} days credit`}
               </p>
@@ -1050,24 +1055,24 @@ export default function PosPage() {
                 </span>
                 {lines.length > 0 && creditNoteUsed === 0 && (
                   <button type="button" className="font-semibold underline" onClick={() => startSplit(true)}>
-                    Apply to this bill
+                    Apply to This Bill
                   </button>
                 )}
               </p>
             )}
             {customer && creditHold && (
-              <p className="flex items-start gap-1 rounded-lg bg-[#fbe4df] px-2.5 py-1.5 text-xs font-semibold text-[#c2412d]">
+              <p className="flex items-start gap-1 rounded-lg bg-rust-100 px-2.5 py-1.5 text-xs font-semibold text-rust-600">
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> Credit is on hold for this customer — cash, UPI or card only.
               </p>
             )}
             {customer && !creditHold && overdue && overdue.amount > 0 && (
-              <p className="flex items-start gap-1 text-xs font-medium text-[#c2412d]">
+              <p className="flex items-start gap-1 text-xs font-medium text-rust-600">
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                 {inr(overdue.amount)} overdue by {overdue.days} days — collect it with this bill.
               </p>
             )}
             {overCredit && (
-              <p className="flex items-start gap-1 text-xs font-medium text-[#c2412d]">
+              <p className="flex items-start gap-1 text-xs font-medium text-rust-600">
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                 This bill takes the balance to {inr(projectedBalance)}, over the credit limit.
               </p>
@@ -1075,7 +1080,7 @@ export default function PosPage() {
           </div>
 
           {/* Agent — internal reference only: shown in sales lists and details, not on the printed bill */}
-          <div className="border-b border-[#e1e6d8] px-4 py-3">
+          <div className="border-b border-line px-4 py-3">
             <Dropdown
               options={agentOptions}
               value={agentId}
@@ -1083,7 +1088,7 @@ export default function PosPage() {
               placeholder="Agent (optional)"
               isSearch
               searchPlaceholder="Search name, agent ID or mobile…"
-              emptyText="No agents — add them under Agents"
+              emptyText={can("vendors.manage") ? "No agents — add them under Agents" : "No agents yet"}
               allowClear
               aria-label="Agent"
             />
@@ -1091,9 +1096,9 @@ export default function PosPage() {
 
           {/* Government fertiliser POS — subsidised lines are sold on the govt device first */}
           {needsGovt && (
-            <div className={cx("space-y-2 border-b p-4", govtMissing ? "border-[#f3c9c1] bg-[#fff5f2]" : "border-[#e1e6d8] bg-[#f3faf3]")}>
-              <p className="flex items-center gap-1.5 text-xs font-semibold text-[#1d2a1f]">
-                <ShieldCheck className={cx("size-4", govtMissing ? "text-[#c2412d]" : "text-brand-700")} />
+            <div className={cx("space-y-2 border-b p-4", govtMissing ? "border-rust-200 bg-rust-50" : "border-line bg-leaf-50")}>
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-ink">
+                <ShieldCheck className={cx("size-4", govtMissing ? "text-rust-600" : "text-brand-700")} />
                 Subsidised fertiliser: {subsidisedLines.map((l) => l.product.name).join(", ")}
               </p>
               <Input
@@ -1101,10 +1106,10 @@ export default function PosPage() {
                 onChange={(e) => setGovtReceipt(e.target.value.toUpperCase())}
                 placeholder="Govt fertiliser POS receipt no. (required)"
                 aria-label="Govt fertiliser POS receipt no."
-                className={cx("h-10 font-mono", govtMissing && "border-[#e0a097]")}
+                className={cx("h-10 font-mono", govtMissing && "border-rust-300")}
               />
-              <Checkbox label="Aadhaar verified on the govt device" checked={aadhaar} onChange={setAadhaar} />
-              {govtMissing && <p className="text-xs text-[#c2412d]">Can&apos;t complete until the govt POS receipt no. is entered.</p>}
+              <Checkbox label="Aadhaar Verified on the Govt Device" checked={aadhaar} onChange={setAadhaar} />
+              {govtMissing && <p className="text-xs text-rust-600">Can&apos;t complete until the govt POS receipt no. is entered.</p>}
             </div>
           )}
 
@@ -1113,11 +1118,11 @@ export default function PosPage() {
             {lines.length === 0 ? (
               <div className="px-4 py-10 text-center">
                 <ShoppingCart className="mx-auto size-7 text-slate-300" />
-                <b className="mt-2 block text-[15px] text-[#1d2a1f]">Cart is empty</b>
-                <span className="text-[13px] text-[#5f6e60]">Tap a product or scan its barcode.</span>
+                <b className="mt-2 block text-[15px] text-ink">Cart is empty</b>
+                <span className="text-[13px] text-muted">Tap a product or scan its barcode.</span>
               </div>
             ) : (
-              <ul className="divide-y divide-[#eef1e8]">
+              <ul className="divide-y divide-paper-3">
                 {lines.map((l) => {
                   const sellable = l.batches?.filter((b) => !isExpired(b)) ?? [];
                   const chosen = sellable.find((b) => b.id === l.batchId);
@@ -1126,8 +1131,8 @@ export default function PosPage() {
                     <li key={l.key} className="px-4 py-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <b className="block truncate text-sm text-[#1d2a1f]">{l.product.name}</b>
-                          <span className="text-xs text-[#5f6e60]">
+                          <b className="block truncate text-sm text-ink">{l.product.name}</b>
+                          <span className="text-xs text-muted">
                             {l.product.packSize || l.product.unit}
                             {" · "}
                             {chosen ? `Batch ${chosen.batchNo}` : "Batch auto (earliest expiry)"}
@@ -1151,13 +1156,13 @@ export default function PosPage() {
                         </div>
                         <div className="shrink-0 text-right">
                           <b className="num block text-sm">{inr(lineGross(l, pricing.byKey.get(l.key)))}</b>
-                          <span className="num text-xs text-[#5f6e60]">
+                          <span className="num text-xs text-muted">
                             {qty(l.quantity)} × {inr(l.rate)}
                           </span>
                         </div>
                       </div>
                       <div className="mt-2 flex items-center justify-between gap-2">
-                        <div className="inline-flex items-center rounded-lg border border-[#e1e6d8]">
+                        <div className="inline-flex items-center rounded-lg border border-line">
                           <button onClick={() => step(l.key, -1)} className="flex size-10 items-center sm:size-8 justify-center text-slate-600 hover:bg-slate-50" aria-label="Less">
                             <Minus className="size-3.5" />
                           </button>
@@ -1165,7 +1170,7 @@ export default function PosPage() {
                             value={l.quantity}
                             onChange={(e) => update(l.key, { quantity: e.target.value.replace(/[^\d.]/g, "") })}
                             inputMode="decimal"
-                            className="num h-10 w-12 border-x border-[#e1e6d8] text-center text-sm outline-none sm:h-8"
+                            className="num h-10 w-12 border-x border-line text-center text-sm outline-none sm:h-8"
                             aria-label={`Quantity of ${l.product.name}`}
                           />
                           <button onClick={() => step(l.key, 1)} className="flex size-10 items-center sm:size-8 justify-center text-slate-600 hover:bg-slate-50" aria-label="More">
@@ -1185,11 +1190,11 @@ export default function PosPage() {
                         </div>
                       </div>
                       {open && (
-                        <div className="mt-2 grid grid-cols-3 gap-2 rounded-lg bg-[#f7f9f3] p-2">
-                          <label className="col-span-3 text-xs text-[#5f6e60]">
+                        <div className="mt-2 grid grid-cols-3 gap-2 rounded-lg bg-paper-2 p-2">
+                          <label className="col-span-3 text-xs text-muted">
                             Batch
                             <Select value={l.batchId} onChange={(e) => update(l.key, { batchId: e.target.value })} disabled={l.batches === null} className="mt-0.5 h-8 text-xs">
-                              <option value="">{l.batches === null ? "Loading…" : "Auto (earliest expiry)"}</option>
+                              <option value="">{l.batches === null ? "Loading…" : "Auto (Earliest Expiry)"}</option>
                               {sellable.map((b) => (
                                 <option key={b.id} value={b.id}>
                                   {b.batchNo} · {b.expiryDate ? `exp ${date(b.expiryDate)}` : "no expiry"} · {qty(b.quantity)}
@@ -1197,8 +1202,8 @@ export default function PosPage() {
                               ))}
                             </Select>
                           </label>
-                          <label className="col-span-2 text-xs text-[#5f6e60]">
-                            Rate (incl. GST)
+                          <label className="col-span-2 text-xs text-muted">
+                            Rate (Incl. GST)
                             <Input
                               type="number"
                               step="0.01"
@@ -1208,7 +1213,7 @@ export default function PosPage() {
                               className="num mt-0.5 h-8 text-right"
                             />
                           </label>
-                          <label className="text-xs text-[#5f6e60]">
+                          <label className="text-xs text-muted">
                             Disc %
                             <Input
                               type="number"
@@ -1234,12 +1239,12 @@ export default function PosPage() {
           </div>
 
           {/* Totals + payment */}
-          <div className="space-y-3 border-t border-[#e1e6d8] p-4">
+          <div className="space-y-3 border-t border-line p-4">
             {lines.length > 0 && (
               <dl className="space-y-1 text-sm">
-                <Row label="Items total" value={inr(summary.itemsTotal)} />
+                <Row label="Items Total" value={inr(summary.itemsTotal)} />
                 <div className="flex items-center justify-between gap-3">
-                  <dt className="text-[#5f6e60]">Discount (₹)</dt>
+                  <dt className="text-muted">Discount (₹)</dt>
                   <dd>
                     <Input
                       type="number"
@@ -1261,8 +1266,8 @@ export default function PosPage() {
                     {summary.manualMax}% is above your {n(limits?.maxDiscountPct)}% limit — a manager&apos;s PIN or approval will be asked on completing the sale
                   </p>
                 )}
-                {pricing.typeName && <Row label={`${pricing.typeName} price`} value={pricing.typeApplied ? "applied" : `from ${inr0(pricing.minBill)}`} muted />}
-                <Row label="Taxable value" value={inr(summary.taxable)} muted />
+                {pricing.typeName && <Row label={`${pricing.typeName} Price`} value={pricing.typeApplied ? "applied" : `from ${inr0(pricing.minBill)}`} muted />}
+                <Row label="Taxable Value" value={inr(summary.taxable)} muted />
                 {interState ? (
                   <Row label="IGST" value={inr(summary.tax)} muted />
                 ) : (
@@ -1271,10 +1276,10 @@ export default function PosPage() {
                     <Row label="SGST" value={inr(summary.tax / 2)} muted />
                   </>
                 )}
-                {summary.roundOff !== 0 && <Row label="Round off" value={inr(summary.roundOff)} muted />}
-                <div className="flex items-baseline justify-between border-t border-[#e1e6d8] pt-2">
-                  <dt className="font-semibold text-[#1d2a1f]">Total</dt>
-                  <dd className="num font-display text-2xl font-bold text-[#1d2a1f]">{inr(summary.total)}</dd>
+                {summary.roundOff !== 0 && <Row label="Round Off" value={inr(summary.roundOff)} muted />}
+                <div className="flex items-baseline justify-between border-t border-line pt-2">
+                  <dt className="font-semibold text-ink">Total</dt>
+                  <dd className="num font-display text-2xl font-bold text-ink">{inr(summary.total)}</dd>
                 </div>
               </dl>
             )}
@@ -1291,7 +1296,7 @@ export default function PosPage() {
                     onClick={() => chooseMode(m.mode)}
                     className={cx(
                       "h-11 rounded-lg border text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40",
-                      !split && mode === m.mode ? "border-brand-500 bg-[#e3f1e3] text-brand-700" : "border-[#e1e6d8] bg-white text-[#1d2a1f] hover:border-brand-500",
+                      !split && mode === m.mode ? "border-brand-500 bg-leaf-100 text-brand-700" : "border-line bg-surface text-ink hover:border-brand-500",
                     )}
                   >
                     {m.label}
@@ -1304,7 +1309,7 @@ export default function PosPage() {
                 title="Pay with more than one mode, e.g. part cash + part UPI, or apply a credit note"
                 className={cx(
                   "inline-flex h-11 items-center justify-center gap-1 rounded-lg border text-sm font-semibold transition-colors",
-                  split ? "border-brand-500 bg-[#e3f1e3] text-brand-700" : "border-[#e1e6d8] bg-white text-[#1d2a1f] hover:border-brand-500",
+                  split ? "border-brand-500 bg-leaf-100 text-brand-700" : "border-line bg-surface text-ink hover:border-brand-500",
                 )}
               >
                 <Split className="size-4" /> Split
@@ -1312,13 +1317,13 @@ export default function PosPage() {
             </div>
 
             {mode === "CREDIT" && !customer && (
-              <p className="flex items-center gap-1.5 rounded-lg bg-[#fbefd9] px-3 py-2 text-xs text-[#8a5a0f]">
+              <p className="flex items-center gap-1.5 rounded-lg bg-ochre-100 px-3 py-2 text-xs text-ochre-800">
                 <AlertTriangle className="size-3.5" /> Credit needs a registered customer.
               </p>
             )}
 
             {lines.length > 0 && split && (
-              <div className="space-y-2 rounded-lg bg-[#f7f9f3] p-2">
+              <div className="space-y-2 rounded-lg bg-paper-2 p-2">
                 {parts.map((p) => (
                   <div key={p.key} className="flex items-center gap-1.5">
                     <Select value={p.mode} onChange={(e) => updatePart(p.key, { mode: e.target.value as PaymentMode, reference: "" })} className="h-8 w-28 shrink-0 text-xs sm:w-32" aria-label="Payment mode">
@@ -1327,7 +1332,7 @@ export default function PosPage() {
                           {modeLabel(m)}
                         </option>
                       ))}
-                      {customer && availableCredit > 0 && <option value="CREDIT_NOTE">Credit note</option>}
+                      {customer && availableCredit > 0 && <option value="CREDIT_NOTE">Credit Note</option>}
                     </Select>
                     <Input
                       type="number"
@@ -1342,7 +1347,7 @@ export default function PosPage() {
                     {p.mode !== "CASH" && p.mode !== "CREDIT_NOTE" ? (
                       <Input value={p.reference} onChange={(e) => updatePart(p.key, { reference: e.target.value })} placeholder={p.mode === "CHEQUE" ? "Cheque no." : p.mode === "UPI" ? "UTR" : "Ref"} className="h-8 min-w-0 flex-1 text-xs" />
                     ) : (
-                      <span className="min-w-0 flex-1 truncate text-[11px] text-[#5f6e60]">{p.mode === "CREDIT_NOTE" ? `of ${inr(availableCredit)} available` : ""}</span>
+                      <span className="min-w-0 flex-1 truncate text-[11px] text-muted">{p.mode === "CREDIT_NOTE" ? `of ${inr(availableCredit)} available` : ""}</span>
                     )}
                     <button type="button" onClick={() => removePart(p.key)} className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove payment line">
                       <X className="size-4" />
@@ -1353,7 +1358,7 @@ export default function PosPage() {
                   <button type="button" onClick={addPart} className="font-semibold text-brand-700 hover:underline">
                     + Add payment line
                   </button>
-                  <span className={cx("num font-semibold", partsTotal > summary.total + 0.004 ? "text-red-600" : due > 0 ? "text-[#b7791f]" : "text-brand-700")}>
+                  <span className={cx("num font-semibold", partsTotal > summary.total + 0.004 ? "text-red-600" : due > 0 ? "text-ochre-600" : "text-brand-700")}>
                     {partsTotal > summary.total + 0.004 ? `Over by ${inr(partsTotal - summary.total)}` : due > 0 ? `${inr(due)} left${customer ? " → added to dues" : " (needs a customer)"}` : "Fully paid"}
                   </span>
                 </div>
@@ -1362,8 +1367,8 @@ export default function PosPage() {
 
             {lines.length > 0 && !split && (
               <div className="grid grid-cols-2 gap-2">
-                <label className="text-xs text-[#5f6e60]">
-                  {mode === "CREDIT" ? "Advance received" : "Amount received"}
+                <label className="text-xs text-muted">
+                  {mode === "CREDIT" ? "Advance Received" : "Amount Received"}
                   <Input
                     type="number"
                     step="0.01"
@@ -1375,22 +1380,22 @@ export default function PosPage() {
                   />
                 </label>
                 {mode !== "CASH" && mode !== "CREDIT" ? (
-                  <label className="text-xs text-[#5f6e60]">
-                    {mode === "CHEQUE" ? "Cheque no." : mode === "UPI" ? "UPI ref / UTR" : mode === "KCC" ? "KCC card / txn no." : "Reference"}
+                  <label className="text-xs text-muted">
+                    {mode === "CHEQUE" ? "Cheque No." : mode === "UPI" ? "UPI Ref / UTR" : mode === "KCC" ? "KCC Card / Txn No." : "Reference"}
                     <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Optional" className="mt-0.5 h-9" />
                   </label>
                 ) : (
                   <div className="flex flex-col justify-end text-right">
                     {mode === "CASH" && change > 0 && (
                       <>
-                        <span className="text-xs text-[#5f6e60]">Change to return</span>
+                        <span className="text-xs text-muted">Change to return</span>
                         <span className="num text-lg font-bold text-brand-700">{inr(change)}</span>
                       </>
                     )}
                     {due > 0 && customer && (
                       <>
-                        <span className="text-xs text-[#5f6e60]">Added to dues</span>
-                        <span className="num text-lg font-bold text-[#b7791f]">{inr(due)}</span>
+                        <span className="text-xs text-muted">Added to dues</span>
+                        <span className="num text-lg font-bold text-ochre-600">{inr(due)}</span>
                       </>
                     )}
                   </div>
@@ -1398,22 +1403,24 @@ export default function PosPage() {
               </div>
             )}
 
-            <button type="button" onClick={() => setMoreOpen((o) => !o)} className="flex items-center gap-1 text-xs font-medium text-[#5f6e60] hover:text-[#1d2a1f]">
-              <ChevronDown className={cx("size-3.5 transition-transform", moreOpen && "rotate-180")} /> More options
+            <button type="button" onClick={() => setMoreOpen((o) => !o)} className="flex items-center gap-1 text-xs font-medium text-muted hover:text-ink">
+              <ChevronDown className={cx("size-3.5 transition-transform", moreOpen && "rotate-180")} /> More Options
             </button>
             {moreOpen && (
               <div className="space-y-2">
                 <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes to print on the bill (dosage advice, vehicle no.…)" />
-                <Checkbox label="Inter-state supply (IGST)" checked={interState} onChange={setInterState} />
+                <Checkbox label="Inter-State Supply (IGST)" checked={interState} onChange={setInterState} />
               </div>
             )}
 
             {shiftMissing && (
-              <p className="flex items-center justify-between gap-2 rounded-lg bg-[#fbefd9] px-3 py-2 text-xs text-[#8a5a0f]">
-                <span>No shift open — enter the opening cash first.</span>
-                <button type="button" className="font-semibold underline" onClick={() => setOpenShift(true)}>
-                  Open shift
-                </button>
+              <p className="flex items-center justify-between gap-2 rounded-lg bg-ochre-100 px-3 py-2 text-xs text-ochre-800">
+                <span>{canShift ? "No shift open — enter the opening cash first." : "Billing needs an open shift, and your role can't open one — ask an administrator."}</span>
+                {canShift && (
+                  <button type="button" className="font-semibold underline" onClick={() => setOpenShift(true)}>
+                    Open Shift
+                  </button>
+                )}
               </p>
             )}
             <Button
@@ -1423,12 +1430,12 @@ export default function PosPage() {
               icon={online ? <Check className="size-4" /> : <CloudOff className="size-4" />}
               onClick={() => void submit()}
             >
-              {online ? "Complete sale" : "Save bill offline"}
+              {online ? "Complete Sale" : "Save Bill Offline"}
               {lines.length ? ` · ${inr(summary.total)}` : ""}
             </Button>
             {lines.length > 0 && (
-              <button onClick={newSale} className="w-full py-2 text-center text-sm font-medium text-[#5f6e60] hover:text-[#1d2a1f] sm:py-0">
-                Clear cart
+              <button onClick={newSale} className="w-full py-2 text-center text-sm font-medium text-muted hover:text-ink sm:py-0">
+                Clear Cart
               </button>
             )}
           </div>
@@ -1437,12 +1444,12 @@ export default function PosPage() {
 
       {/* Phone: bottom bar to jump to the bill */}
       {lines.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t border-[#e1e6d8] bg-white px-4 py-3 shadow-[0_-4px_14px_rgba(20,40,25,.08)] xl:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t border-line bg-surface px-4 py-3 shadow-[0_-4px_14px_rgba(20,40,25,.08)] xl:hidden">
           <b className="num min-w-0 truncate text-sm">
             {qty(summary.count)} item{summary.count === 1 ? "" : "s"} · {inr(summary.total)}
           </b>
-          <Button className="h-10 shrink-0 bg-[#c9932a] hover:bg-[#b07b1c]" onClick={() => billRef.current?.scrollIntoView({ behavior: "smooth" })}>
-            View bill
+          <Button className="h-10 shrink-0 bg-gold-500 hover:bg-gold-600" onClick={() => billRef.current?.scrollIntoView({ behavior: "smooth" })}>
+            View Bill
           </Button>
         </div>
       )}
@@ -1450,7 +1457,7 @@ export default function PosPage() {
       <Modal
         open={holdLabel !== null}
         onClose={() => setHoldLabel(null)}
-        title="Hold this bill"
+        title="Hold This Bill"
         size="sm"
         footer={
           <>
@@ -1467,7 +1474,7 @@ export default function PosPage() {
         <Input className="mt-3" value={holdLabel ?? ""} onChange={(e) => setHoldLabel(e.target.value)} placeholder="Note, e.g. gone to ATM / blue shirt (optional)" autoFocus />
       </Modal>
 
-      <Modal open={holdsOpen} onClose={() => setHoldsOpen(false)} title="Held bills" size="md">
+      <Modal open={holdsOpen} onClose={() => setHoldsOpen(false)} title="Held Bills" size="md">
         {!holds.data?.length ? (
           <p className="py-6 text-center text-sm text-slate-400">Nothing on hold</p>
         ) : (
@@ -1533,7 +1540,7 @@ export default function PosPage() {
         }}
       />
 
-      <CustomerForm
+      <LazyCustomerForm
         open={quickAdd}
         quick
         onClose={() => setQuickAdd(false)}
@@ -1543,7 +1550,7 @@ export default function PosPage() {
         }}
       />
 
-      <CameraScanner
+      <LazyCameraScanner
         open={camOpen}
         onClose={() => setCamOpen(false)}
         onScan={(code) => {
@@ -1555,15 +1562,15 @@ export default function PosPage() {
       <Modal
         open={!!overLimit}
         onClose={() => setOverLimit(null)}
-        title="Credit limit exceeded"
+        title="Credit Limit Exceeded"
         size="sm"
         footer={
           <>
             <Button variant="secondary" onClick={() => setOverLimit(null)}>
-              Go back
+              Go Back
             </Button>
             <Button variant="danger" loading={saving} onClick={() => void submit(true)}>
-              Bill anyway
+              Bill Anyway
             </Button>
           </>
         }
@@ -1575,7 +1582,7 @@ export default function PosPage() {
       <Modal
         open={!!done}
         onClose={newSale}
-        title={done?.queued ? "Bill saved offline" : "Sale complete"}
+        title={done?.queued ? "Bill Saved Offline" : "Sale Complete"}
         size="sm"
         footer={
           <>
@@ -1590,20 +1597,20 @@ export default function PosPage() {
               </a>
             )}
             <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => printBill()}>
-              {done?.queued || defaultPrintMode(store) === "thermal" ? "Print receipt" : "Print invoice"}
+              {done?.queued || defaultPrintMode(store) === "thermal" ? "Print Receipt" : "Print Invoice"}
             </Button>
             {done?.sale && (
               <Button variant="ghost" onClick={() => printBill(defaultPrintMode(store) === "thermal" ? "a4" : "receipt")}>
-                {defaultPrintMode(store) === "thermal" ? "A4 invoice" : "Receipt"}
+                {defaultPrintMode(store) === "thermal" ? "A4 Invoice" : "Receipt"}
               </Button>
             )}
-            <Button onClick={newSale}>New sale</Button>
+            <Button onClick={newSale}>New Sale</Button>
           </>
         }
       >
         {done && (
-          <div className={cx("flex items-start gap-3 rounded-lg p-3 text-sm text-[#1d2a1f]", done.queued ? "bg-[#fbefd9]" : "bg-[#e3f1e3]")}>
-            {done.queued ? <CloudOff className="mt-0.5 size-5 shrink-0 text-[#8a5a0f]" /> : <Check className="mt-0.5 size-5 shrink-0 text-brand-700" />}
+          <div className={cx("flex items-start gap-3 rounded-lg p-3 text-sm text-ink", done.queued ? "bg-ochre-100" : "bg-leaf-100")}>
+            {done.queued ? <CloudOff className="mt-0.5 size-5 shrink-0 text-ochre-800" /> : <Check className="mt-0.5 size-5 shrink-0 text-brand-700" />}
             <p>
               <b>{done.receipt.invoiceNo}</b> · {inr(done.receipt.total)}{" "}
               {done.receipt.payments && done.receipt.payments.length > 1
@@ -1612,11 +1619,11 @@ export default function PosPage() {
               {done.receipt.total > done.receipt.paid && (
                 <>
                   <br />
-                  <span className="text-[#b7791f]">{inr(done.receipt.total - done.receipt.paid)} added to dues</span>
+                  <span className="text-ochre-600">{inr(done.receipt.total - done.receipt.paid)} added to dues</span>
                 </>
               )}
               <br />
-              <span className="text-xs text-[#5f6e60]">
+              <span className="text-xs text-muted">
                 {done.queued
                   ? "Saved on this device. It will be sent to the server and get its invoice number as soon as the connection is back."
                   : "Batch numbers and expiry dates are printed on the bill."}
@@ -1637,7 +1644,7 @@ export default function PosPage() {
               Close
             </Button>
             <Button icon={<RefreshCw className="size-4" />} onClick={() => void syncNow()} disabled={!online}>
-              Sync now
+              Sync Now
             </Button>
           </>
         }
@@ -1693,7 +1700,7 @@ export default function PosPage() {
       <Modal
         open={openShift}
         onClose={() => setOpenShift(false)}
-        title="Open shift"
+        title="Open Shift"
         size="sm"
         footer={
           <>
@@ -1701,17 +1708,17 @@ export default function PosPage() {
               Cancel
             </Button>
             <Button type="submit" form="pos-open-shift" loading={openingShift}>
-              Open shift
+              Open Shift
             </Button>
           </>
         }
       >
         <form id="pos-open-shift" onSubmit={doOpenShift}>
-          <label className="text-xs text-[#5f6e60]">
-            Opening cash in the drawer (₹)
+          <label className="text-xs text-muted">
+            Opening Cash in the Drawer (₹)
             <Input type="number" min="0" step="1" value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} autoFocus required className="num mt-1 h-11 text-lg" />
           </label>
-          <p className="mt-2 text-xs text-[#5f6e60]">Count the float before the first bill. Cash sales, refunds and cash expenses are tallied against this shift when you close it.</p>
+          <p className="mt-2 text-xs text-muted">Count the float before the first bill. Cash sales, refunds and cash expenses are tallied against this shift when you close it.</p>
         </form>
       </Modal>
 
@@ -1739,8 +1746,8 @@ function LinePricing({ p, unit }: { p?: PricedLine; unit: string }) {
 function Row({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
     <div className="flex justify-between">
-      <dt className={muted ? "text-slate-500" : "text-[#5f6e60]"}>{label}</dt>
-      <dd className={cx("num", muted ? "text-slate-500" : "font-medium text-[#1d2a1f]")}>{value}</dd>
+      <dt className={muted ? "text-slate-500" : "text-muted"}>{label}</dt>
+      <dd className={cx("num", muted ? "text-slate-500" : "font-medium text-ink")}>{value}</dd>
     </div>
   );
 }

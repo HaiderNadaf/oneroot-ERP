@@ -7,9 +7,9 @@ import {
   Badge,
   Button,
   Card,
+  DateInput,
   EmptyRow,
   ErrorBox,
-  Input,
   LoadingRow,
   PageHeader,
   Pagination,
@@ -23,12 +23,14 @@ import {
   useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { date, dateTime, downloadCsv, inr, monthStart, n, today } from "@/lib/format";
 import { useApi, useDebounced } from "@/lib/hooks";
 import type { Paged, Sale } from "@/lib/types";
 
 export default function SalesPage() {
   const toast = useToast();
+  const { can } = useAuth();
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState(monthStart());
   const [to, setTo] = useState(today());
@@ -50,7 +52,7 @@ export default function SalesPage() {
       const all = await api.get<Paged<Sale>>("/sales", { ...filters, pageSize: 500 });
       downloadCsv(
         `invoices_${from || "all"}_${to || "all"}.csv`,
-        ["Invoice no", "Date", "Customer", "Phone", "Items", "Taxable", "Tax", "Discount", "Total", "Paid", "Balance", "Mode", "Payment status", "Status", "Billed by", "Agent ID", "Agent"],
+        ["Invoice No", "Date", "Customer", "Phone", "Items", "Taxable", "Tax", "Discount", "Total", "Paid", "Balance", "Mode", "Payment Status", "Status", "Billed By", "Agent ID", "Agent"],
         all.items.map((s) => [
           s.invoiceNo,
           date(s.saleDate),
@@ -87,7 +89,7 @@ export default function SalesPage() {
   return (
     <>
       <PageHeader
-        title="Sales invoices"
+        title="Sales Invoices"
         subtitle="All bills raised at the counter"
         actions={
           <>
@@ -95,7 +97,7 @@ export default function SalesPage() {
               Export
             </Button>
             <Link href="/sales/new">
-              <Button icon={<Plus className="size-4" />}>New sale</Button>
+              <Button icon={<Plus className="size-4" />}>New Sale</Button>
             </Link>
           </>
         }
@@ -110,12 +112,12 @@ export default function SalesPage() {
             className="w-full flex-1 sm:w-auto sm:min-w-60"
           />
           <div className="flex w-full items-center gap-1.5 sm:w-auto">
-            <Input type="date" value={from} max={to || undefined} onChange={(e) => resetPage(setFrom)(e.target.value)} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="From date" />
+            <DateInput value={from} max={to || undefined} onChange={(e) => resetPage(setFrom)(e.target.value)} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="From date" />
             <span className="text-xs text-slate-400">to</span>
-            <Input type="date" value={to} min={from || undefined} onChange={(e) => resetPage(setTo)(e.target.value)} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="To date" />
+            <DateInput value={to} min={from || undefined} onChange={(e) => resetPage(setTo)(e.target.value)} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="To date" />
           </div>
           <Select value={paymentStatus} onChange={(e) => resetPage(setPaymentStatus)(e.target.value)} className="min-w-0 flex-1 sm:w-36 sm:flex-none" aria-label="Payment status">
-            <option value="">Any payment</option>
+            <option value="">Any Payment</option>
             <option value="PAID">Paid</option>
             <option value="PARTIAL">Partial</option>
             <option value="UNPAID">Unpaid</option>
@@ -153,7 +155,7 @@ export default function SalesPage() {
                 <EmptyRow colSpan={9}>
                   No invoices for these filters.{" "}
                   <Link href="/sales/new" className="font-medium text-brand-700 underline">
-                    Create a sale
+                    Create a Sale
                   </Link>
                 </EmptyRow>
               ) : (
@@ -172,12 +174,12 @@ export default function SalesPage() {
                         </p>
                       </Td>
                       <Td>
-                        {s.customer ? (
+                        {s.customer && can("customers.view") ? (
                           <Link href={`/customers/${s.customer.id}`} className="font-medium text-slate-800 hover:text-brand-700">
                             {s.customer.name}
                           </Link>
                         ) : (
-                          <span className="text-slate-700">{s.customerName || "Cash customer"}</span>
+                          <span className="text-slate-700">{s.customer?.name ?? (s.customerName || "Cash customer")}</span>
                         )}
                         {(s.customer?.phone ?? s.customerPhone) && <p className="text-xs text-slate-500">{s.customer?.phone ?? s.customerPhone}</p>}
                       </Td>

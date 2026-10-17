@@ -26,7 +26,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { date, dateTime, inr, n } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import type { ApprovalQueue } from "@/lib/types";
+import type { ApprovalQueue, ChainStep } from "@/lib/types";
 
 const decisionBadge = (action: string) =>
   action.startsWith("Approved") ? (
@@ -34,7 +34,7 @@ const decisionBadge = (action: string) =>
   ) : action.startsWith("Rejected") ? (
     <Badge tone="red">Rejected</Badge>
   ) : (
-    <Badge tone="amber">Sent back</Badge>
+    <Badge tone="amber">Sent Back</Badge>
   );
 
 interface BulkApproveResult {
@@ -48,7 +48,10 @@ const levelOf = (action: string) => action.split("·")[1]?.trim();
 
 export default function ApprovalsPage() {
   const router = useRouter();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
+  // Same rule as the API: purchase staff open any PO, anyone else only the ones they are named on
+  const seesAll = can("purchases.view", "purchases.approve", "purchases.receive");
+  const canOpen = (chain: ChainStep[]) => seesAll || chain.some((s) => s.approverId === user?.id);
   const toast = useToast();
   const confirm = useConfirm();
   const { data, error, loading, reload } = useApi<ApprovalQueue>("/purchase-orders/approvals");
@@ -102,7 +105,7 @@ export default function ApprovalsPage() {
   return (
     <>
       <PageHeader
-        title="PO approvals"
+        title="PO Approvals"
         subtitle="Purchase orders waiting for a decision, and what was decided recently"
         actions={
           <>
@@ -111,7 +114,7 @@ export default function ApprovalsPage() {
             </Button>
             {can("admin.approval_rules") && (
               <Button variant="secondary" icon={<Settings2 className="size-4" />} onClick={() => router.push("/admin/approval-rules")}>
-                Approval rules
+                Approval Rules
               </Button>
             )}
           </>
@@ -136,9 +139,9 @@ export default function ApprovalsPage() {
               tone={s.waiting ? "amber" : "slate"}
             />
           ))}
-          <StatCard label="Re-approvals" value={data.reapprovals} sub="edited or resubmitted POs (round 2+)" icon={<Repeat />} tone="blue" />
+          <StatCard label="Re-Approvals" value={data.reapprovals} sub="edited or resubmitted POs (round 2+)" icon={<Repeat />} tone="blue" />
           <StatCard
-            label="Waiting for you"
+            label="Waiting for You"
             value={data.mine}
             sub={data.mine ? "you can decide these now" : "nothing needs you right now"}
             icon={<UserCheck />}
@@ -189,8 +192,8 @@ export default function ApprovalsPage() {
               <Th>PO</Th>
               <Th>Vendor</Th>
               <Th right>Value</Th>
-              <Th className="hidden md:table-cell">Approval chain</Th>
-              <Th>Waiting with</Th>
+              <Th className="hidden md:table-cell">Approval Chain</Th>
+              <Th>Waiting With</Th>
               <Th />
             </tr>
           </thead>
@@ -213,9 +216,13 @@ export default function ApprovalsPage() {
                   </Td>
                   <Td>
                     <div className="flex items-center gap-1.5">
-                      <Link href={`/purchase-orders/${po.id}`} className="whitespace-nowrap font-medium text-slate-900 hover:text-brand-700">
-                        {po.poNo}
-                      </Link>
+                      {canOpen(po.chain) ? (
+                        <Link href={`/purchase-orders/${po.id}`} className="whitespace-nowrap font-medium text-slate-900 hover:text-brand-700">
+                          {po.poNo}
+                        </Link>
+                      ) : (
+                        <span className="whitespace-nowrap font-medium text-slate-900">{po.poNo}</span>
+                      )}
                       {po.round > 1 && <Badge tone="violet">Round {po.round}</Badge>}
                     </div>
                     <p className="text-xs text-slate-500">
@@ -249,9 +256,11 @@ export default function ApprovalsPage() {
                     )}
                   </Td>
                   <Td right>
-                    <Button size="sm" variant={po.canAct ? "primary" : "secondary"} onClick={() => router.push(`/purchase-orders/${po.id}`)}>
-                      {po.canAct ? "Review" : "View"}
-                    </Button>
+                    {canOpen(po.chain) && (
+                      <Button size="sm" variant={po.canAct ? "primary" : "secondary"} onClick={() => router.push(`/purchase-orders/${po.id}`)}>
+                        {po.canAct ? "Review" : "View"}
+                      </Button>
+                    )}
                   </Td>
                 </tr>
               ))
@@ -260,7 +269,7 @@ export default function ApprovalsPage() {
         </Table>
       </Card>
 
-      <Card title="Recent decisions" bodyClassName="p-0">
+      <Card title="Recent Decisions" bodyClassName="p-0">
         <Table>
           <thead>
             <tr>
@@ -281,9 +290,13 @@ export default function ApprovalsPage() {
                 <tr key={d.id}>
                   <Td className="whitespace-nowrap text-xs text-slate-500">{dateTime(d.at)}</Td>
                   <Td>
-                    <Link href={`/purchase-orders/${d.po.id}`} className="whitespace-nowrap font-medium text-slate-900 hover:text-brand-700">
-                      {d.po.poNo}
-                    </Link>
+                    {seesAll || data.pending.some((po) => po.id === d.po.id && canOpen(po.chain)) ? (
+                      <Link href={`/purchase-orders/${d.po.id}`} className="whitespace-nowrap font-medium text-slate-900 hover:text-brand-700">
+                        {d.po.poNo}
+                      </Link>
+                    ) : (
+                      <span className="whitespace-nowrap font-medium text-slate-900">{d.po.poNo}</span>
+                    )}
                     {d.round > 1 && <p className="text-xs text-slate-500">Round {d.round}</p>}
                   </Td>
                   <Td>

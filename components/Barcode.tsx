@@ -35,7 +35,7 @@ export function Barcode({
       height={fluid || stretch ? undefined : height + textH}
       style={stretch ? { width: "100%", height: "100%", display: "block" } : fluid ? { width: "100%", height: "auto" } : undefined}
       preserveAspectRatio={stretch ? "none" : undefined}
-      className={className}
+      className={className ? `paper bg-white ${className}` : "paper bg-white"}
       role="img"
       aria-label={value}
       shapeRendering="crispEdges"

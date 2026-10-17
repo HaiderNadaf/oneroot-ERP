@@ -6,12 +6,9 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Barcode } from "@/components/Barcode";
 import { BranchCode } from "@/components/BranchNotice";
-import { LabelPrintModal } from "@/components/LabelPrintModal";
-import { ProductForm } from "@/components/ProductForm";
 import { AttributeList } from "@/components/AttributeFields";
 import { SerialsPanel } from "@/components/SerialsPanel";
-import { StockAdjustModal } from "@/components/StockAdjustModal";
-import { ExpiryBadge, MovementBadge, MovementRef, SignedQty } from "@/components/StockBits";
+import { ExpiryBadge, MovementBadge, MovementRef, SignedQty, useSeeCostPrice } from "@/components/StockBits";
 import {
   Badge,
   Button,
@@ -38,6 +35,7 @@ import { useBranch } from "@/lib/branch";
 import { date, dateTime, inr, n, qty, round2 } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { Paged, Product, StockMovement } from "@/lib/types";
+import { LazyLabelPrintModal, LazyProductForm, LazyStockAdjustModal } from "@/components/lazy";
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -52,13 +50,16 @@ export default function ProductDetailPage() {
   const [busy, setBusy] = useState(false);
 
   const { data: p, error, loading, reload } = useApi<Product>(`/products/${id}`);
-  const moves = useApi<Paged<StockMovement>>("/inventory/movements", { productId: id, page, pageSize: 20 });
+  // Stock movements are Inventory's; someone with only Products sees the product without its history
+  const canMoves = can("inventory.view");
+  const moves = useApi<Paged<StockMovement>>(canMoves ? "/inventory/movements" : null, { productId: id, page, pageSize: 20 });
+  const showCost = useSeeCostPrice();
   const { currentId, current } = useBranch();
   const allBranches = currentId === "all";
 
   const refresh = () => {
     void reload();
-    void moves.reload();
+    if (canMoves) void moves.reload();
   };
 
   if (loading && !p) return <Spinner page />;
@@ -77,7 +78,8 @@ export default function ProductDetailPage() {
   const totalStock = n(p.totalStock ?? p.stock);
   const branchStock = p.branchStock ?? [];
   const multiBranch = branchStock.length > 1;
-  const batchCols = allBranches ? 8 : 7;
+  const batchCols = (allBranches ? 8 : 7) - (showCost ? 0 : 2);
+  const moveCols = allBranches ? 8 : 7;
 
   async function remove() {
     if (!p) return;
@@ -150,10 +152,12 @@ export default function ProductDetailPage() {
               <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
                 Edit
               </Button>
-              <Button icon={<SlidersHorizontal className="size-4" />} onClick={() => setAdjustOpen(true)}>
-                Adjust stock
-              </Button>
             </>
+            )}
+            {can("inventory.adjust") && (
+              <Button icon={<SlidersHorizontal className="size-4" />} onClick={() => setAdjustOpen(true)}>
+                Adjust Stock
+              </Button>
             )}
           </>
         }
@@ -162,26 +166,27 @@ export default function ProductDetailPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title="Details" className="lg:col-span-2">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-            <Info label="Technical Name/Composition/Serial No/Chasis No">{p.technicalName}</Info>
+            <Info label="Technical name / composition / serial no. / chassis no.">{p.technicalName}</Info>
             <Info label="Brand">{p.brand}</Info>
             <Info label="Manufacturer">{p.manufacturer}</Info>
             <Info label="Category">{p.category?.name}</Info>
-            <Info label="Sub-category">{p.subCategory?.name}</Info>
-            <Info label="Pack size">{p.packSize}</Info>
+            <Info label="Sub-Category">{p.subCategory?.name}</Info>
+            <Info label="Pack Size">{p.packSize}</Info>
             <Info label="Unit">{p.unit}</Info>
-            <Info label="HSN code">{p.hsnCode}</Info>
-            <Info label="GST rate">{`${gst}%`}</Info>
-            <Info label="Barcode">
+            <Info label="HSN Code">{p.hsnCode}</Info>
+            <Info label="GST Rate">{`${gst}%`}</Info>
+           
+            <Info label="Batch Tracking">{p.trackBatch ? "Batches & expiry tracked" : "Not tracked"}</Info>
+            <Info label="Location in Store">{p.location}</Info>
+            <Info label="Serial Numbers">{p.trackSerial ? "Each unit tracked" : "Not tracked"}</Info>
+             <Info label="Barcode Image and Number">
               {p.barcode ? (
                 <span className="block">
-                  <span className="font-mono">{p.barcode}</span>
+                  {/* <span className="font-mono">{p.barcode}</span> */}
                   <Barcode value={p.barcode} height={28} moduleWidth={1.2} className="mt-1 block max-w-[220px]" fluid />
                 </span>
               ) : null}
             </Info>
-            <Info label="Batch tracking">{p.trackBatch ? "Batches & expiry tracked" : "Not tracked"}</Info>
-            <Info label="Location in store">{p.location}</Info>
-            <Info label="Serial numbers">{p.trackSerial ? "Each unit tracked" : "Not tracked"}</Info>
           </dl>
           {p.subCategory?.fields && p.subCategory.fields.length > 0 && (
             <div className="mt-4 border-t border-slate-100 pt-3">
@@ -194,22 +199,26 @@ export default function ProductDetailPage() {
         <div className="space-y-4">
           <Card title="Pricing">
             <dl className="grid grid-cols-2 gap-4">
-              <Info label="Purchase rate (excl. GST)">
-                <span className="num">{inr(p.purchasePrice)}</span>
-              </Info>
-              <Info label="Selling price (incl. GST)">
+              {showCost && (
+                <Info label="Purchase Rate (Excl. GST)">
+                  <span className="num">{inr(p.purchasePrice)}</span>
+                </Info>
+              )}
+              <Info label="Selling Price (Incl. GST)">
                 <span className="num">{inr(p.salePrice)}</span>
               </Info>
               <Info label="MRP">{n(p.mrp) ? <span className="num">{inr(p.mrp)}</span> : null}</Info>
-              <Info label="Margin">
-                {margin === null ? null : (
-                  <span className={cx("num", margin < 0 ? "text-red-600" : margin < 5 ? "text-amber-700" : "text-brand-700")}>
-                    {margin}%
-                  </span>
-                )}
-              </Info>
+              {showCost && (
+                <Info label="Margin">
+                  {margin === null ? null : (
+                    <span className={cx("num", margin < 0 ? "text-red-600" : margin < 5 ? "text-amber-700" : "text-brand-700")}>
+                      {margin}%
+                    </span>
+                  )}
+                </Info>
+              )}
             </dl>
-            <p className="mt-3 text-xs text-slate-400">Margin is on the selling price net of {gst}% GST.</p>
+            {showCost && <p className="mt-3 text-xs text-slate-400">Margin is on the selling price net of {gst}% GST.</p>}
           </Card>
 
           <Card title={current && multiBranch ? `Stock in ${current.name}` : "Stock"}>
@@ -241,13 +250,15 @@ export default function ProductDetailPage() {
                 />
               </div>
             )}
-            <p className="mt-3 text-xs text-slate-500">
-              Value at cost <span className="num font-medium text-slate-700">{inr(batchValue)}</span>
-            </p>
+            {showCost && (
+              <p className="mt-3 text-xs text-slate-500">
+                Value at cost <span className="num font-medium text-slate-700">{inr(batchValue)}</span>
+              </p>
+            )}
           </Card>
 
           {multiBranch && (
-            <Card title="Stock by branch" bodyClassName="p-0">
+            <Card title="Stock by Branch" bodyClassName="p-0">
               <ul className="divide-y divide-slate-100">
                 {branchStock.map((b) => {
                   const here = b.branchId === currentId;
@@ -286,12 +297,12 @@ export default function ProductDetailPage() {
             <tr>
               <Th>Batch</Th>
               {allBranches && <Th>Branch</Th>}
-              <Th>Mfg date</Th>
+              <Th>Mfg Date</Th>
               <Th>Expiry</Th>
-              <Th right>Cost</Th>
+              {showCost && <Th right>Cost</Th>}
               <Th right>MRP</Th>
               <Th right>Qty</Th>
-              <Th right>Value</Th>
+              {showCost && <Th right>Value</Th>}
             </tr>
           </thead>
           <tbody>
@@ -311,14 +322,14 @@ export default function ProductDetailPage() {
                     <span className="mr-2">{date(b.expiryDate)}</span>
                     <ExpiryBadge expiry={b.expiryDate} />
                   </Td>
-                  <Td right>{inr(b.costPrice)}</Td>
+                  {showCost && <Td right>{inr(b.costPrice)}</Td>}
                   <Td right className="text-slate-500">
                     {n(b.mrp) ? inr(b.mrp) : "—"}
                   </Td>
                   <Td right className="font-medium">
                     {qty(b.quantity)} <span className="text-xs font-normal text-slate-500">{p.unit}</span>
                   </Td>
-                  <Td right>{inr(n(b.quantity) * n(b.costPrice))}</Td>
+                  {showCost && <Td right>{inr(n(b.quantity) * n(b.costPrice))}</Td>}
                 </tr>
               ))
             )}
@@ -326,11 +337,11 @@ export default function ProductDetailPage() {
           {batches.length > 1 && (
             <tfoot>
               <tr className="bg-slate-50 font-semibold">
-                <Td colSpan={batchCols - 2}>Total</Td>
+                <Td colSpan={batchCols - (showCost ? 2 : 1)}>Total</Td>
                 <Td right>
                   {qty(batches.reduce((s, b) => s + n(b.quantity), 0))} <span className="text-xs font-normal text-slate-500">{p.unit}</span>
                 </Td>
-                <Td right>{inr(batchValue)}</Td>
+                {showCost && <Td right>{inr(batchValue)}</Td>}
               </tr>
             </tfoot>
           )}
@@ -343,61 +354,63 @@ export default function ProductDetailPage() {
         </div>
       )}
 
-      <Card title="Stock movement history" className="mt-4" bodyClassName="p-0">
-        {moves.error ? (
-          <div className="p-4">
-            <ErrorBox message={moves.error} onRetry={moves.reload} />
-          </div>
-        ) : (
-          <Table>
-            <thead>
-              <tr>
-                <Th>Date</Th>
-                {allBranches && <Th>Branch</Th>}
-                <Th>Type</Th>
-                <Th>Reference</Th>
-                <Th>Batch</Th>
-                <Th right>Qty</Th>
-                <Th right>Balance</Th>
-                <Th>Note</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {moves.loading && !moves.data ? (
-                <LoadingRow colSpan={batchCols} />
-              ) : !moves.data?.items.length ? (
-                <EmptyRow colSpan={batchCols}>No stock movements yet</EmptyRow>
-              ) : (
-                moves.data.items.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50">
-                    <Td className="whitespace-nowrap text-xs">{dateTime(m.createdAt)}</Td>
-                    {allBranches && (
+      {canMoves && (
+        <Card title="Stock Movement History" className="mt-4" bodyClassName="p-0">
+          {moves.error ? (
+            <div className="p-4">
+              <ErrorBox message={moves.error} onRetry={moves.reload} />
+            </div>
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Date</Th>
+                  {allBranches && <Th>Branch</Th>}
+                  <Th>Type</Th>
+                  <Th>Reference</Th>
+                  <Th>Batch</Th>
+                  <Th right>Qty</Th>
+                  <Th right>Balance</Th>
+                  <Th>Note</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {moves.loading && !moves.data ? (
+                  <LoadingRow colSpan={moveCols} />
+                ) : !moves.data?.items.length ? (
+                  <EmptyRow colSpan={moveCols}>No stock movements yet</EmptyRow>
+                ) : (
+                  moves.data.items.map((m) => (
+                    <tr key={m.id} className="hover:bg-slate-50">
+                      <Td className="whitespace-nowrap text-xs">{dateTime(m.createdAt)}</Td>
+                      {allBranches && (
+                        <Td>
+                          <BranchCode code={m.branch?.code} title={m.branch?.name} />
+                        </Td>
+                      )}
                       <Td>
-                        <BranchCode code={m.branch?.code} title={m.branch?.name} />
+                        <MovementBadge type={m.type} />
                       </Td>
-                    )}
-                    <Td>
-                      <MovementBadge type={m.type} />
-                    </Td>
-                    <Td>
-                      <MovementRef m={m} />
-                    </Td>
-                    <Td className="text-xs">{m.batch?.batchNo ?? "—"}</Td>
-                    <Td right>
-                      <SignedQty value={m.quantity} />
-                    </Td>
-                    <Td right>{qty(m.balanceAfter)}</Td>
-                    <Td className="max-w-64 truncate text-xs text-slate-500">{m.note || "—"}</Td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </Table>
-        )}
-        {moves.data && <Pagination page={moves.data.page} totalPages={moves.data.totalPages} total={moves.data.total} onPage={setPage} />}
-      </Card>
+                      <Td>
+                        <MovementRef m={m} />
+                      </Td>
+                      <Td className="text-xs">{m.batch?.batchNo ?? "—"}</Td>
+                      <Td right>
+                        <SignedQty value={m.quantity} />
+                      </Td>
+                      <Td right>{qty(m.balanceAfter)}</Td>
+                      <Td className="max-w-64 truncate text-xs text-slate-500">{m.note || "—"}</Td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </Table>
+          )}
+          {moves.data && <Pagination page={moves.data.page} totalPages={moves.data.totalPages} total={moves.data.total} onPage={setPage} />}
+        </Card>
+      )}
 
-      <ProductForm
+      <LazyProductForm
         open={editOpen}
         product={p}
         onClose={() => setEditOpen(false)}
@@ -406,8 +419,8 @@ export default function ProductDetailPage() {
           void reload();
         }}
       />
-      <StockAdjustModal open={adjustOpen} onClose={() => setAdjustOpen(false)} onSaved={refresh} product={p} />
-      <LabelPrintModal
+      <LazyStockAdjustModal open={adjustOpen} onClose={() => setAdjustOpen(false)} onSaved={refresh} product={p} />
+      <LazyLabelPrintModal
         open={labelsOpen}
         onClose={() => {
           setLabelsOpen(false);

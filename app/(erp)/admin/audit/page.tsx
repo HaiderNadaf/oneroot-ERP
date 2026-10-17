@@ -5,25 +5,28 @@ import Link from "next/link";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { Badge, Card, EmptyRow, ErrorBox, LoadingRow, PageHeader, Pagination, Select, Table, Td, Th } from "@/components/ui";
+import { useAuth } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import type { Permission } from "@/lib/permissions";
 import type { AuditLog, Paged, User } from "@/lib/types";
 
 const ENTITIES = ["Sale", "SaleReturn", "Purchase", "PurchaseOrder", "Payment", "Expense", "Product", "Customer", "Vendor", "User", "StoreSettings"];
 
 const ENTITY_LABEL: Record<string, string> = {
-  SaleReturn: "Sales return",
-  PurchaseOrder: "Purchase order",
-  StoreSettings: "Store settings",
+  SaleReturn: "Sales Return",
+  PurchaseOrder: "Purchase Order",
+  StoreSettings: "Store Settings",
 };
 
-const ENTITY_HREF: Record<string, string> = {
-  Sale: "/sales",
-  Purchase: "/purchases",
-  PurchaseOrder: "/purchase-orders",
-  Product: "/products",
-  Customer: "/customers",
-  Vendor: "/vendors",
+/** Record pages, and the permission needed to open each */
+const ENTITY_HREF: Record<string, [string, Permission]> = {
+  Sale: ["/sales", "sales.bill"],
+  Purchase: ["/purchases", "purchases.view"],
+  PurchaseOrder: ["/purchase-orders", "purchases.view"],
+  Product: ["/products", "products.view"],
+  Customer: ["/customers", "customers.view"],
+  Vendor: ["/vendors", "vendors.view"],
 };
 
 const ACTION_TONE: Record<string, "green" | "blue" | "red" | "amber" | "slate" | "violet"> = {
@@ -48,30 +51,34 @@ function Audit() {
   const [entity, setEntity] = useState("");
   const [userId, setUserId] = useState("");
   const [page, setPage] = useState(1);
-  const { data: users } = useApi<User[]>("/users");
+  const { can } = useAuth();
+  // The user filter needs the user list, which only user admins can read
+  const { data: users } = useApi<User[]>(can("admin.users") ? "/users" : null);
   const { data, error, loading, reload } = useApi<Paged<AuditLog>>("/audit-logs", { entity, userId, page, pageSize: 50 });
 
   return (
     <>
-      <PageHeader title="Audit log" subtitle="Who did what, and when — every create, change, cancellation and sign-in" />
+      <PageHeader title="Audit Log" subtitle="Who did what, and when — every create, change, cancellation and sign-in" />
       <Card bodyClassName="p-0">
         <div className="flex flex-wrap gap-2 border-b border-slate-100 p-3">
           <Select value={entity} onChange={(e) => (setEntity(e.target.value), setPage(1))} className="w-full sm:w-48">
-            <option value="">All records</option>
+            <option value="">All Records</option>
             {ENTITIES.map((x) => (
               <option key={x} value={x}>
                 {ENTITY_LABEL[x] ?? x}
               </option>
             ))}
           </Select>
-          <Select value={userId} onChange={(e) => (setUserId(e.target.value), setPage(1))} className="w-full sm:w-48">
-            <option value="">All users</option>
-            {users?.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </Select>
+          {can("admin.users") && (
+            <Select value={userId} onChange={(e) => (setUserId(e.target.value), setPage(1))} className="w-full sm:w-48">
+              <option value="">All Users</option>
+              {users?.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </Select>
+          )}
         </div>
         {error ? (
           <div className="p-4">
@@ -110,7 +117,9 @@ function AuditRow({ log }: { log: AuditLog }) {
   const [open, setOpen] = useState(false);
   const hasDetails = log.details !== null && log.details !== undefined && !(typeof log.details === "object" && Object.keys(log.details as object).length === 0);
   const compact = hasDetails ? JSON.stringify(log.details) : "";
-  const href = log.entityId && ENTITY_HREF[log.entity] && log.action !== "DELETE" ? `${ENTITY_HREF[log.entity]}/${log.entityId}` : null;
+  const { can } = useAuth();
+  const target = ENTITY_HREF[log.entity];
+  const href = log.entityId && target && can(target[1]) && log.action !== "DELETE" ? `${target[0]}/${log.entityId}` : null;
 
   return (
     <tr className="align-top hover:bg-slate-50">

@@ -8,7 +8,6 @@ import {
   CornerDownLeft,
   KeyRound,
   Layers,
-  Loader2,
   LogOut,
   Menu,
   Package,
@@ -26,11 +25,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import type { Permission } from "@/lib/permissions";
 import { useBranch } from "@/lib/branch";
 import { date, inr, n, qty } from "@/lib/format";
 import { useDebounced } from "@/lib/hooks";
 import { NotificationBell } from "./Notifications";
-import { cx } from "./ui";
+import { ThemeToggle } from "./ThemeToggle";
+import { ProductScan } from "./ProductScan";
+import { cx, InfinityLoader, TOP_ICON_BUTTON, useConfirm } from "./ui";
 
 interface SearchResults {
   products: {
@@ -53,17 +55,26 @@ interface SearchResults {
   batches: { id: string; batchNo: string; expiryDate: string | null; quantity: string; product: { id: string; name: string; unit: string } }[];
 }
 
-/** Result kinds, in the order they are listed and offered as filters */
+/**
+ * Result kinds, in the order they are listed and offered as filters. `perms` matches what the API checks before
+ * searching that kind (DashboardService.search), so the hints only offer what this user will actually get back.
+ */
 const KINDS = [
-  { key: "products", label: "Products", icon: <Package /> },
-  { key: "batches", label: "Batches", icon: <Layers /> },
-  { key: "customers", label: "Customers", icon: <Users /> },
-  { key: "vendors", label: "Vendors", icon: <Boxes /> },
-  { key: "sales", label: "Sales", icon: <Receipt /> },
-  { key: "purchaseOrders", label: "Purchase orders", icon: <ClipboardList /> },
-  { key: "purchases", label: "Purchase invoices", icon: <Truck /> },
-] as const;
+  { key: "products", label: "Products", icon: <Package />, perms: ["products.view"], hint: "SKU, barcode, brand" },
+  { key: "batches", label: "Batches", icon: <Layers />, perms: ["inventory.view", "products.view"], hint: "batch no" },
+  { key: "customers", label: "Customers", icon: <Users />, perms: ["customers.view"], hint: "phone, village" },
+  { key: "vendors", label: "Vendors", icon: <Boxes />, perms: ["vendors.view"], hint: "GSTIN" },
+  { key: "sales", label: "Sales", icon: <Receipt />, perms: ["sales.bill"], hint: "bill number" },
+  { key: "purchaseOrders", label: "Purchase Orders", icon: <ClipboardList />, perms: ["purchases.view"], hint: "PO number" },
+  { key: "purchases", label: "Purchase Invoices", icon: <Truck />, perms: ["purchases.view"], hint: "vendor bill number" },
+] as const satisfies readonly { key: string; label: string; icon: ReactNode; perms: readonly Permission[]; hint: string }[];
 type Kind = (typeof KINDS)[number]["key"];
+
+/** The kinds this user may search (administrators: all) */
+function useSearchKinds() {
+  const { can } = useAuth();
+  return KINDS.filter((k) => can(...k.perms));
+}
 
 interface Hit {
   key: string;
@@ -84,7 +95,8 @@ function matchedOn(term: string, fields: [string, string | null | undefined][]) 
 
 const statusText = (s: string) => s.toLowerCase().replace(/_/g, " ");
 
-function toHits(r: SearchResults, term: string): Hit[] {
+/** `productPage`: may open /products/:id; batches are also searchable with stock access alone, which opens the Batches tab instead */
+function toHits(r: SearchResults, term: string, productPage: boolean): Hit[] {
   return [
     ...r.products.map((p) => ({
       key: "p" + p.id,
@@ -99,7 +111,7 @@ function toHits(r: SearchResults, term: string): Hit[] {
       kind: "batches" as const,
       title: `Batch ${b.batchNo}`,
       sub: `${b.product.name} · ${qty(b.quantity)} ${b.product.unit}${b.expiryDate ? ` · expires ${date(b.expiryDate)}` : ""}`,
-      href: `/products/${b.product.id}`,
+      href: productPage ? `/products/${b.product.id}` : "/inventory?tab=batches",
     })),
     ...r.customers.map((c) => ({
       key: "c" + c.id,
@@ -160,14 +172,20 @@ function Highlight({ text, term }: { text: string; term: string }) {
   );
 }
 
-const Key = ({ children }: { children: ReactNode }) => <kbd className="rounded border border-slate-200 bg-white px-1 font-sans">{children}</kbd>;
+const Key = ({ children }: { children: ReactNode }) => <kbd className="rounded border border-slate-200 bg-surface px-1 font-sans">{children}</kbd>;
+
+/** Marks the top-bar button that opens / closes the search, so a click on it isn't taken as an outside click */
+const SEARCH_TOGGLE = "data-search-toggle";
 
 /**
  * Search bills, products, batches and parties from anywhere. Shortcut: "/" or Ctrl+K.
- * On phones it is hidden behind the search button and opens as a full-width row (`mobileOpen`).
+ * Hidden behind the search button until opened (`expanded`): inline in the bar on wider screens,
+ * a full-width row under it on phones. Esc, an outside click or opening a result folds it away again.
  */
-function GlobalSearch({ mobileOpen, onMobileOpen, onMobileClose }: { mobileOpen: boolean; onMobileOpen: () => void; onMobileClose: () => void }) {
+function GlobalSearch({ expanded, onExpand, onCollapse }: { expanded: boolean; onExpand: () => void; onCollapse: () => void }) {
   const router = useRouter();
+  const kinds = useSearchKinds();
+  const canProductPage = useAuth().can("products.view");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -185,39 +203,44 @@ function GlobalSearch({ mobileOpen, onMobileOpen, onMobileClose }: { mobileOpen:
       .get<SearchResults>("/search", { q: debounced })
       .then((r) => {
         if (cancelled) return;
-        setResults({ for: debounced, hits: toHits(r, debounced) });
+        setResults({ for: debounced, hits: toHits(r, debounced, canProductPage) });
         setActive(0);
       })
       .catch(() => !cancelled && setResults({ for: debounced, hits: [] }));
     return () => {
       cancelled = true;
     };
-  }, [debounced]);
+  }, [debounced, canProductPage]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target as HTMLElement)?.tagName ?? "");
       if ((e.key === "k" && (e.ctrlKey || e.metaKey)) || (e.key === "/" && !typing)) {
         e.preventDefault();
-        onMobileOpen();
-        // The phone row may only now be shown: focus once it is laid out
+        onExpand();
+        // The box may only now be shown: focus once it is laid out
         requestAnimationFrame(() => input.current?.focus());
         setOpen(true);
       }
     };
-    const close = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
+    const close = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (box.current?.contains(t) || t.closest?.(`[${SEARCH_TOGGLE}]`)) return;
+      setOpen(false);
+      onCollapse();
+    };
     window.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", close);
     return () => {
       window.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", close);
     };
-  }, [onMobileOpen]);
+  }, [onExpand, onCollapse]);
 
-  // Opened from the phone search button: straight into typing
+  // Opened from the search button: straight into typing
   useEffect(() => {
-    if (mobileOpen) input.current?.focus();
-  }, [mobileOpen]);
+    if (expanded) input.current?.focus();
+  }, [expanded]);
 
   useEffect(() => {
     list.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
@@ -233,7 +256,7 @@ function GlobalSearch({ mobileOpen, onMobileOpen, onMobileClose }: { mobileOpen:
   const loading = debounced.length >= 2 && !ready;
   const filters = [
     { key: "all" as const, label: "All", n: all.length },
-    ...KINDS.filter((k) => counts.get(k.key)).map((k) => ({ key: k.key, label: k.label, n: counts.get(k.key) ?? 0 })),
+    ...kinds.filter((k) => counts.get(k.key)).map((k) => ({ key: k.key, label: k.label, n: counts.get(k.key) ?? 0 })),
   ];
 
   function go(h: Hit) {
@@ -241,7 +264,7 @@ function GlobalSearch({ mobileOpen, onMobileOpen, onMobileClose }: { mobileOpen:
     setQ("");
     setKind("all");
     input.current?.blur();
-    onMobileClose();
+    onCollapse();
     router.push(h.href);
   }
 
@@ -255,9 +278,9 @@ function GlobalSearch({ mobileOpen, onMobileOpen, onMobileClose }: { mobileOpen:
       ref={box}
       className={cx(
         "relative min-w-0",
-        // Phone: its own full-width row under the bar, only while opened; wider screens: inline, growing with the screen
-        mobileOpen ? "order-last basis-full" : "hidden",
-        "sm:order-none sm:block sm:w-56 sm:basis-auto md:w-72 lg:w-[22rem] xl:w-[28rem]",
+        // Only while opened. Phone: its own full-width row under the bar; wider screens: inline, growing with the screen
+        // (76% of the old 14 / 18 / 22 / 28rem widths)
+        expanded ? "order-last basis-full sm:order-none sm:basis-auto sm:w-[10.64rem] md:w-[13.68rem] lg:w-[16.72rem] xl:w-[21.28rem]" : "hidden",
       )}
     >
       <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
@@ -282,15 +305,15 @@ function GlobalSearch({ mobileOpen, onMobileOpen, onMobileClose }: { mobileOpen:
           } else if (e.key === "Escape") {
             setOpen(false);
             input.current?.blur();
-            onMobileClose();
+            onCollapse();
           }
         }}
-        placeholder="Search products, bills, parties…"
+        placeholder={`Search ${kinds.map((k) => k.label.toLowerCase()).slice(0, 3).join(", ")}…`}
         aria-label="Search"
-        className="h-10 w-full rounded-full border border-[#e1e6d8] bg-[#f7f9f3] pl-10 pr-16 text-sm transition-colors placeholder:text-slate-400 hover:border-brand-300 focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-brand-500/15"
+        className="h-10 w-full rounded-full border border-line bg-surface pl-10 pr-16 text-sm transition-colors placeholder:text-slate-400 hover:border-brand-300 focus:border-brand-500 focus:bg-surface focus:outline-none focus:ring-4 focus:ring-brand-500/15"
       />
       <span className="absolute right-2.5 top-1/2 flex -translate-y-1/2 items-center gap-1">
-        {loading && <Loader2 className="size-4 animate-spin text-slate-400" />}
+        {loading && <InfinityLoader className="size-5" />}
         {q ? (
           <button
             type="button"
@@ -304,17 +327,17 @@ function GlobalSearch({ mobileOpen, onMobileOpen, onMobileClose }: { mobileOpen:
             <X className="size-3.5" />
           </button>
         ) : (
-          <kbd className="pointer-events-none hidden rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-400 sm:block">Ctrl K</kbd>
+          <kbd className="pointer-events-none hidden rounded-md border border-slate-200 bg-surface px-1.5 py-0.5 text-[10px] font-medium text-slate-400 sm:block">Ctrl K</kbd>
         )}
       </span>
 
       {open && (
-        <div className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10">
+        <div className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-surface shadow-2xl shadow-slate-900/10">
           {debounced.length < 2 ? (
             <div className="px-4 py-4">
-              <p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">Search across</p>
+              <p className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">Search Across</p>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {KINDS.map((k) => (
+                {kinds.map((k) => (
                   <span key={k.key} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600 [&>svg]:size-3.5 [&>svg]:text-brand-600">
                     {k.icon}
                     {k.label}
@@ -322,7 +345,7 @@ function GlobalSearch({ mobileOpen, onMobileOpen, onMobileClose }: { mobileOpen:
                 ))}
               </div>
               <p className="mt-3 text-xs text-slate-400">
-                By name, SKU, barcode, brand, batch no, phone, village, GSTIN or bill / PO number. Type at least 2 characters.
+                By name, {[...new Set(kinds.map((k) => k.hint))].join(", ")}. Type at least 2 characters.
               </p>
             </div>
           ) : (
@@ -342,7 +365,7 @@ function GlobalSearch({ mobileOpen, onMobileOpen, onMobileClose }: { mobileOpen:
                       )}
                     >
                       {f.label}
-                      <span className={cx("num rounded-full px-1.5 text-[10px]", scope === f.key ? "bg-white/20" : "bg-white text-slate-500")}>{f.n}</span>
+                      <span className={cx("num rounded-full px-1.5 text-[10px]", scope === f.key ? "bg-white/20" : "bg-surface text-slate-500")}>{f.n}</span>
                     </button>
                   ))}
                 </div>
@@ -350,7 +373,7 @@ function GlobalSearch({ mobileOpen, onMobileOpen, onMobileClose }: { mobileOpen:
               <div ref={list} className="max-h-[60vh] overflow-y-auto py-1">
                 {loading && (
                   <p className="flex items-center justify-center gap-2 px-4 py-6 text-sm text-slate-400">
-                    <Loader2 className="size-4 animate-spin" /> Searching…
+                    <InfinityLoader className="size-6" /> Searching…
                   </p>
                 )}
                 {ready && all.length === 0 && (
@@ -459,12 +482,12 @@ function Panel({
 }) {
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-slate-900/30 sm:hidden" onClick={onClose} aria-hidden />
+      <div className="fixed inset-0 z-40 bg-night-900/30 sm:hidden" onClick={onClose} aria-hidden />
       <div
         role="dialog"
         aria-label={title}
         className={cx(
-          "fixed inset-x-0 bottom-0 z-50 flex max-h-[80vh] flex-col overflow-hidden rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl",
+          "fixed inset-x-0 bottom-0 z-50 flex max-h-[80vh] flex-col overflow-hidden rounded-t-2xl bg-surface pb-[env(safe-area-inset-bottom)] shadow-2xl",
           "sm:absolute sm:inset-x-auto sm:bottom-auto sm:top-full sm:mt-2 sm:max-h-[70vh] sm:rounded-xl sm:border sm:border-slate-200 sm:pb-0 sm:shadow-xl",
           align === "right" ? "sm:right-0" : "sm:left-0",
           className,
@@ -498,6 +521,7 @@ function UserMenu() {
   const { user, logout } = useAuth();
   const { current, locked } = useBranch();
   const { open, setOpen, toggle, box } = usePanel();
+  const confirm = useConfirm();
 
   if (!user) return null;
   const roleLabel = user.roleTemplate?.name ?? user.role.charAt(0) + user.role.slice(1).toLowerCase();
@@ -510,21 +534,22 @@ function UserMenu() {
         className={cx(
           "flex items-center gap-2.5 rounded-lg p-0.5 hover:bg-slate-100",
           // Wider screens: a tinted, bordered chip that stands apart from the white bar (matches the search box)
-          "md:h-11 md:rounded-[10px] md:border md:border-[#e1e6d8] md:bg-[#f7f9f3] md:py-1 md:pl-1 md:pr-2.5 md:hover:border-brand-300 md:hover:bg-[#eef3e6]",
-          open && "bg-slate-100 md:border-brand-500 md:bg-white md:ring-4 md:ring-brand-500/15",
+          "md:h-11 md:min-w-56 md:rounded-[10px] md:border md:border-line md:bg-surface md:py-1 md:pl-1 md:pr-2.5 md:hover:border-brand-300 md:hover:bg-brand-50/60",
+          open && "bg-slate-100 md:border-brand-500 md:bg-surface md:ring-4 md:ring-brand-500/15",
         )}
         aria-label="Account menu"
         aria-expanded={open}
       >
         <span className="flex size-9 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-700 md:bg-brand-600 md:text-white">{initialsOf(user.name)}</span>
-        <span className="hidden max-w-40 text-left leading-tight md:block">
+        <span className="hidden max-w-40 flex-1 text-left leading-tight md:block">
           <span className="block truncate text-[13px] font-semibold text-slate-800">{user.name}</span>
           <span className="block truncate text-[11.5px] text-slate-500">{roleLabel}</span>
         </span>
         <ChevronDown className={cx("hidden size-4 text-slate-400 transition-transform md:block", open && "rotate-180")} />
       </button>
       {open && (
-        <Panel title="Account" align="right" className="sm:w-72" onClose={() => setOpen(false)}>
+        // Wider screens: exactly as wide as the chip above it (the chip keeps a minimum width so the email still fits)
+        <Panel title="Account" align="right" className="sm:w-72 md:left-0 md:w-auto" onClose={() => setOpen(false)}>
           <div className="flex items-center gap-3 border-b border-slate-100 px-4 pb-3 pt-1 sm:pt-3">
             <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-brand-50 text-base font-bold text-brand-700 sm:size-10 sm:text-sm">
               {initialsOf(user.name)}
@@ -537,7 +562,7 @@ function UserMenu() {
                 {current && (
                   <span className="inline-flex max-w-full items-center gap-1 truncate rounded-md bg-slate-100 px-1.5 py-0.5 text-slate-600">
                     <Store className="size-3 shrink-0" />
-                    <span className="truncate">{locked ? current.name : `Viewing ${current.name}`}</span>
+                    <span className="truncate">{locked ? current.name : `${current.name}`}</span>
                   </span>
                 )}
               </p>
@@ -545,8 +570,8 @@ function UserMenu() {
           </div>
           <div className="overflow-y-auto py-1">
             {[
-              { href: "/account", label: "My account", icon: <UserRound /> },
-              { href: "/account", label: "Change password", icon: <KeyRound /> },
+              { href: "/account", label: "My Account", icon: <UserRound /> },
+              { href: "/account", label: "Change Password", icon: <KeyRound /> },
             ].map((i) => (
               <Link
                 key={i.label}
@@ -560,10 +585,13 @@ function UserMenu() {
             ))}
           </div>
           <button
-            onClick={logout}
+            onClick={async () => {
+              setOpen(false);
+              if (await confirm("Sign out of OneRoot ERP? Anything not saved on this page will be lost.", { danger: true, confirmLabel: "Sign Out" })) logout();
+            }}
             className="flex w-full shrink-0 items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 sm:py-2.5"
           >
-            <LogOut className="size-4" /> Sign out
+            <LogOut className="size-4" /> Sign Out
           </button>
         </Panel>
       )}
@@ -580,8 +608,8 @@ function BranchPicker() {
   const { open, setOpen, toggle, box } = usePanel();
   const [q, setQ] = useState("");
   const all = currentId === "all";
-  const shell = "flex h-10 min-w-0 items-center gap-2 rounded-[9px] border border-[#e1e6d8] bg-white px-2.5";
-  const label = <span className="hidden text-[12px] font-medium uppercase tracking-[0.06em] text-[#5f6e60] md:inline">Branch</span>;
+  const shell = "flex h-10 min-w-0 items-center gap-2 rounded-[9px] border border-line bg-surface px-2.5";
+  const label = <span className="hidden text-[12px] font-medium uppercase tracking-[0.06em] text-muted md:inline">Branch</span>;
   // Phones: the code (MAIN, CHM); wider: the full name
   const name = (
     <>
@@ -628,8 +656,9 @@ function BranchPicker() {
         {name}
         <ChevronDown className={cx("size-4 shrink-0 text-slate-400 transition-transform", open && "rotate-180")} />
       </button>
+      {/* From 640px the list is exactly as wide as the branch button above it (phones: bottom sheet) */}
       {open && (
-        <Panel title="Switch branch" align="left" className="sm:w-72" onClose={() => setOpen(false)}>
+        <Panel title="Switch Branch" align="left" className="sm:w-full" onClose={() => setOpen(false)}>
           {branches.length > 6 && (
             <div className="relative shrink-0 border-b border-slate-100 p-2">
               <Search className="pointer-events-none absolute left-5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
@@ -653,11 +682,11 @@ function BranchPicker() {
                   role="option"
                   aria-selected={selected}
                   onClick={() => pick(b.id)}
-                  className={cx("flex w-full items-center gap-3 px-4 py-3 text-left sm:py-2", selected ? "bg-brand-50" : "hover:bg-slate-50")}
+                  className={cx("flex w-full items-center gap-2.5 px-4 py-3 text-left sm:px-3 sm:py-2", selected ? "bg-brand-50" : "hover:bg-slate-50")}
                 >
                   <span
                     className={cx(
-                      "flex h-8 min-w-11 shrink-0 items-center justify-center rounded-md px-1.5 text-[11px] font-semibold",
+                      "flex h-6 min-w-[33px] shrink-0 items-center justify-center rounded px-1 text-[8.5px] font-semibold leading-none",
                       selected ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600",
                     )}
                   >
@@ -680,32 +709,43 @@ function BranchPicker() {
 
 export function TopBar({ onMenu }: { onMenu: () => void }) {
   const { can } = useAuth();
-  // Phones: search hides behind a button and opens as a second row
+  // Nothing this user may search (a custom role with none of those modules): no search at all
+  const canSearch = useSearchKinds().length > 0;
+  // Search hides behind a button (inline when opened; a second row on phones)
   const [searchOpen, setSearchOpen] = useState(false);
   const openSearch = useCallback(() => setSearchOpen(true), []);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
   return (
-    <header className="no-print sticky top-0 z-30 flex flex-wrap items-center gap-x-1.5 gap-y-2 border-b border-[#e1e6d8] bg-white px-2.5 py-2 sm:flex-nowrap sm:gap-2.5 sm:px-4 sm:py-2.5 lg:px-6">
-      <button onClick={onMenu} className="shrink-0 rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Open menu">
+    <header className="no-print relative z-30 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-2 rounded-xl border border-line bg-(--background) px-2.5 py-2 sm:flex-nowrap sm:gap-2.5 sm:px-4 sm:py-2.5 lg:px-5">
+      <button onClick={onMenu} className="shrink-0 rounded-lg p-2 text-slate-600 hover:bg-surface lg:hidden" aria-label="Open menu">
         <Menu className="size-5" />
       </button>
       <BranchPicker />
       {/* Search sits at the right end, beside POS, notifications and the user menu */}
       <div className="min-w-0 flex-1" />
-      <GlobalSearch mobileOpen={searchOpen} onMobileOpen={openSearch} onMobileClose={closeSearch} />
-      <button
-        type="button"
-        onClick={() => setSearchOpen((o) => !o)}
-        className={cx("shrink-0 rounded-lg p-2 sm:hidden", searchOpen ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100")}
-        aria-label={searchOpen ? "Close search" : "Search"}
-        aria-expanded={searchOpen}
-      >
-        {searchOpen ? <X className="size-5" /> : <Search className="size-5" />}
-      </button>
+      {canSearch && (
+        <>
+          <GlobalSearch expanded={searchOpen} onExpand={openSearch} onCollapse={closeSearch} />
+          {/* Opens the search; once open, wider screens show the box in its place and phones keep it as a close button */}
+          <button
+            type="button"
+            {...{ [SEARCH_TOGGLE]: "" }}
+            onClick={() => setSearchOpen((o) => !o)}
+            className={cx(TOP_ICON_BUTTON, searchOpen && "border-brand-300 bg-brand-50 text-brand-700 sm:hidden")}
+            aria-label={searchOpen ? "Close search" : "Search"}
+            title={searchOpen ? undefined : "Search (Ctrl K)"}
+            aria-expanded={searchOpen}
+          >
+            {searchOpen ? <X className="size-5" /> : <Search className="size-5" />}
+          </button>
+        </>
+      )}
+      {/* Barcode scans anywhere show the product (camera button on phones / tablets) */}
+      <ProductScan />
       {can("sales.bill") && (
         <Link
           href="/sales/new"
-          className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[9px] bg-brand-600 px-3 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 sm:px-3.5"
+          className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[9px] bg-brand-600 px-3 text-sm font-semibold text-white shadow-sm hover:bg-forest-700 sm:px-3.5"
           aria-label="New sale (POS)"
         >
           <ShoppingCart className="size-4" />
@@ -713,6 +753,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
         </Link>
       )}
       <NotificationBell />
+      <ThemeToggle />
       <UserMenu />
     </header>
   );

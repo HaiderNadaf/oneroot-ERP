@@ -62,7 +62,7 @@ export function CategoryFieldsEditor({ category, onClose, onSaved }: { category:
             Cancel
           </Button>
           <Button loading={saving} onClick={() => void save()}>
-            Save fields
+            Save Fields
           </Button>
         </>
       }
@@ -78,7 +78,7 @@ export function CategoryFieldsEditor({ category, onClose, onSaved }: { category:
           ))}
         </Select>
         {SUGGESTED_FIELDS[suggest].map((f) => (
-          <button key={f.key} type="button" onClick={() => addSuggested(f)} disabled={fields.some((x) => x.key === f.key)} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 hover:border-brand-500 disabled:opacity-40">
+          <button key={f.key} type="button" onClick={() => addSuggested(f)} disabled={fields.some((x) => x.key === f.key)} className="rounded-full border border-slate-200 bg-surface px-2.5 py-1 hover:border-brand-500 disabled:opacity-40">
             + {f.label}
           </button>
         ))}
@@ -109,7 +109,7 @@ export function CategoryFieldsEditor({ category, onClose, onSaved }: { category:
               </div>
               <div className="col-span-4 flex flex-col gap-1 pt-1 sm:col-span-2">
                 <Checkbox label="Required" checked={!!f.required} onChange={(v) => update(i, { required: v })} />
-                <Checkbox label="On bill" checked={!!f.showOnBill} onChange={(v) => update(i, { showOnBill: v })} />
+                <Checkbox label="On Bill" checked={!!f.showOnBill} onChange={(v) => update(i, { showOnBill: v })} />
               </div>
               <div className="col-span-2 flex justify-end gap-0.5 sm:col-span-1">
                 <button type="button" onClick={() => move(i, -1)} className="rounded p-1 text-slate-400 hover:bg-slate-100" aria-label="Move up">
@@ -127,7 +127,7 @@ export function CategoryFieldsEditor({ category, onClose, onSaved }: { category:
         </ul>
       )}
       <Button variant="secondary" size="sm" className="mt-3" icon={<Plus className="size-4" />} onClick={addBlank}>
-        Add a field
+        Add a Field
       </Button>
     </Modal>
   );

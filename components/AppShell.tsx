@@ -34,14 +34,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Fragment, Suspense, useEffect, useState, type ReactNode } from "react";
+import { Fragment, Suspense, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { BranchProvider, useBranch } from "@/lib/branch";
 import type { Permission } from "@/lib/permissions";
 import { CountsProvider, useCounts } from "./Notifications";
 import { TopBar } from "./TopBar";
-import { QuickActions } from "./QuickActions";
-import { PageHeaderExtraProvider, Spinner, cx, Logo } from "./ui";
+import { QuickDock } from "./QuickActions";
+import { Spinner, cx, Logo } from "./ui";
 
 export interface NavItem {
   href: string;
@@ -63,6 +63,12 @@ export interface NavGroup {
  * -> Notifications -> Admin.
  * Groups without a section render as direct links; the rest are accordions.
  */
+const SIDEBAR_SCROLLBAR = {
+  "--scrollbar-thumb": "rgb(255 255 255 / 0.28)",
+  "--scrollbar-thumb-hover": "rgb(255 255 255 / 0.45)",
+  "--scrollbar-track": "transparent",
+} as CSSProperties;
+
 export const NAV: NavGroup[] = [
   {
     section: "",
@@ -87,9 +93,9 @@ export const NAV: NavGroup[] = [
       { href: "/sales/returns", label: "Sales Returns", icon: <Undo2 />, perms: ["sales.returns"] },
       { href: "/customers", label: "Customers", icon: <Users />, perms: ["customers.view"] },
       { href: "/customers/reminders", label: "Due Reminders", icon: <BellRing />, perms: ["customers.view"] },
-      { href: "/approvals", label: "Approvals", icon: <BadgeCheck /> },
+      { href: "/approvals", label: "Approvals", icon: <BadgeCheck />, perms: ["sales.bill", "approvals.decide"] },
       { href: "/van", label: "Van Trips", icon: <Truck />, perms: ["sales.van"] },
-      { href: "/agents", label: "Agents", icon: <UserRoundPlus />, perms: ["vendors.view"] },
+      { href: "/agents", label: "Agents", icon: <UserRoundPlus />, perms: ["sales.bill", "vendors.view"] },
     ],
   },
   {
@@ -106,7 +112,7 @@ export const NAV: NavGroup[] = [
         href: "/goods-inward",
         label: "Goods Inward (GRN)",
         icon: <PackageCheck />,
-        perms: ["purchases.view"],
+        perms: ["purchases.view", "purchases.receive"],
       },
       {
         href: "/purchases",
@@ -275,12 +281,12 @@ function NavItemLink({
           : "text-[13.5px] [&>svg]:size-[17px]",
         active
           ? cx(
-              "bg-brand-800 font-medium text-white",
+              "bg-forest-800 font-medium text-white",
               nested
                 ? "shadow-[inset_2px_0_0_#8fd19e]"
                 : "shadow-[inset_3px_0_0_#8fd19e]",
             )
-          : "text-[#d6e4d4] hover:bg-brand-800 hover:text-white",
+          : "text-sidebar-text hover:bg-forest-800 hover:text-white",
       )}
     >
       {item.icon}
@@ -326,7 +332,9 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav
       aria-label="Main navigation"
-      className="no-scrollbar flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 pb-4"
+      className="flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 pb-4"
+      // The app's thin scrollbar (globals.css), light on a clear track so it reads on the dark green; only shows when the menu overflows
+      style={SIDEBAR_SCROLLBAR}
     >
       {NAV.map((group, groupIndex) => {
         const items = group.items.filter((i) => !i.perms || can(...i.perms));
@@ -360,8 +368,8 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
               className={cx(
                 "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-[13.5px] font-medium transition-colors",
                 hasActiveItem
-                  ? "bg-brand-800 text-white"
-                  : "text-[#d6e4d4] hover:bg-brand-800 hover:text-white",
+                  ? "bg-forest-800 text-white"
+                  : "text-sidebar-text hover:bg-forest-800 hover:text-white",
               )}
             >
               <span className="flex-1">{group.section}</span>
@@ -395,11 +403,11 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 /** `onClose` (mobile / tablet drawer) adds a close button beside the logo, so it never sits on top of it */
 function Sidebar({ onNavigate, onClose }: { onNavigate?: () => void; onClose?: () => void }) {
   return (
-    <div className="flex h-full flex-col bg-brand-900">
+    <div className="flex h-full flex-col bg-forest-900">
       <div className="flex items-start gap-2 px-5 pb-4 pt-5">
         <Link href="/" onClick={onNavigate} className="block min-w-0 flex-1" aria-label="OneRoot.farm — dashboard">
           <Logo priority framed className="flex" imageClassName="w-full" />
-          <p className="mt-1.5 text-[10.5px] uppercase tracking-[0.12em] text-[#8fab93]">
+          <p className="mt-1.5 text-[10.5px] uppercase tracking-[0.12em] text-sidebar-muted">
             Agri Inputs ERP
           </p>
         </Link>
@@ -427,10 +435,17 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const [drawer, setDrawer] = useState(false);
   const [drawerMounted, setDrawerMounted] = useState(false);
+  // Only the main panel scrolls, so a new page starts at its top (the browser only resets the window)
+  const mainRef = useRef<HTMLElement>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [loading, user, router]);
+
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [pathname]);
 
   // Offline shell for the POS (production builds only; dev chunks change on every edit)
   useEffect(() => {
@@ -466,8 +481,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <BranchProvider fallback={<Spinner page />}>
       <CountsProvider>
-        <div className="min-h-screen overflow-x-clip lg:pl-64">
-          <aside className="no-print fixed inset-y-0 left-0 hidden w-64 lg:block">
+        {/*
+          Three panels on a tinted frame — sidebar, top bar and main — with an even 8px gap and 8px corners.
+          The frame fills the screen; only the content inside main scrolls. Printing drops the frame so long
+          invoices and reports flow over several pages.
+        */}
+        <div className="flex h-dvh gap-2 overflow-hidden bg-frame p-2 print:block print:h-auto print:overflow-visible print:bg-surface print:p-0">
+          <aside className="no-print hidden w-64 shrink-0 overflow-hidden rounded-xl lg:block">
             <Sidebar />
           </aside>
 
@@ -480,7 +500,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               <div
                 className={cx(
-                  "absolute inset-0 bg-slate-900/50 transition-opacity duration-500 ease-in-out motion-reduce:transition-none",
+                  "absolute inset-0 bg-night-900/50 transition-opacity duration-500 ease-in-out motion-reduce:transition-none",
                   drawer ? "opacity-100" : "opacity-0",
                 )}
                 onClick={closeDrawer}
@@ -492,8 +512,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 aria-modal="true"
                 aria-label="Mobile navigation"
                 className={cx(
-                  "absolute inset-y-0 left-0 w-72 max-w-[85vw] transform-gpu transition-transform duration-500 ease-in-out motion-reduce:transition-none",
-                  drawer ? "translate-x-0" : "-translate-x-full",
+                  // Same card as the desktop sidebar: inset 8px from the screen edges, rounded, clipped
+                  "absolute inset-y-2 left-2 w-72 max-w-[85vw] transform-gpu overflow-hidden rounded-xl shadow-2xl shadow-black/30 transition-transform duration-500 ease-in-out motion-reduce:transition-none",
+                  drawer ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]",
                 )}
                 onTransitionEnd={(event) => {
                   // Unmount once the closing slide has finished
@@ -507,22 +528,30 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           )}
 
-          <TopBar onMenu={openDrawer} />
+          <div className="flex min-w-0 flex-1 flex-col gap-2 print:block">
+            <TopBar onMenu={openDrawer} />
+            {/* Floating, draggable shortcuts on every page */}
+            <QuickDock />
 
-          <main className="mx-auto w-full min-w-0 max-w-[1440px] p-3 sm:p-4 lg:p-6">
-            <BranchScope>
-              {/* Every PageHeader shows the quick-actions bar under it (the dashboard places its own) */}
-              <PageHeaderExtraProvider value={<QuickActions />}>
-                <Suspense fallback={<Spinner page />}>
-                  <RouteGate>{children}</RouteGate>
-                </Suspense>
-              </PageHeaderExtraProvider>
-            </BranchScope>
-          </main>
-          <footer className="no-print mx-auto flex max-w-[1440px] flex-wrap justify-between gap-2 px-4 pb-6 text-xs text-slate-400 lg:px-6">
-            <span>© {new Date().getFullYear()} OneRoot Agri Inputs</span>
-            <span>OneRoot ERP</span>
-          </footer>
+            <main
+              ref={mainRef}
+              className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain rounded-xl border border-line bg-(--background) print:block print:overflow-visible print:rounded-none print:border-0 print:bg-surface"
+            >
+              {/* Grows to fill the panel, so the footer always sits at the bottom even on a short page */}
+              <div className="mx-auto w-full min-w-0 max-w-[1440px] flex-1 shrink-0 p-3 sm:p-4 lg:p-6 print:max-w-none print:p-0">
+                <BranchScope>
+                  <Suspense fallback={<Spinner page />}>
+                    <RouteGate>{children}</RouteGate>
+                  </Suspense>
+                </BranchScope>
+              </div>
+              {/* Bottom of the panel on short pages; after the content on long ones */}
+              <footer className="no-print mx-auto flex w-full max-w-[1440px] shrink-0 flex-wrap justify-between gap-2 border-t border-line px-3 py-3 text-xs text-slate-400 sm:px-4 lg:px-6">
+                <span>© {new Date().getFullYear()} OneRoot Agri Inputs</span>
+                <span>OneRoot ERP</span>
+              </footer>
+            </main>
+          </div>
         </div>
       </CountsProvider>
     </BranchProvider>
@@ -549,15 +578,24 @@ function NoAccess() {
   );
 }
 
+/**
+ * Whether the user may open this in-app link (query and hash ignored): the same rule as RouteGate, so links to
+ * pages the user can't open can be shown as plain text or skipped.
+ */
+export function canOpenPath(href: string, can: (...perms: Permission[]) => boolean) {
+  const pathname = href.split(/[?#]/)[0] || "/";
+  if (OPEN_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"))) return true;
+  if (OPEN_DETAIL_ROUTES.some((r) => r.test(pathname))) return true;
+  const active = activeHref(pathname);
+  const item = NAV.flatMap((g) => g.items).find((i) => i.href === active);
+  return !item?.perms || can(...item.perms);
+}
+
 /** Pages inherit the permission of the sidebar item they sit under (typed URLs included) */
 function RouteGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { can } = useAuth();
-  if (OPEN_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"))) return <>{children}</>;
-  if (OPEN_DETAIL_ROUTES.some((r) => r.test(pathname))) return <>{children}</>;
-  const href = activeHref(pathname);
-  const item = NAV.flatMap((g) => g.items).find((i) => i.href === href);
-  if (item?.perms && !can(...item.perms)) return <NoAccess />;
+  if (!canOpenPath(pathname, can)) return <NoAccess />;
   return <>{children}</>;
 }
 

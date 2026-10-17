@@ -1,14 +1,14 @@
 "use client";
 
-import { Download, Plus, Tags, Trash2 } from "lucide-react";
+import { Download, Plus, Tags } from "lucide-react";
 import { useMemo, useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { RecordedIn } from "@/components/BranchNotice";
-import { CategoryManager } from "@/components/CategoryManager";
 import {
   Badge,
   Button,
   Card,
+  DateInput,
   EmptyRow,
   ErrorBox,
   Field,
@@ -17,6 +17,7 @@ import {
   Modal,
   PageHeader,
   Pagination,
+  RowAction,
   Select,
   Table,
   Td,
@@ -29,11 +30,11 @@ import {
 import { api } from "@/lib/api";
 import { date, downloadCsv, inr, inr0, monthStart, n, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import { PAYMENT_MODES, type Expense, type ExpenseCategory, type Paged, type PaymentMode } from "@/lib/types";
+import { PAYMENT_MODES, modeLabel, type Expense, type ExpenseCategory, type Paged, type PaymentMode } from "@/lib/types";
+import { LazyCategoryManager } from "@/components/lazy";
 
 const SERIES_1 = "#2a78d6";
 
-const modeLabel = (m: PaymentMode) => m.charAt(0) + m.slice(1).toLowerCase();
 
 export default function ExpensesPage() {
   return (
@@ -90,7 +91,7 @@ function Expenses() {
     const rows = await api.get<Paged<Expense>>("/expenses", { ...filters, pageSize: 500 });
     downloadCsv(
       `expenses-${from}-to-${to}.csv`,
-      ["Date", "Category", "Amount", "Mode", "Paid to", "Reference", "Notes", "Entered by"],
+      ["Date", "Category", "Amount", "Mode", "Paid To", "Reference", "Notes", "Entered By"],
       rows.items.map((e) => [e.expenseDate.slice(0, 10), e.category?.name, n(e.amount), e.mode, e.paidTo, e.reference, e.notes, e.user?.name]),
     );
   }
@@ -109,7 +110,7 @@ function Expenses() {
               Categories
             </Button>
             <Button icon={<Plus className="size-4" />} onClick={() => setAddOpen(true)}>
-              Add expense
+              Add Expense
             </Button>
           </>
         }
@@ -119,12 +120,12 @@ function Expenses() {
         <Card bodyClassName="p-0" className="xl:col-span-2">
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
             <div className="flex w-full items-center gap-2 sm:w-auto">
-              <Input type="date" value={from} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-40 sm:flex-none" aria-label="From date" />
+              <DateInput value={from} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-40 sm:flex-none" aria-label="From date" />
               <span className="text-sm text-slate-400">to</span>
-              <Input type="date" value={to} onChange={(e) => (setTo(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-40 sm:flex-none" aria-label="To date" />
+              <DateInput value={to} onChange={(e) => (setTo(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-40 sm:flex-none" aria-label="To date" />
             </div>
             <Select value={categoryId} onChange={(e) => (setCategoryId(e.target.value), setPage(1))} className="w-full sm:w-48">
-              <option value="">All categories</option>
+              <option value="">All Categories</option>
               {categories?.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -148,7 +149,7 @@ function Expenses() {
                 <tr>
                   <Th>Date</Th>
                   <Th>Category</Th>
-                  <Th>Paid to</Th>
+                  <Th>Paid To</Th>
                   <Th>Mode</Th>
                   <Th right>Amount</Th>
                   <Th />
@@ -161,7 +162,7 @@ function Expenses() {
                   <EmptyRow colSpan={6}>
                     No expenses in this period.{" "}
                     <button className="font-medium text-brand-700 underline" onClick={() => setAddOpen(true)}>
-                      Record one
+                      Record One
                     </button>
                   </EmptyRow>
                 ) : (
@@ -183,13 +184,7 @@ function Expenses() {
                         {inr(e.amount)}
                       </Td>
                       <Td right>
-                        <button
-                          onClick={() => remove(e)}
-                          className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                          aria-label="Delete expense"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
+                        <RowAction kind="delete" title="Delete expense" onClick={() => remove(e)} />
                       </Td>
                     </tr>
                   ))
@@ -200,7 +195,7 @@ function Expenses() {
           {data && <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />}
         </Card>
 
-        <Card title="By category">
+        <Card title="By Category">
           {all.loading && !all.data ? (
             <p className="py-6 text-center text-sm text-slate-400">Loading…</p>
           ) : !breakdown.length ? (
@@ -238,7 +233,7 @@ function Expenses() {
           refresh();
         }}
       />
-      <CategoryManager
+      <LazyCategoryManager
         kind="expense"
         open={catsOpen}
         onClose={() => {
@@ -312,14 +307,14 @@ function AddExpenseForm({
     <Modal
       open
       onClose={onClose}
-      title="Add expense"
+      title="Add Expense"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" form="expense-form" loading={saving}>
-            Save expense
+            Save Expense
           </Button>
         </>
       }
@@ -339,9 +334,9 @@ function AddExpenseForm({
           <Input type="number" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
         </Field>
         <Field label="Date" required>
-          <Input type="date" value={expenseDate} max={today()} onChange={(e) => setExpenseDate(e.target.value)} required />
+          <DateInput value={expenseDate} max={today()} onChange={(e) => setExpenseDate(e.target.value)} required />
         </Field>
-        <Field label="Paid by">
+        <Field label="Paid By">
           <Select value={mode} onChange={(e) => setMode(e.target.value as PaymentMode)}>
             {PAYMENT_MODES.filter((m) => m !== "CREDIT").map((m) => (
               <option key={m} value={m}>
@@ -350,7 +345,7 @@ function AddExpenseForm({
             ))}
           </Select>
         </Field>
-        <Field label="Paid to">
+        <Field label="Paid To">
           <Input value={paidTo} onChange={(e) => setPaidTo(e.target.value)} placeholder="e.g. TNEB, landlord" />
         </Field>
         <Field label="Reference" hint="Bill no., UPI txn id, cheque no.">

@@ -14,7 +14,7 @@ import { LoadLines, type LoadLine } from "@/components/VanLoadLines";
 
 export default function VanTripPage() {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const { data: t, error, loading, reload } = useApi<VanTripDetail>(`/van-trips/${id}`);
   const [topUp, setTopUp] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -28,7 +28,7 @@ export default function VanTripPage() {
   return (
     <>
       <PageHeader
-        title={`Van trip ${t.tripNo}`}
+        title={`Van Trip ${t.tripNo}`}
         subtitle={[t.user?.name, t.vehicleNo, t.route, dateTime(t.date)].filter(Boolean).join(" · ")}
         actions={
           <>
@@ -39,16 +39,16 @@ export default function VanTripPage() {
             </Link>
             {open && (
               <>
-                {mine && (
+                {mine && can("sales.bill") && (
                   <Link href={`/sales/new?vanTripId=${t.id}`}>
-                    <Button icon={<ShoppingCart className="size-4" />}>Bill on this trip</Button>
+                    <Button icon={<ShoppingCart className="size-4" />}>Bill on This Trip</Button>
                   </Link>
                 )}
                 <Button variant="secondary" icon={<PackagePlus className="size-4" />} onClick={() => setTopUp(true)}>
-                  Load more
+                  Load More
                 </Button>
                 <Button variant="secondary" icon={<Truck className="size-4" />} onClick={() => setClosing(true)}>
-                  Close trip
+                  Close Trip
                 </Button>
               </>
             )}
@@ -57,15 +57,15 @@ export default function VanTripPage() {
       />
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard label="Sales on the trip" value={inr(t.summary.salesTotal)} sub={`${t.summary.bills} bill${t.summary.bills === 1 ? "" : "s"}`} />
-        <StatCard label="Cash collected" value={inr(t.summary.cashSales)} />
-        <StatCard label="On credit" value={inr(t.summary.credit)} tone={t.summary.credit > 0 ? "amber" : undefined} />
-        <StatCard label="Cash to hand over" value={inr(t.summary.cashExpected)} sub={`incl. ${inr(t.openingCash)} opening cash`} />
+        <StatCard label="Sales on the Trip" value={inr(t.summary.salesTotal)} sub={`${t.summary.bills} bill${t.summary.bills === 1 ? "" : "s"}`} />
+        <StatCard label="Cash Collected" value={inr(t.summary.cashSales)} />
+        <StatCard label="On Credit" value={inr(t.summary.credit)} tone={t.summary.credit > 0 ? "amber" : undefined} />
+        <StatCard label="Cash to Hand Over" value={inr(t.summary.cashExpected)} sub={`incl. ${inr(t.openingCash)} opening cash`} />
         {open ? (
           <StatCard label="Status" value="On the road" tone="amber" />
         ) : (
           <StatCard
-            label="Cash difference"
+            label="Cash Difference"
             value={inr(t.cashDifference)}
             tone={Math.abs(n(t.cashDifference)) >= 0.5 ? "red" : "green"}
             sub={`handed over ${inr(t.cashHandedOver)}`}
@@ -74,14 +74,14 @@ export default function VanTripPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <Card title="Stock on the van" bodyClassName="p-0">
+        <Card title="Stock on the Van" bodyClassName="p-0">
           <Table>
             <thead>
               <tr>
                 <Th>Product</Th>
                 <Th right>Loaded</Th>
                 <Th right>Sold</Th>
-                <Th right>{open ? "On the van" : "Came back"}</Th>
+                <Th right>{open ? "On the Van" : "Came Back"}</Th>
                 {!open && <Th right>Short</Th>}
               </tr>
             </thead>
@@ -106,14 +106,14 @@ export default function VanTripPage() {
         </Card>
 
         <div className="space-y-4">
-          <Card title="Bills on the trip" bodyClassName="p-0">
+          <Card title="Bills on the Trip" bodyClassName="p-0">
             <Table>
               <thead>
                 <tr>
                   <Th>Bill</Th>
                   <Th>Farmer</Th>
                   <Th right>Total</Th>
-                  <Th>Paid by</Th>
+                  <Th>Paid By</Th>
                 </tr>
               </thead>
               <tbody>
@@ -123,9 +123,13 @@ export default function VanTripPage() {
                   t.sales.map((s) => (
                     <tr key={s.id} className="hover:bg-slate-50">
                       <Td>
-                        <Link href={`/sales/${s.id}`} className="font-medium text-brand-700 hover:underline">
-                          {s.invoiceNo}
-                        </Link>
+                        {can("sales.bill") ? (
+                          <Link href={`/sales/${s.id}`} className="font-medium text-brand-700 hover:underline">
+                            {s.invoiceNo}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-slate-800">{s.invoiceNo}</span>
+                        )}
                       </Td>
                       <Td className="text-xs">{s.customer?.name ?? s.customerName ?? "Walk-in"}</Td>
                       <Td right>{inr(s.totalAmount)}</Td>
@@ -137,7 +141,7 @@ export default function VanTripPage() {
             </Table>
           </Card>
           {t.summary.byMode.length > 0 && (
-            <Card title="Collected by mode">
+            <Card title="Collected by Mode">
               <ul className="space-y-1 text-sm">
                 {t.summary.byMode.map((m) => (
                   <li key={m.mode} className="flex justify-between">
@@ -197,7 +201,7 @@ function TopUpModal({ tripId, onClose, onSaved }: { tripId: string; onClose: () 
     <Modal
       open
       onClose={onClose}
-      title="Load more onto the van"
+      title="Load More Onto the Van"
       size="lg"
       footer={
         <>
@@ -250,7 +254,7 @@ function CloseModal({ trip, onClose, onSaved }: { trip: VanTripDetail; onClose: 
     <Modal
       open
       onClose={onClose}
-      title={`Close trip ${trip.tripNo}`}
+      title={`Close Trip ${trip.tripNo}`}
       size="lg"
       footer={
         <>
@@ -258,7 +262,7 @@ function CloseModal({ trip, onClose, onSaved }: { trip: VanTripDetail; onClose: 
             Cancel
           </Button>
           <Button loading={busy} variant={gap ? "danger" : "primary"} onClick={() => void save()}>
-            {gap ? "Close with differences" : "Close trip"}
+            {gap ? "Close With Differences" : "Close Trip"}
           </Button>
         </>
       }
@@ -268,8 +272,8 @@ function CloseModal({ trip, onClose, onSaved }: { trip: VanTripDetail; onClose: 
         <thead>
           <tr>
             <Th>Product</Th>
-            <Th right>Should be on the van</Th>
-            <Th right>Counted back</Th>
+            <Th right>Should Be on the Van</Th>
+            <Th right>Counted Back</Th>
             <Th right>Short</Th>
           </tr>
         </thead>
@@ -302,7 +306,7 @@ function CloseModal({ trip, onClose, onSaved }: { trip: VanTripDetail; onClose: 
         </tbody>
       </Table>
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Cash handed over" hint={`Expected ${inr(trip.summary.cashExpected)} (opening ${inr(trip.openingCash)} + cash bills ${inr(trip.summary.cashSales)}${trip.summary.cashRefunds ? ` − refunds ${inr(trip.summary.cashRefunds)}` : ""})`}>
+        <Field label="Cash Handed Over" hint={`Expected ${inr(trip.summary.cashExpected)} (opening ${inr(trip.openingCash)} + cash bills ${inr(trip.summary.cashSales)}${trip.summary.cashRefunds ? ` − refunds ${inr(trip.summary.cashRefunds)}` : ""})`}>
           <Input type="number" min="0" step="1" value={cash} onChange={(e) => setCash(e.target.value)} className="num" />
         </Field>
         <div className="flex items-end pb-2 text-sm">

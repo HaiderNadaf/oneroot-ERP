@@ -82,23 +82,23 @@ export function ProfitLossReport({ range, rangeBar }: { range: Range; rangeBar: 
   function csv() {
     if (!data) return;
     downloadCsv(`profit-loss-${range.from}-to-${range.to}.csv`, ["Line", "Amount"], [
-      ["Gross sales (incl. GST)", data.grossSales],
-      ["Less: GST collected", -data.outputTax],
-      ["Less: Sales returns (excl. GST)", -returnsNet],
-      ["Net revenue", data.netRevenue],
-      ["Less: Cost of goods sold", -data.cogs],
-      ["Gross profit", data.grossProfit],
-      ["Gross margin %", data.grossMarginPct],
+      ["Gross Sales (Incl. GST)", data.grossSales],
+      ["Less: GST Collected", -data.outputTax],
+      ["Less: Sales Returns (Excl. GST)", -returnsNet],
+      ["Net Revenue", data.netRevenue],
+      ["Less: Cost of Goods Sold", -data.cogs],
+      ["Gross Profit", data.grossProfit],
+      ["Gross Margin %", data.grossMarginPct],
       ...data.expenses.map((e) => [`Expense: ${e.category}`, -e.amount] as [string, number]),
-      ["Total expenses", -data.totalExpenses],
-      ["Net profit", data.netProfit],
-      ["Discounts given (memo)", data.discounts],
+      ["Total Expenses", -data.totalExpenses],
+      ["Net Profit", data.netProfit],
+      ["Discounts Given (Memo)", data.discounts],
     ]);
   }
 
   return (
     <ReportFrame
-      title="Profit & Loss statement"
+      title="Profit & Loss Statement"
       period={periodLabel(range)}
       controls={rangeBar}
       onCsv={csv}
@@ -116,37 +116,37 @@ export function ProfitLossReport({ range, rangeBar }: { range: Range; rangeBar: 
             </div>
 
             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Revenue</p>
-            <Line label="Gross sales" sub={`${data.invoices} invoices, incl. GST`} amount={data.grossSales} />
-            <Line label="Less: GST collected" amount={data.outputTax} negative indent />
-            <Line label="Less: Sales returns" sub="excl. GST" amount={returnsNet} negative indent />
-            <Subtotal label="Net revenue" amount={data.netRevenue} />
+            <Line label="Gross Sales" sub={`${data.invoices} invoices, incl. GST`} amount={data.grossSales} />
+            <Line label="Less: GST Collected" amount={data.outputTax} negative indent />
+            <Line label="Less: Sales Returns" sub="excl. GST" amount={returnsNet} negative indent />
+            <Subtotal label="Net Revenue" amount={data.netRevenue} />
 
-            <Line label="Less: Cost of goods sold" amount={data.cogs} negative />
-            <Subtotal label="Gross profit" sub={`${data.grossMarginPct}% margin`} amount={data.grossProfit} />
+            <Line label="Less: Cost of Goods Sold" amount={data.cogs} negative />
+            <Subtotal label="Gross Profit" sub={`${data.grossMarginPct}% margin`} amount={data.grossProfit} />
 
-            <p className="mb-1 mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">Operating expenses</p>
+            <p className="mb-1 mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">Operating Expenses</p>
             {data.expenses.length === 0 ? (
               <p className="py-1.5 pl-5 text-sm text-slate-400">No expenses recorded</p>
             ) : (
               data.expenses.map((e) => <Line key={e.category} label={e.category} amount={e.amount} indent />)
             )}
-            <Subtotal label="Total expenses" amount={data.totalExpenses} />
+            <Subtotal label="Total Expenses" amount={data.totalExpenses} />
 
             <div className="mt-3">
-              <Subtotal label="Net profit" sub={`${netMargin}% of net revenue`} amount={data.netProfit} tone="profit" />
+              <Subtotal label="Net Profit" sub={`${netMargin}% of net revenue`} amount={data.netProfit} tone="profit" />
             </div>
 
             <div className="mt-4 rounded-lg bg-slate-50 px-3 py-2">
-              <Line label="Memo: discounts given on invoices" sub="already deducted from gross sales" amount={data.discounts} muted />
-              <Line label="Memo: returns refunded / credited" sub="incl. GST" amount={data.returns} muted />
+              <Line label="Memo: Discounts Given on Invoices" sub="already deducted from gross sales" amount={data.discounts} muted />
+              <Line label="Memo: Returns Refunded / Credited" sub="incl. GST" amount={data.returns} muted />
             </div>
           </Card>
 
           <div className="space-y-3">
-            <Kpi label="Net revenue" value={inr(data.netRevenue)} />
-            <Kpi label="Gross profit" value={inr(data.grossProfit)} sub={`${data.grossMarginPct}% gross margin`} />
+            <Kpi label="Net Revenue" value={inr(data.netRevenue)} />
+            <Kpi label="Gross Profit" value={inr(data.grossProfit)} sub={`${data.grossMarginPct}% gross margin`} />
             <Kpi label="Expenses" value={inr(data.totalExpenses)} sub={data.netRevenue > 0 ? `${round2((data.totalExpenses / data.netRevenue) * 100)}% of revenue` : undefined} />
-            <Kpi label="Net profit" value={inr(data.netProfit)} sub={`${netMargin}% net margin`} tone={data.netProfit < 0 ? "red" : "green"} />
+            <Kpi label="Net Profit" value={inr(data.netProfit)} sub={`${netMargin}% net margin`} tone={data.netProfit < 0 ? "red" : "green"} />
           </div>
         </div>
       )}
@@ -156,7 +156,7 @@ export function ProfitLossReport({ range, rangeBar }: { range: Range; rangeBar: 
 
 function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "green" | "red" }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
       <p className={cx("num mt-1 text-xl font-semibold", tone === "red" ? "text-red-600" : tone === "green" ? "text-brand-700" : "text-slate-900")}>{value}</p>
       {sub && <p className="mt-0.5 text-xs text-slate-500">{sub}</p>}
@@ -193,16 +193,16 @@ export function GstReportView({ range, rangeBar }: { range: Range; rangeBar: Rea
         ...(data.noteAdjustment?.count
           ? [["Input reversed by debit/credit notes", "", "", "", data.noteAdjustment.count, -data.noteAdjustment.taxable, "", "", "", -data.noteAdjustment.tax, ""]]
           : []),
-        ["Net input tax credit", "", "", "", "", "", "", "", "", data.inputTax, ""],
+        ["Net Input Tax Credit", "", "", "", "", "", "", "", "", data.inputTax, ""],
         ...data.hsn.map((r) => ["HSN", r.gstRate, r.hsnCode, r.unit, r.quantity, r.taxable, "", "", "", r.tax, r.total]),
-        ["Net GST payable", "", "", "", "", "", "", "", "", data.netPayable, ""],
+        ["Net GST Payable", "", "", "", "", "", "", "", "", data.netPayable, ""],
       ],
     );
   }
 
   return (
     <ReportFrame
-      title="GST summary"
+      title="GST Summary"
       period={periodLabel(range)}
       controls={rangeBar}
       onCsv={csv}
@@ -214,9 +214,9 @@ export function GstReportView({ range, rangeBar }: { range: Range; rangeBar: Rea
       {data && (
         <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-3">
-            <Kpi label="Output tax (on sales)" value={inr(data.outputTax)} />
+            <Kpi label="Output Tax (On Sales)" value={inr(data.outputTax)} />
             <Kpi
-              label="Input tax credit (on purchases)"
+              label="Input Tax Credit (On Purchases)"
               value={inr(data.inputTax)}
               sub={data.noteAdjustment?.count ? `Net of ${inr(data.noteAdjustment.tax)} reversed by debit/credit notes` : undefined}
             />
@@ -234,16 +234,16 @@ export function GstReportView({ range, rangeBar }: { range: Range; rangeBar: Rea
             </div>
           </div>
 
-          <Card title="Output tax by rate (sales)" bodyClassName="p-0">
+          <Card title="Output Tax by Rate (Sales)" bodyClassName="p-0">
             <Table>
               <thead>
                 <tr>
-                  <Th>GST rate</Th>
-                  <Th right>Taxable value</Th>
+                  <Th>GST Rate</Th>
+                  <Th right>Taxable Value</Th>
                   <Th right>CGST</Th>
                   <Th right>SGST</Th>
                   <Th right>IGST</Th>
-                  <Th right>Total tax</Th>
+                  <Th right>Total Tax</Th>
                 </tr>
               </thead>
               <tbody>
@@ -279,13 +279,13 @@ export function GstReportView({ range, rangeBar }: { range: Range; rangeBar: Rea
             </Table>
           </Card>
 
-          <Card title="Input tax by rate (purchases)" bodyClassName="p-0">
+          <Card title="Input Tax by Rate (Purchases)" bodyClassName="p-0">
             <Table>
               <thead>
                 <tr>
-                  <Th>GST rate</Th>
-                  <Th right>Taxable value</Th>
-                  <Th right>Input tax</Th>
+                  <Th>GST Rate</Th>
+                  <Th right>Taxable Value</Th>
+                  <Th right>Input Tax</Th>
                 </tr>
               </thead>
               <tbody>
@@ -333,17 +333,17 @@ export function GstReportView({ range, rangeBar }: { range: Range; rangeBar: Rea
             </Table>
           </Card>
 
-          <Card title="HSN-wise summary of outward supplies" bodyClassName="p-0">
+          <Card title="HSN-wise Summary of Outward Supplies" bodyClassName="p-0">
             <Table>
               <thead>
                 <tr>
                   <Th>HSN</Th>
                   <Th>Unit</Th>
-                  <Th right>GST rate</Th>
+                  <Th right>GST Rate</Th>
                   <Th right>Quantity</Th>
-                  <Th right>Taxable value</Th>
+                  <Th right>Taxable Value</Th>
                   <Th right>Tax</Th>
-                  <Th right>Total value</Th>
+                  <Th right>Total Value</Th>
                 </tr>
               </thead>
               <tbody>

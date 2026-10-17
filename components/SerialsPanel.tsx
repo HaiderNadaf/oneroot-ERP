@@ -1,13 +1,13 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { Batch, SerialNumber } from "@/lib/types";
-import { Badge, Button, Card, EmptyRow, LoadingRow, Modal, Select, Table, Td, Textarea, Th, errMsg, useConfirm, useToast } from "./ui";
+import { Badge, Button, Card, EmptyRow, LoadingRow, Modal, RowAction, Select, Table, Td, Textarea, Th, errMsg, useConfirm, useToast } from "./ui";
 
 /** Serial numbers of a product in the current branch: register new ones, see which bill took each */
 export function SerialsPanel({ productId, batches }: { productId: string; batches: Batch[] }) {
@@ -51,12 +51,12 @@ export function SerialsPanel({ productId, batches }: { productId: string; batche
 
   return (
     <Card
-      title="Serial numbers"
+      title="Serial Numbers"
       bodyClassName="p-0"
       actions={
         <div className="flex items-center gap-2">
           <Select value={status} onChange={(e) => setStatus(e.target.value)} className="h-8 w-32 text-xs" aria-label="Serial status">
-            <option value="IN_STOCK">In stock</option>
+            <option value="IN_STOCK">In Stock</option>
             <option value="SOLD">Sold</option>
             <option value="">All</option>
           </Select>
@@ -89,12 +89,12 @@ export function SerialsPanel({ productId, batches }: { productId: string; batche
               <tr key={s.id} className="hover:bg-slate-50">
                 <Td className="min-w-28 break-all font-mono">{s.serialNo}</Td>
                 <Td className="hidden text-xs md:table-cell">{s.batch?.batchNo && s.batch.batchNo !== "DEFAULT" ? s.batch.batchNo : "—"}</Td>
-                <Td>{s.status === "IN_STOCK" ? <Badge tone="green">In stock</Badge> : <Badge>Sold</Badge>}</Td>
+                <Td>{s.status === "IN_STOCK" ? <Badge tone="green">In Stock</Badge> : <Badge>Sold</Badge>}</Td>
                 <Td className="text-xs">{s.saleItem?.sale?.invoiceNo ?? "—"}</Td>
                 <Td className="hidden whitespace-nowrap text-xs md:table-cell">{dateTime(s.soldAt ?? s.createdAt)}</Td>
                 <Td right>
                   {s.status === "IN_STOCK" && can("products.manage") && (
-                    <Button size="sm" variant="ghost" icon={<Trash2 className="size-4" />} aria-label="Remove serial" onClick={() => remove(s)} />
+                    <RowAction kind="delete" label="Remove" title={`Remove serial ${s.serialNo}`} onClick={() => remove(s)} />
                   )}
                 </Td>
               </tr>
@@ -106,7 +106,7 @@ export function SerialsPanel({ productId, batches }: { productId: string; batche
       <Modal
         open={adding}
         onClose={() => setAdding(false)}
-        title="Register serial numbers"
+        title="Register Serial Numbers"
         size="sm"
         footer={
           <>
@@ -124,7 +124,7 @@ export function SerialsPanel({ productId, batches }: { productId: string; batche
           <Textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} className="font-mono" autoFocus placeholder={"SPR-2026-0001\nSPR-2026-0002"} />
           {batches.length > 0 && (
             <Select value={batchId} onChange={(e) => setBatchId(e.target.value)} aria-label="Batch">
-              <option value="">Batch (optional)</option>
+              <option value="">Batch (Optional)</option>
               {batches.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.batchNo}

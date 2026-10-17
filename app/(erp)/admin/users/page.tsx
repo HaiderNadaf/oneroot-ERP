@@ -5,7 +5,7 @@ import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { BranchCode, useBranchOptions } from "@/components/BranchNotice";
 import { DepartmentsPanel } from "@/components/DepartmentsPanel";
-import { PermissionPicker } from "@/components/PermissionPicker";
+import { PermissionPicker, useCanGrantAll } from "@/components/PermissionPicker";
 import { RoleTemplateForm } from "@/components/RoleTemplateForm";
 import {
   ActionsTd,
@@ -40,9 +40,9 @@ import { ROLES, type BuiltInRole, type Role, type RoleTemplate, type User } from
 
 const ROLE_INFO: Record<Role, string> = {
   ADMIN: "Everything, always — including users, store settings and the audit log",
-  MANAGER: "Inventory, purchases, reports, approvals and cancellations",
-  CASHIER: "Billing, customers and receipts",
-  ACCOUNTANT: "Purchases, payments, expenses, accounts and reports",
+  MANAGER: "Inventory, Purchases, Reports, Approvals and Cancellations",
+  CASHIER: "Billing, Customers and Receipts",
+  ACCOUNTANT: "Purchases, Payments, Expenses, Accounts and Reports",
 };
 
 /** A built-in role's permissions as set in Roles & Limits (the shipped defaults until they load) */
@@ -72,7 +72,7 @@ export default function UsersPage() {
 }
 
 function Users() {
-  const { user: me, can } = useAuth();
+  const { user: me, can, isAdmin } = useAuth();
   const { data, error, loading, reload } = useApi<User[]>("/users");
   const templates = useApi<RoleTemplate[]>("/roles/custom");
   const builtIns = useApi<BuiltInRole[]>("/roles/built-in");
@@ -94,11 +94,11 @@ function Users() {
           <>
             {can("admin.roles") && (
               <Button variant="secondary" icon={<Plus className="size-4" />} onClick={() => setRoleForm({ template: null, departmentId: null })}>
-                New role
+                New Role
               </Button>
             )}
             <Button icon={<Plus className="size-4" />} onClick={() => open(null)}>
-              New user
+              New User
             </Button>
           </>
         }
@@ -118,7 +118,7 @@ function Users() {
                 <Th>Access</Th>
                 <Th>Branch</Th>
                 <Th className="hidden md:table-cell">Phone</Th>
-                <Th className="hidden md:table-cell">Last sign-in</Th>
+                <Th className="hidden md:table-cell">Last Sign-In</Th>
                 <Th>Status</Th>
                 <ActionsTh />
               </tr>
@@ -169,7 +169,8 @@ function Users() {
                     <Td className="hidden text-xs md:table-cell">{u.lastLoginAt ? dateTime(u.lastLoginAt) : "Never"}</Td>
                     <Td>{u.isActive ? <Badge tone="green">Active</Badge> : <Badge>Disabled</Badge>}</Td>
                     <ActionsTd>
-                      <RowAction kind="edit" title={`Edit ${u.name}`} onClick={() => open(u)} />
+                      {/* Only an administrator can edit an administrator */}
+                      {(isAdmin || u.role !== "ADMIN") && <RowAction kind="edit" title={`Edit ${u.name}`} onClick={() => open(u)} />}
                     </ActionsTd>
                   </tr>
                 ))
@@ -187,7 +188,7 @@ function Users() {
         onChanged={() => void templates.reload()}
       />
 
-      <Card title="Roles & permissions" className="mt-4">
+      <Card title="Roles & Permissions" className="mt-4">
         <dl className="grid gap-3 sm:grid-cols-2">
           {ROLES.map((r) => (
             <div key={r} className="flex items-start gap-2">
@@ -313,7 +314,7 @@ function RolePicker({
                   <button key={t.id} type="button" disabled={disabled} onClick={() => onPick(t.baseRole, t)} className={card(templateId === t.id, false)}>
                     <p className="text-sm font-medium text-slate-800">{t.name}</p>
                     <p className="text-xs text-slate-500">
-                      {t.description || `${t.permissions.length} permissions`}
+                      {t.description || `${t.permissions.length} Permissions`}
                     </p>
                   </button>
                 ))}
@@ -329,9 +330,9 @@ function RolePicker({
           className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-left text-sm font-medium text-brand-700 hover:bg-slate-50"
         >
           <span className="inline-flex items-center gap-1">
-            <Plus className="size-4" /> New role…
+            <Plus className="size-4" /> New Role…
           </span>
-          <p className="text-xs font-normal text-slate-500">Make a role inside a department, e.g. Procurement → Category Head</p>
+          <p className="text-xs font-normal text-slate-500">Make a role inside a department, e.g. Procurement → Category head</p>
         </button>
       )}
     </div>
@@ -375,6 +376,10 @@ function UserForm({
   const [saving, setSaving] = useState(false);
   const [newRole, setNewRole] = useState(false);
   const approver = hasPerm({ role, permissions }, "approvals.decide");
+  // Someone holding permissions you don't have keeps their role and ticks; only an administrator can change those
+  const canGrantAll = useCanGrantAll();
+  const outranks = !!user && !canGrantAll(user.permissions ?? []);
+  const accessLocked = isSelf || outranks;
   const template = templateId ? (templates.find((t) => t.id === templateId) ?? null) : null;
   // The role's own permissions: what the ticks are compared against (extra / removed)
   const baseline = template ? normalizePermissions(template.permissions) : rolePerms(role, builtIns);
@@ -397,7 +402,7 @@ function UserForm({
       const access = { role, roleTemplateId: role === "ADMIN" ? null : templateId, permissions: role === "ADMIN" ? [] : permissions };
       if (editing) {
         const body: Record<string, unknown> = { name: name.trim(), phone: phone.trim(), branchId };
-        if (!isSelf) Object.assign(body, access, { isActive });
+        if (!isSelf) Object.assign(body, outranks ? {} : access, { isActive });
         if (password) body.password = password;
         if (clearPin) body.pin = "";
         else if (pin) body.pin = pin;
@@ -420,7 +425,7 @@ function UserForm({
     <Modal
       open
       onClose={onClose}
-      title={editing ? `Edit ${user.name}` : "New user"}
+      title={editing ? `Edit ${user.name}` : "New User"}
       size="lg"
       footer={
         <>
@@ -428,23 +433,23 @@ function UserForm({
             Cancel
           </Button>
           <Button type="submit" form="user-form" loading={saving}>
-            {editing ? "Save changes" : "Create user"}
+            {editing ? "Save Changes" : "Create User"}
           </Button>
         </>
       }
     >
       <form id="user-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Full name" required>
+        <Field label="Full Name" required>
           <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
         </Field>
         <Field label="Phone">
           <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </Field>
-        <Field label="Email (used to sign in)" required={!editing} hint={editing ? "Email cannot be changed" : undefined}>
+        <Field label="Email (Used to Sign In)" required={!editing} hint={editing ? "Email cannot be changed" : undefined}>
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required={!editing} disabled={editing} />
         </Field>
         <Field
-          label={editing ? "Reset password" : "Password"}
+          label={editing ? "Reset Password" : "Password"}
           required={!editing}
           hint={editing ? "Leave blank to keep the current password" : "At least 6 characters"}
         >
@@ -452,9 +457,11 @@ function UserForm({
         </Field>
         <div className="sm:col-span-2">
           <span className="mb-1 block text-xs font-medium text-slate-600">Role</span>
-          <RolePicker role={role} templateId={templateId} templates={templates} onPick={pick} onNewRole={can("admin.roles") ? () => setNewRole(true) : undefined} disabled={isSelf} />
+          <RolePicker role={role} templateId={templateId} templates={templates} onPick={pick} onNewRole={can("admin.roles") ? () => setNewRole(true) : undefined} disabled={accessLocked} />
           {isSelf ? (
             <p className="mt-1 text-xs text-slate-400">You can&apos;t change your own role, permissions or disable your own account.</p>
+          ) : outranks ? (
+            <p className="mt-1 text-xs text-slate-400">This person has permissions you don&apos;t hold, so only an administrator can change their role or permissions.</p>
           ) : (
             <p className="mt-1 text-xs text-slate-400">
               The role decides the access. Tick extra or untick for this person only — marked below, and kept when the role is edited.
@@ -465,13 +472,13 @@ function UserForm({
           value={permissions}
           onChange={setPermissions}
           defaults={baseline}
-          resetLabel={`Reset to ${template ? template.name : roleName(role)} role`}
-          disabled={isSelf}
+          resetLabel={`Reset to ${template ? template.name : roleName(role)} Role`}
+          disabled={accessLocked}
           admin={role === "ADMIN"}
           showRemoved
         />
         <Field
-          label="Home branch"
+          label="Home Branch"
           className="sm:col-span-2"
           hint={
             branchId
@@ -482,7 +489,7 @@ function UserForm({
           }
         >
           <Select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-            <option value="">All branches (owner / admin)</option>
+            <option value="">All Branches (Owner / Admin)</option>
             {branches.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name} ({b.code})
@@ -497,20 +504,20 @@ function UserForm({
         </Field>
         {approver && (
           <Field
-            label={user?.hasPin ? "Change approval PIN" : "Approval PIN"}
+            label={user?.hasPin ? "Change Approval PIN" : "Approval PIN"}
             className="sm:col-span-2"
             hint="4–6 digits an approver types at the counter to approve a discount, refund or adjustment above a cashier's limit"
           >
             <div className="flex items-center gap-3">
               <Input type="password" inputMode="numeric" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} disabled={clearPin} className="num w-40 tracking-[0.4em]" placeholder={user?.hasPin ? "••••" : ""} />
               {user?.hasPin && <Checkbox label="Remove PIN" checked={clearPin} onChange={setClearPin} />}
-              {user?.hasPin && !clearPin && <Badge tone="green">PIN set</Badge>}
+              {user?.hasPin && !clearPin && <Badge tone="green">PIN Set</Badge>}
             </div>
           </Field>
         )}
         {editing && !isSelf && (
           <div className="sm:col-span-2">
-            <Checkbox label="Active — can sign in" checked={isActive} onChange={setIsActive} />
+            <Checkbox label="Active — Can Sign In" checked={isActive} onChange={setIsActive} />
           </div>
         )}
       </form>

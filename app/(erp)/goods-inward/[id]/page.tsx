@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
-import { LabelPrintModal } from "@/components/LabelPrintModal";
 import { Badge, Button, Card, ErrorBox, PageHeader, Spinner, StatusBadge, Table, Td, Th, cx } from "@/components/ui";
 import { date, dateTime, inr, n, qty, round2 } from "@/lib/format";
+import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
 import type { Grn, GrnItem, StoreSettings, Vendor } from "@/lib/types";
+import { LazyLabelPrintModal } from "@/components/lazy";
 
 type GrnDetail = Grn & { vendor: Vendor; items: GrnItem[] };
 
@@ -24,6 +25,8 @@ export default function GrnDetailPage() {
 function GrnView() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { can } = useAuth();
+  const canInvoice = can("purchases.manage");
   const { data: g, error, loading, reload } = useApi<GrnDetail>(`/grns/${id}`);
   const { data: store } = useApi<StoreSettings>("/settings");
   const [labelsOpen, setLabelsOpen] = useState(false);
@@ -53,7 +56,7 @@ function GrnView() {
         title={
           <span className="flex flex-wrap items-center gap-2">
             {g.grnNo}
-            {invoiced ? <Badge tone="green">Invoiced</Badge> : <Badge tone="amber">Invoice pending</Badge>}
+            {invoiced ? <Badge tone="green">Invoiced</Badge> : <Badge tone="amber">Invoice Pending</Badge>}
           </span>
         }
         subtitle={`${v.name} · received ${date(g.receivedAt)}${g.receivedBy ? ` by ${g.receivedBy.name}` : ""}`}
@@ -64,12 +67,12 @@ function GrnView() {
             </Button>
             {totals.passed > 0 && (
               <Button variant="secondary" icon={<Tag className="size-4" />} onClick={() => setLabelsOpen(true)}>
-                Batch labels
+                Batch Labels
               </Button>
             )}
-            {!invoiced && totals.passed > 0 && (
+            {!invoiced && totals.passed > 0 && canInvoice && (
               <Button icon={<FileText className="size-4" />} onClick={() => router.push(`/goods-inward/${g.id}/invoice`)}>
-                Book purchase invoice
+                Book Purchase Invoice
               </Button>
             )}
           </>
@@ -85,15 +88,19 @@ function GrnView() {
               {store.gstin && ` · GSTIN ${store.gstin}`}
             </p>
           )}
-          <p className="mt-1 text-sm font-medium uppercase tracking-wide">Goods received note</p>
+          <p className="mt-1 text-sm font-medium uppercase tracking-wide">Goods Received Note</p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 border-b border-slate-100 p-4 sm:grid-cols-2">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Vendor</p>
-            <Link href={`/vendors/${v.id}`} className="mt-1 block break-words font-semibold text-slate-900 hover:text-brand-700">
-              {v.name}
-            </Link>
+            {can("vendors.view") ? (
+              <Link href={`/vendors/${v.id}`} className="mt-1 block break-words font-semibold text-slate-900 hover:text-brand-700">
+                {v.name}
+              </Link>
+            ) : (
+              <p className="mt-1 break-words font-semibold text-slate-900">{v.name}</p>
+            )}
             <p className="text-sm text-slate-600">{[v.address, v.city, v.state, v.pincode].filter(Boolean).join(", ")}</p>
             <p className="text-sm text-slate-600">{[v.phone, v.gstin && `GSTIN ${v.gstin}`].filter(Boolean).join(" · ")}</p>
           </div>
@@ -129,7 +136,7 @@ function GrnView() {
               <Th>Batch</Th>
               <Th>Mfg</Th>
               <Th>Expiry</Th>
-              <Th right>PO rate</Th>
+              <Th right>PO Rate</Th>
               <Th right>Received</Th>
               <Th right>Passed</Th>
               <Th right>Rejected</Th>
@@ -190,7 +197,7 @@ function GrnView() {
       </Card>
 
       <div className="no-print grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card title="Purchase invoice">
+        <Card title="Purchase Invoice">
           {invoiced && g.purchase ? (
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
               <span>
@@ -204,15 +211,17 @@ function GrnView() {
           ) : totals.passed > 0 ? (
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
               <span className="text-slate-600">The vendor&apos;s bill for the passed goods has not been booked yet.</span>
-              <Button size="sm" icon={<FileText className="size-4" />} onClick={() => router.push(`/goods-inward/${g.id}/invoice`)}>
-                Book invoice
-              </Button>
+              {canInvoice && (
+                <Button size="sm" icon={<FileText className="size-4" />} onClick={() => router.push(`/goods-inward/${g.id}/invoice`)}>
+                  Book Invoice
+                </Button>
+              )}
             </div>
           ) : (
             <p className="text-sm text-slate-500">Nothing passed inspection on this GRN, so there is nothing to invoice.</p>
           )}
         </Card>
-        <Card title="Debit notes">
+        <Card title="Debit Notes">
           {g.debitNotes?.length ? (
             <ul className="space-y-2 text-sm">
               {g.debitNotes.map((d) => (
@@ -232,7 +241,7 @@ function GrnView() {
         </Card>
       </div>
 
-      <LabelPrintModal
+      <LazyLabelPrintModal
         open={labelsOpen}
         onClose={() => setLabelsOpen(false)}
         items={items

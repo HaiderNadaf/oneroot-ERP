@@ -30,6 +30,7 @@ import {
   useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
 import { inr0 } from "@/lib/format";
 import { parseGstin } from "@/lib/gst";
@@ -47,6 +48,7 @@ export default function BranchesPage() {
 function Branches() {
   const { data, error, loading, reload } = useApi<Branch[]>("/branches");
   const { currentId } = useBranch();
+  const { can } = useAuth();
   const [editing, setEditing] = useState<Branch | null>(null);
   const [formOpen, setFormOpen] = useState(false);
 
@@ -65,7 +67,7 @@ function Branches() {
         subtitle="Store locations — each with its own stock, bills and staff"
         actions={
           <Button icon={<Plus className="size-4" />} onClick={() => open(null)}>
-            New branch
+            New Branch
           </Button>
         }
       />
@@ -79,13 +81,21 @@ function Branches() {
           </p>
           <p>
             Staff assigned to a branch (under{" "}
-            <Link href="/admin/users" className="font-medium underline-offset-2 hover:underline">
-              Users
-            </Link>
+            {can("admin.users") ? (
+              <Link href="/admin/users" className="font-medium underline-offset-2 hover:underline">
+                Users
+              </Link>
+            ) : (
+              <b>Users</b>
+            )}
             ) only see that branch. To move stock between branches use{" "}
-            <Link href="/inventory?tab=transfers" className="inline-flex items-center gap-1 font-medium underline-offset-2 hover:underline">
-              Stock &amp; Batches → Transfers <ArrowLeftRight className="size-3.5" />
-            </Link>
+            {can("inventory.view") ? (
+              <Link href="/inventory?tab=transfers" className="inline-flex items-center gap-1 font-medium underline-offset-2 hover:underline">
+                Stock &amp; Batches → Transfers <ArrowLeftRight className="size-3.5" />
+              </Link>
+            ) : (
+              <b>Stock &amp; Batches → Transfers</b>
+            )}
             .
           </p>
         </div>
@@ -104,8 +114,8 @@ function Branches() {
                 <Th>Location</Th>
                 <Th>Phone</Th>
                 <Th right>Staff</Th>
-                <Th right>Batches in stock</Th>
-                <Th right>Stock value</Th>
+                <Th right>Batches in Stock</Th>
+                <Th right>Stock Value</Th>
                 <Th>Status</Th>
                 <ActionsTh />
               </tr>
@@ -236,7 +246,7 @@ function BranchForm({ branch, onClose, onSaved }: { branch: Branch | null; onClo
     <Modal
       open
       onClose={onClose}
-      title={editing ? `Edit ${branch.name}` : "New branch"}
+      title={editing ? `Edit ${branch.name}` : "New Branch"}
       size="lg"
       footer={
         <>
@@ -244,7 +254,7 @@ function BranchForm({ branch, onClose, onSaved }: { branch: Branch | null; onClo
             Cancel
           </Button>
           <Button type="submit" form="branch-form" loading={saving} variant={deactivating ? "danger" : "primary"}>
-            {editing ? (deactivating ? "Deactivate branch" : "Save changes") : "Create branch"}
+            {editing ? (deactivating ? "Deactivate Branch" : "Save Changes") : "Create Branch"}
           </Button>
         </>
       }
@@ -265,13 +275,13 @@ function BranchForm({ branch, onClose, onSaved }: { branch: Branch | null; onClo
             autoFocus={!editing}
           />
         </Field>
-        <Field label="Branch name" required className="sm:col-span-2">
+        <Field label="Branch Name" required className="sm:col-span-2">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Erode Branch" required />
         </Field>
         <Field label="Address" className="sm:col-span-3">
           <Textarea rows={2} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Door no., street, area" />
         </Field>
-        <Field label="City / town">
+        <Field label="City / Town">
           <Input value={city} onChange={(e) => setCity(e.target.value)} />
         </Field>
         <StateSelect value={state} onChange={setState} gstin={gstin} />
@@ -283,7 +293,7 @@ function BranchForm({ branch, onClose, onSaved }: { branch: Branch | null; onClo
           onChange={setGstin}
           onState={setState}
           showTaxType={false}
-          label="GSTIN (if registered separately)"
+          label="GSTIN (If Registered Separately)"
           hint="Leave blank to bill under the store's GSTIN"
           className="sm:col-span-3"
         />

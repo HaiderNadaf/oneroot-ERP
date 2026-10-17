@@ -50,10 +50,10 @@ export default function AccountPage() {
   return (
     <>
       <PageHeader
-        title="My account"
+        title="My Account"
         actions={
           <Button variant="secondary" icon={<LogOut className="size-4" />} onClick={logout}>
-            Sign out
+            Sign Out
           </Button>
         }
       />
@@ -73,12 +73,12 @@ export default function AccountPage() {
           <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">To change your name, phone or role, ask an administrator.</p>
         </Card>
 
-        <Card title="Change password">
+        <Card title="Change Password">
           <form onSubmit={submit} className="space-y-3">
-            <Field label="Current password" required>
+            <Field label="Current Password" required>
               <Input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} required />
             </Field>
-            <Field label="New password" required hint={tooShort ? undefined : "At least 6 characters"}>
+            <Field label="New Password" required hint={tooShort ? undefined : "At least 6 characters"}>
               <Input
                 type="password"
                 autoComplete="new-password"
@@ -89,7 +89,7 @@ export default function AccountPage() {
               />
               {tooShort && <span className="mt-1 block text-xs text-red-600">At least 6 characters</span>}
             </Field>
-            <Field label="Confirm new password" required>
+            <Field label="Confirm New Password" required>
               <Input
                 type="password"
                 autoComplete="new-password"
@@ -102,7 +102,7 @@ export default function AccountPage() {
             </Field>
             {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
             <Button type="submit" loading={saving} icon={<KeyRound className="size-4" />} disabled={!current || !next || !confirm}>
-              Update password
+              Update Password
             </Button>
           </form>
         </Card>

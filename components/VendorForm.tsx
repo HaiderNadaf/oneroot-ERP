@@ -98,7 +98,7 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
     <Modal
       open={open}
       onClose={onClose}
-      title={editing ? `Edit ${vendor?.name}` : "New vendor"}
+      title={editing ? `Edit ${vendor?.name}` : "New Vendor"}
       size="lg"
       footer={
         <>
@@ -106,16 +106,16 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
             Cancel
           </Button>
           <Button type="submit" form="vendor-form" loading={saving}>
-            {editing ? "Save changes" : "Create vendor"}
+            {editing ? "Save Changes" : "Create Vendor"}
           </Button>
         </>
       }
     >
       <form id="vendor-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Field label="Vendor / firm name" required className="sm:col-span-2">
+        <Field label="Vendor / Firm Name" required className="sm:col-span-2">
           <Input value={str("name")} onChange={(e) => set("name", e.target.value)} required autoFocus placeholder="e.g. Sri Lakshmi Agro Distributors" />
         </Field>
-        <Field label="Contact person">
+        <Field label="Contact Person">
           <Input value={str("contactPerson")} onChange={(e) => set("contactPerson", e.target.value)} />
         </Field>
         <Field label="Phone">
@@ -145,10 +145,10 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
         <fieldset className="min-w-0 rounded-lg border border-dashed border-slate-300 p-3 sm:col-span-3">
           <legend className="px-1 text-xs font-medium text-slate-600">Bank details (for payments)</legend>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Field label="Bank name">
+            <Field label="Bank Name">
               <Input value={str("bankName")} onChange={(e) => set("bankName", e.target.value)} />
             </Field>
-            <Field label="Account number">
+            <Field label="Account Number">
               <Input value={str("bankAccount")} onChange={(e) => set("bankAccount", e.target.value)} />
             </Field>
             <Field label="IFSC">
@@ -157,10 +157,10 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
           </div>
         </fieldset>
 
-        <Field label="Payment terms (days)" hint="Credit period; sets bill due dates">
+        <Field label="Payment Terms (Days)" hint="Credit period; sets bill due dates">
           <Input type="number" min="0" step="1" value={str("paymentTermsDays")} onChange={(e) => set("paymentTermsDays", e.target.value)} />
         </Field>
-        <Field label="Opening balance (₹)" hint="Amount you already owe this vendor">
+        <Field label="Opening Balance (₹)" hint="Amount you already owe this vendor">
           <Input type="number" step="0.01" value={str("openingBalance")} onChange={(e) => set("openingBalance", e.target.value)} />
         </Field>
         <div className="hidden sm:block" />

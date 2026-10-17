@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { inr, n, round2, today } from "@/lib/format";
 import { MONEY_MODES, modeLabel, type Customer, type Payment, type PaymentMode, type Vendor } from "@/lib/types";
 import { RecordedIn } from "./BranchNotice";
 import { CustomerPicker, VendorPicker } from "./pickers";
-import { Button, Field, Input, Modal, Select, Textarea, cx, errMsg, useToast } from "./ui";
+import { Button, DateInput, Field, Input, Modal, Select, Textarea, cx, errMsg, useToast } from "./ui";
 
 export type PartyType = "CUSTOMER" | "VENDOR";
 
@@ -49,7 +50,12 @@ const defaultMode = (t: PartyType): PaymentMode => (t === "VENDOR" ? "BANK" : "C
 /** Mounted fresh on every open, so the initial state below is the reset */
 function PartyPaymentFormBody({ open, onClose, onSaved, fixed, defaultType = "CUSTOMER" }: PartyPaymentFormProps) {
   const toast = useToast();
-  const initialType = fixed?.partyType ?? defaultType;
+  const { can } = useAuth();
+  // Only the sides this user may record (and pick a party for)
+  const allowed = (["CUSTOMER", "VENDOR"] as const).filter((t) =>
+    t === "CUSTOMER" ? can("payments.record") && can("customers.view") : can("payments.vendor") && can("vendors.view"),
+  );
+  const initialType = fixed?.partyType ?? (allowed.includes(defaultType) ? defaultType : (allowed[0] ?? defaultType));
   const suggested = fixed ? (fixed.due ?? fixed.balance ?? 0) : 0;
   const [partyType, setPartyType] = useState<PartyType>(initialType);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -123,7 +129,7 @@ function PartyPaymentFormBody({ open, onClose, onSaved, fixed, defaultType = "CU
             Cancel
           </Button>
           <Button type="submit" form="party-payment-form" loading={saving} disabled={!party}>
-            {isVendor ? "Record payment" : "Record receipt"}
+            {isVendor ? "Record Payment" : "Record Receipt"}
           </Button>
         </>
       }
@@ -131,25 +137,27 @@ function PartyPaymentFormBody({ open, onClose, onSaved, fixed, defaultType = "CU
       <form id="party-payment-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {!fixed && (
           <>
-            <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 sm:col-span-2">
-              {(["CUSTOMER", "VENDOR"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => {
-                    setPartyType(t);
-                    setAmount("");
-                    setMode(defaultMode(t));
-                  }}
-                  className={cx(
-                    "rounded-md px-2 py-2 text-sm font-medium transition-colors sm:px-3 sm:py-1.5",
-                    partyType === t ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800",
-                  )}
-                >
-                  {t === "CUSTOMER" ? "Receive from customer" : "Pay vendor"}
-                </button>
-              ))}
-            </div>
+            {allowed.length > 1 && (
+              <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 sm:col-span-2">
+                {allowed.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setPartyType(t);
+                      setAmount("");
+                      setMode(defaultMode(t));
+                    }}
+                    className={cx(
+                      "rounded-md px-2 py-2 text-sm font-medium transition-colors sm:px-3 sm:py-1.5",
+                      partyType === t ? "bg-surface text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800",
+                    )}
+                  >
+                    {t === "CUSTOMER" ? "Receive From Customer" : "Pay Vendor"}
+                  </button>
+                ))}
+              </div>
+            )}
             <Field label={isVendor ? "Vendor" : "Customer"} required className="sm:col-span-2">
               {isVendor ? (
                 <VendorPicker value={vendor} onChange={(v) => pickParty(v, "VENDOR")} autoFocus />
@@ -205,7 +213,7 @@ function PartyPaymentFormBody({ open, onClose, onSaved, fixed, defaultType = "CU
           <Input value={reference} onChange={(e) => setReference(e.target.value)} />
         </Field>
         <Field label="Date" required>
-          <Input type="date" value={paymentDate} max={today()} onChange={(e) => setPaymentDate(e.target.value)} required />
+          <DateInput value={paymentDate} max={today()} onChange={(e) => setPaymentDate(e.target.value)} required />
         </Field>
         <Field label="Notes" className="sm:col-span-2">
           <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />

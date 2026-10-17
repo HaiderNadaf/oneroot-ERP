@@ -43,7 +43,7 @@ function EditPurchaseOrder() {
       {po.canEdit ? (
         <PoForm key={po.id} po={po} />
       ) : (
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-600">
+        <div className="rounded-lg border border-slate-200 bg-surface px-4 py-6 text-center text-sm text-slate-600">
           This PO can no longer be edited — it is {po.status.toLowerCase().replace(/_/g, " ")}
           {po.receivedPct > 0 && " and goods have already been received against it"}.{" "}
           <Link href={`/purchase-orders/${po.id}`} className="font-medium text-brand-700 underline">

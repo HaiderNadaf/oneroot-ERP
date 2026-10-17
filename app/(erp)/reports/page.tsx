@@ -11,13 +11,13 @@ import { PageHeader, Tabs } from "@/components/ui";
 
 const TABS = [
   { value: "pl", label: "Profit & Loss" },
-  { value: "gst", label: "GST summary" },
-  { value: "sales", label: "Sales register" },
-  { value: "purchases", label: "Purchase register" },
-  { value: "products", label: "Product-wise sales" },
-  { value: "stock", label: "Stock valuation" },
+  { value: "gst", label: "GST Summary" },
+  { value: "sales", label: "Sales Register" },
+  { value: "purchases", label: "Purchase Register" },
+  { value: "products", label: "Product-Wise Sales" },
+  { value: "stock", label: "Stock Valuation" },
   { value: "outstanding", label: "Outstanding" },
-  { value: "daybook", label: "Day book" },
+  { value: "daybook", label: "Day Book" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["value"];

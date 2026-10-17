@@ -117,14 +117,14 @@ function PurchaseDetail() {
             <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => window.print()}>
               Print
             </Button>
-            {!cancelled && due > 0 && (
+            {!cancelled && due > 0 && can("payments.vendor") && (
               <Button icon={<Banknote className="size-4" />} onClick={() => setPayOpen(true)}>
-                Record payment
+                Record Payment
               </Button>
             )}
             {!cancelled && can("purchases.cancel") && (
               <Button variant="danger" icon={<Ban className="size-4" />} onClick={cancelPurchase} loading={cancelling}>
-                {p.grnId ? "Cancel invoice" : "Cancel purchase"}
+                {p.grnId ? "Cancel Invoice" : "Cancel Purchase"}
               </Button>
             )}
           </>
@@ -182,9 +182,13 @@ function PurchaseDetail() {
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Vendor</p>
             {v ? (
               <>
-                <Link href={`/vendors/${v.id}`} className="mt-1 block break-words font-semibold text-slate-900 hover:text-brand-700">
-                  {v.name}
-                </Link>
+                {can("vendors.view") ? (
+                  <Link href={`/vendors/${v.id}`} className="mt-1 block break-words font-semibold text-slate-900 hover:text-brand-700">
+                    {v.name}
+                  </Link>
+                ) : (
+                  <p className="mt-1 break-words font-semibold text-slate-900">{v.name}</p>
+                )}
                 <p className="text-sm text-slate-600">{[v.address, v.city, v.state, v.pincode].filter(Boolean).join(", ") || "No address on file"}</p>
                 <p className="text-sm text-slate-600">{[v.phone, v.gstin && `GSTIN ${v.gstin}`].filter(Boolean).join(" · ")}</p>
               </>
@@ -193,13 +197,13 @@ function PurchaseDetail() {
             )}
           </div>
           <div className="rounded-lg border border-slate-200 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Billed to</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Billed To</p>
             <p className="mt-1 font-semibold text-slate-900">{store?.storeName ?? "—"}</p>
             <p className="text-sm text-slate-600">{[store?.address, store?.city, store?.state, store?.pincode].filter(Boolean).join(", ") || "—"}</p>
             {store?.gstin && <p className="text-sm text-slate-600">GSTIN {store.gstin}</p>}
           </div>
           <div className="rounded-lg border border-slate-200 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Delivered to</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Delivered To</p>
             <p className="mt-1 font-semibold text-slate-900">{p.branch ? `${p.branch.name} (${p.branch.code})` : store?.storeName ?? "—"}</p>
             <p className="text-sm text-slate-600">{[p.branch?.address, p.branch?.city].filter(Boolean).join(", ") || "—"}</p>
           </div>
@@ -320,17 +324,17 @@ function PurchaseDetail() {
             )}
           </div>
           <dl className="space-y-1.5 text-sm sm:ml-auto sm:w-72">
-            <Row label="Taxable value" value={inr(p.subtotal)} />
+            <Row label="Taxable Value" value={inr(p.subtotal)} />
             <Row label="GST" value={inr(p.taxAmount)} />
             {n(p.discount) > 0 && <Row label="Discount" value={`− ${inr(p.discount)}`} />}
-            {n(p.otherCharges) > 0 && <Row label="Freight / other charges" value={inr(p.otherCharges)} />}
-            {n(p.roundOff) !== 0 && <Row label="Round off" value={`${n(p.roundOff) > 0 ? "+" : "−"}${inr(Math.abs(n(p.roundOff)))}`} />}
+            {n(p.otherCharges) > 0 && <Row label="Freight / Other Charges" value={inr(p.otherCharges)} />}
+            {n(p.roundOff) !== 0 && <Row label="Round Off" value={`${n(p.roundOff) > 0 ? "+" : "−"}${inr(Math.abs(n(p.roundOff)))}`} />}
             <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold text-slate-900">
               <dt>Total</dt>
               <dd className="num">{inr(p.totalAmount)}</dd>
             </div>
             <Row label="Paid" value={inr(round2(n(p.paidAmount) - byNotes))} />
-            {byNotes > 0 && <Row label="Settled by notes" value={inr(byNotes)} />}
+            {byNotes > 0 && <Row label="Settled by Notes" value={inr(byNotes)} />}
             {!cancelled && (
               <div className={cx("flex justify-between font-semibold", due > 0 ? "text-amber-700" : "text-brand-700")}>
                 <dt>Balance due</dt>
@@ -341,11 +345,11 @@ function PurchaseDetail() {
         </div>
       </Card>
 
-      <Card title="Payments against this bill" bodyClassName="p-0" className="no-print">
+      <Card title="Payments Against This Bill" bodyClassName="p-0" className="no-print">
         <Table>
           <thead>
             <tr>
-              <Th>Payment no.</Th>
+              <Th>Payment No.</Th>
               <Th>Date</Th>
               <Th>Mode</Th>
               <Th>Reference</Th>

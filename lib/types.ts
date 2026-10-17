@@ -873,15 +873,15 @@ export type NoteReason =
   | "OTHER";
 
 export const NOTE_REASON_LABEL: Record<NoteReason, string> = {
-  RETURN: "Goods returned",
-  REJECTED_AT_INWARD: "Rejected at inward",
-  RATE_DIFFERENCE: "Rate difference",
-  SHORT_SUPPLY: "Short supply",
-  DAMAGED_IN_TRANSIT: "Damaged in transit",
-  SCHEME_INCENTIVE: "Scheme / target incentive",
-  PRICE_PROTECTION: "Price protection",
-  CASH_DISCOUNT: "Cash discount",
-  AGAINST_DEBIT_NOTE: "Against our debit note",
+  RETURN: "Goods Returned",
+  REJECTED_AT_INWARD: "Rejected at Inward",
+  RATE_DIFFERENCE: "Rate Difference",
+  SHORT_SUPPLY: "Short Supply",
+  DAMAGED_IN_TRANSIT: "Damaged in Transit",
+  SCHEME_INCENTIVE: "Scheme / Target Incentive",
+  PRICE_PROTECTION: "Price Protection",
+  CASH_DISCOUNT: "Cash Discount",
+  AGAINST_DEBIT_NOTE: "Against Our Debit Note",
   OTHER: "Other",
 };
 
@@ -1113,15 +1113,15 @@ export interface BalanceSheet {
 
 export const REF_TYPE_LABEL: Record<string, string> = {
   SALE: "Sale",
-  SALE_RETURN: "Sales return",
+  SALE_RETURN: "Sales Return",
   PURCHASE: "Purchase",
-  GRN: "Goods received",
-  PAYMENT: "Payment / receipt",
+  GRN: "Goods Received",
+  PAYMENT: "Payment / Receipt",
   EXPENSE: "Expense",
-  DEBIT_NOTE: "Debit / credit note",
-  ADJUSTMENT: "Stock adjustment",
-  OPENING: "Opening balance",
-  MANUAL: "Manual voucher",
+  DEBIT_NOTE: "Debit / Credit Note",
+  ADJUSTMENT: "Stock Adjustment",
+  OPENING: "Opening Balance",
+  MANUAL: "Manual Voucher",
   REVERSAL: "Reversal",
 };
 
@@ -1132,10 +1132,10 @@ export const MODE_LABEL: Record<PaymentMode, string> = {
   UPI: "UPI",
   CARD: "Card",
   KCC: "KCC",
-  BANK: "Bank transfer",
+  BANK: "Bank Transfer",
   CHEQUE: "Cheque",
   CREDIT: "Credit",
-  CREDIT_NOTE: "Credit note",
+  CREDIT_NOTE: "Credit Note",
 };
 export const modeLabel = (m: PaymentMode | string) => MODE_LABEL[m as PaymentMode] ?? m;
 /** Modes money actually arrives in (for receipts and vendor payments) */

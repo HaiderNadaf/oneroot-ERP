@@ -12,6 +12,7 @@ import {
   Button,
   Card,
   Checkbox,
+  DateInput,
   EmptyRow,
   ErrorBox,
   Field,
@@ -39,7 +40,7 @@ import type { Account, AccountLedger, AccountType, BalanceSheet, Customer, Journ
 import { REF_TYPE_LABEL } from "@/lib/types";
 
 const TYPE_ORDER: AccountType[] = ["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"];
-const TYPE_LABEL: Record<AccountType, string> = { ASSET: "Assets", LIABILITY: "Liabilities", EQUITY: "Capital & equity", INCOME: "Income", EXPENSE: "Expenses" };
+const TYPE_LABEL: Record<AccountType, string> = { ASSET: "Assets", LIABILITY: "Liabilities", EQUITY: "Capital & Equity", INCOME: "Income", EXPENSE: "Expenses" };
 
 /** Debit-positive amount shown the way an accountant reads it */
 const drcr = (v: number) => (Math.abs(v) < 0.005 ? "—" : v > 0 ? `${inr(v)} Dr` : `${inr(-v)} Cr`);
@@ -49,7 +50,8 @@ const drcr = (v: number) => (Math.abs(v) < 0.005 ? "—" : v > 0 ? `${inr(v)} Dr
 export function ChartTab() {
   const toast = useToast();
   const confirm = useConfirm();
-  const { isAdmin } = useAuth();
+  const { can, isAdmin } = useAuth();
+  const canManage = can("accounts.manage");
   const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState<Account | null | "new">(null);
   const [rebuilding, setRebuilding] = useState(false);
@@ -58,7 +60,7 @@ export function ChartTab() {
   async function rebuild() {
     const ok = await confirm(
       "Rebuild the ledger from every sale, purchase, payment, expense, note and stock entry? Automatic vouchers are re-created; manual vouchers are kept. Use this once when switching accounting on, or after fixing data.",
-      { confirmLabel: "Rebuild ledger" },
+      { confirmLabel: "Rebuild Ledger" },
     );
     if (!ok) return;
     setRebuilding(true);
@@ -87,16 +89,18 @@ export function ChartTab() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Checkbox label="Show inactive" checked={showInactive} onChange={setShowInactive} />
+        <Checkbox label="Show Inactive" checked={showInactive} onChange={setShowInactive} />
         <div className="flex-1" />
         {isAdmin && (
           <Button variant="secondary" icon={<RefreshCw className="size-4" />} loading={rebuilding} onClick={rebuild}>
-            Rebuild from documents
+            Rebuild From Documents
           </Button>
         )}
-        <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
-          New account
-        </Button>
+        {canManage && (
+          <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
+            New Account
+          </Button>
+        )}
       </div>
       {loading && !data ? (
         <Spinner page />
@@ -118,7 +122,7 @@ export function ChartTab() {
                       <Th right>Debits</Th>
                       <Th right>Credits</Th>
                       <Th right>Balance</Th>
-                      <ActionsTh />
+                      {canManage && <ActionsTh />}
                     </tr>
                   </thead>
                   <tbody>
@@ -142,9 +146,11 @@ export function ChartTab() {
                           <Td right>{a.debit ? inr(a.debit) : "—"}</Td>
                           <Td right>{a.credit ? inr(a.credit) : "—"}</Td>
                           <Td right className="font-semibold text-slate-900">{drcr(a.balance ?? 0)}</Td>
-                          <ActionsTd>
-                            <RowAction kind="edit" title={`Edit ${a.name}`} onClick={() => setEditing(a)} />
-                          </ActionsTd>
+                          {canManage && (
+                            <ActionsTd>
+                              <RowAction kind="edit" title={`Edit ${a.name}`} onClick={() => setEditing(a)} />
+                            </ActionsTd>
+                          )}
                         </tr>
                       )),
                     )}
@@ -219,7 +225,7 @@ function AccountModalBody({ account, onClose, onSaved }: { account: Account | nu
     <Modal
       open
       onClose={onClose}
-      title={editing ? `Edit ${account!.name}` : "New ledger account"}
+      title={editing ? `Edit ${account!.name}` : "New Ledger Account"}
       size="sm"
       footer={
         <>
@@ -268,7 +274,7 @@ function AccountModalBody({ account, onClose, onSaved }: { account: Account | nu
             ))}
           </Select>
         </Field>
-        <Field label="Opening balance (₹)" hint="As on the day you started the books">
+        <Field label="Opening Balance (₹)" hint="As on the day you started the books">
           <Input type="number" step="0.01" min="0" value={opening} onChange={(e) => setOpening(e.target.value)} className="num" />
         </Field>
         <Field label="Side">
@@ -290,6 +296,7 @@ function AccountModalBody({ account, onClose, onSaved }: { account: Account | nu
 // ───────────────────────── Vouchers / day book ─────────────────────────
 
 export function DayBookTab({ range, rangeBar }: { range: Range; rangeBar: ReactNode }) {
+  const { can } = useAuth();
   const [refType, setRefType] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -300,10 +307,10 @@ export function DayBookTab({ range, rangeBar }: { range: Range; rangeBar: ReactN
 
   return (
     <>
-      <div className="no-print mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="no-print mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-surface p-3 shadow-sm">
         {rangeBar}
         <Select value={refType} onChange={(e) => (setRefType(e.target.value), setPage(1))} className="w-full sm:w-44" aria-label="Voucher type">
-          <option value="">All vouchers</option>
+          <option value="">All Vouchers</option>
           {Object.entries(REF_TYPE_LABEL).map(([k, v]) => (
             <option key={k} value={k}>
               {v}
@@ -311,10 +318,14 @@ export function DayBookTab({ range, rangeBar }: { range: Range; rangeBar: ReactN
           ))}
         </Select>
         <Input value={search} onChange={(e) => (setSearch(e.target.value), setPage(1))} placeholder="Voucher / bill no. / narration" className="w-full sm:w-56" />
-        <div className="flex-1" />
-        <Button icon={<Plus className="size-4" />} onClick={() => setManual(true)}>
-          New voucher
-        </Button>
+        {can("accounts.manage") && (
+          <>
+            <div className="flex-1" />
+            <Button icon={<Plus className="size-4" />} onClick={() => setManual(true)}>
+              New Voucher
+            </Button>
+          </>
+        )}
       </div>
       {error ? (
         <ErrorBox message={error} onRetry={reload} />
@@ -375,11 +386,12 @@ export function EntryModal({ id, onClose, onChanged }: { id: string | null; onCl
 function EntryModalBody({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged?: () => void }) {
   const toast = useToast();
   const confirm = useConfirm();
+  const { can } = useAuth();
   const { data: e, error, loading } = useApi<JournalEntry>(`/accounting/entries/${id}`);
   const [busy, setBusy] = useState(false);
 
   async function remove() {
-    if (!e || !(await confirm(`Delete voucher ${e.entryNo}? Party balances it changed are put back.`, { danger: true, confirmLabel: "Delete voucher" }))) return;
+    if (!e || !(await confirm(`Delete voucher ${e.entryNo}? Party balances it changed are put back.`, { danger: true, confirmLabel: "Delete Voucher" }))) return;
     setBusy(true);
     try {
       await api.del(`/accounting/entries/${e.id}`);
@@ -393,13 +405,14 @@ function EntryModalBody({ id, onClose, onChanged }: { id: string; onClose: () =>
     }
   }
 
+  // Only link to a bill the user can open
   const docLink = e?.refId
     ? e.refType === "SALE" || (e.refType === "REVERSAL" && e.refNo?.includes("INV"))
-      ? `/sales/${e.refId}`
+      ? can("sales.bill") && `/sales/${e.refId}`
       : e.refType === "PURCHASE"
-        ? `/purchases/${e.refId}`
+        ? can("purchases.view") && `/purchases/${e.refId}`
         : e.refType === "GRN"
-          ? `/goods-inward/${e.refId}`
+          ? can("purchases.view") && `/goods-inward/${e.refId}`
           : null
     : null;
 
@@ -411,7 +424,7 @@ function EntryModalBody({ id, onClose, onChanged }: { id: string; onClose: () =>
       size="lg"
       footer={
         <>
-          {e?.isManual && (
+          {e?.isManual && can("accounts.manage") && (
             <Button variant="danger" icon={<Trash2 className="size-4" />} loading={busy} onClick={remove}>
               Delete
             </Button>
@@ -556,7 +569,7 @@ function ManualVoucherBody({ onClose, onSaved }: { onClose: () => void; onSaved:
     <Modal
       open
       onClose={onClose}
-      title="New journal voucher"
+      title="New Journal Voucher"
       size="xl"
       footer={
         <>
@@ -568,7 +581,7 @@ function ManualVoucherBody({ onClose, onSaved }: { onClose: () => void; onSaved:
             Cancel
           </Button>
           <Button type="submit" form="manual-voucher" loading={saving} disabled={diff !== 0 || dr === 0}>
-            Post voucher
+            Post Voucher
           </Button>
         </>
       }
@@ -576,7 +589,7 @@ function ManualVoucherBody({ onClose, onSaved }: { onClose: () => void; onSaved:
       <form id="manual-voucher" onSubmit={save} className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Date" required>
-            <Input type="date" value={vdate} max={today()} onChange={(e) => setVdate(e.target.value)} />
+            <DateInput value={vdate} max={today()} onChange={(e) => setVdate(e.target.value)} />
           </Field>
           <Field label="Narration" required className="sm:col-span-2">
             <Input value={narration} onChange={(e) => setNarration(e.target.value)} placeholder="e.g. Owner's capital deposited in bank" autoFocus />
@@ -601,7 +614,7 @@ function ManualVoucherBody({ onClose, onSaved }: { onClose: () => void; onSaved:
                   <tr key={l.key} className="border-b border-slate-100 align-top">
                     <td className="py-1.5 pr-2">
                       <Select value={l.accountId} onChange={(e) => update(l.key, { accountId: e.target.value, customer: null, vendor: null })}>
-                        <option value="">Choose account</option>
+                        <option value="">Choose Account</option>
                         {TYPE_ORDER.map((t) => (
                           <optgroup key={t} label={TYPE_LABEL[t]}>
                             {(accounts ?? [])
@@ -648,7 +661,7 @@ function ManualVoucherBody({ onClose, onSaved }: { onClose: () => void; onSaved:
           icon={<Plus className="size-4" />}
           onClick={() => setLines((ls) => [...ls, { key: ++seq.n, accountId: "", debit: "", credit: "", customer: null, vendor: null, description: "" }])}
         >
-          Add line
+          Add Line
         </Button>
       </form>
     </Modal>
@@ -787,8 +800,10 @@ interface Parties {
 export function PartiesTab() {
   const [type, setType] = useState<"CUSTOMER" | "VENDOR">("CUSTOMER");
   const [asOf, setAsOf] = useState(today());
+  const { can } = useAuth();
   const { data, error, loading, reload } = useApi<Parties>("/accounting/parties", { type, asOf });
   const label = type === "CUSTOMER" ? "receivable" : "payable";
+  const canStatement = can(type === "CUSTOMER" ? "customers.view" : "vendors.view");
   return (
     <ReportFrame
       title={`${type === "CUSTOMER" ? "Sundry Debtors" : "Sundry Creditors"} — party balances`}
@@ -796,10 +811,10 @@ export function PartiesTab() {
       controls={
         <div className="flex flex-wrap items-center gap-2">
           <Select value={type} onChange={(e) => setType(e.target.value as "CUSTOMER" | "VENDOR")} className="w-44" aria-label="Party type">
-            <option value="CUSTOMER">Customers (debtors)</option>
-            <option value="VENDOR">Vendors (creditors)</option>
+            <option value="CUSTOMER">Customers (Debtors)</option>
+            <option value="VENDOR">Vendors (Creditors)</option>
           </Select>
-          <Input type="date" value={asOf} max={today()} onChange={(e) => setAsOf(e.target.value)} className="w-40" aria-label="As on" />
+          <DateInput value={asOf} max={today()} onChange={(e) => setAsOf(e.target.value)} className="w-40" aria-label="As on" />
         </div>
       }
       onCsv={() => data && downloadCsv(`${label}-${asOf}.csv`, ["Party", "Balance"], data.rows.map((r) => [r.name, r.balance]))}
@@ -815,24 +830,26 @@ export function PartiesTab() {
               <tr>
                 <Th>Party</Th>
                 <Th right>{type === "CUSTOMER" ? "Receivable" : "Payable"}</Th>
-                <Th />
+                {canStatement && <Th />}
               </tr>
             </thead>
             <tbody>
-              {!data.rows.length && <EmptyRow colSpan={3}>No balances</EmptyRow>}
+              {!data.rows.length && <EmptyRow colSpan={canStatement ? 3 : 2}>No balances</EmptyRow>}
               {data.rows.map((r) => (
                 <tr key={r.partyId ?? "none"} className="hover:bg-slate-50">
                   <Td className="font-medium text-slate-900">{r.name ?? "Walk-in customer"}</Td>
                   <Td right className={r.balance < 0 ? "text-brand-700" : "font-medium"}>
                     {r.balance < 0 ? `${inr(-r.balance)} advance` : inr(r.balance)}
                   </Td>
-                  <Td right>
-                    {r.partyId && (
-                      <Link href={type === "CUSTOMER" ? `/customers/${r.partyId}` : `/vendors/${r.partyId}`} className="text-xs font-medium text-brand-700 hover:underline">
-                        Statement
-                      </Link>
-                    )}
-                  </Td>
+                  {canStatement && (
+                    <Td right>
+                      {r.partyId && (
+                        <Link href={type === "CUSTOMER" ? `/customers/${r.partyId}` : `/vendors/${r.partyId}`} className="text-xs font-medium text-brand-700 hover:underline">
+                          Statement
+                        </Link>
+                      )}
+                    </Td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -840,7 +857,7 @@ export function PartiesTab() {
               <TotalRow>
                 <Td>Total {label}</Td>
                 <Td right>{inr(data.total)}</Td>
-                <Td />
+                {canStatement && <Td />}
               </TotalRow>
             </tfoot>
           </Table>
@@ -856,7 +873,7 @@ export function TrialBalanceTab({ range, rangeBar }: { range: Range; rangeBar: R
   const { data, error, loading, reload } = useApi<TrialBalance>("/accounting/trial-balance", { ...range });
   return (
     <ReportFrame
-      title="Trial balance"
+      title="Trial Balance"
       period={periodLabel(range)}
       controls={rangeBar}
       onCsv={() =>
@@ -943,7 +960,7 @@ export function PnlTab({ range, rangeBar }: { range: Range; rangeBar: ReactNode 
   const rows = (type: AccountType, groups: string[]) => (data?.rows ?? []).filter((r) => r.type === type && groups.includes(r.group));
   return (
     <ReportFrame
-      title="Profit & Loss (from the ledger)"
+      title="Profit & Loss (From the Ledger)"
       period={periodLabel(range)}
       controls={rangeBar}
       onCsv={() => data && downloadCsv(`pl-ledger-${range.from}-to-${range.to}.csv`, ["Code", "Account", "Type", "Amount"], [...data.rows.map((r) => [r.code, r.name, r.type, r.amount]), ["", "Net profit", "", data.netProfit]])}
@@ -955,16 +972,16 @@ export function PnlTab({ range, rangeBar }: { range: Range; rangeBar: ReactNode 
       {data && (
         <div className="grid gap-4 lg:grid-cols-3">
           <Card className="lg:col-span-2" bodyClassName="px-4 py-5 sm:px-6">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Trading account</p>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Trading Account</p>
             {rows("INCOME", ["Sales Accounts", "Direct Incomes"]).map((r) => (
               <StatementRow key={r.id} code={r.code} label={r.name} amount={r.amount} indent />
             ))}
-            <StatementRow label="Net sales" amount={data.sales} bold />
+            <StatementRow label="Net Sales" amount={data.sales} bold />
             {rows("EXPENSE", ["Direct Expenses", "Purchase Accounts"]).map((r) => (
               <StatementRow key={r.id} code={r.code} label={`Less: ${r.name}`} amount={-r.amount} indent />
             ))}
-            <StatementRow label="Gross profit" amount={data.grossProfit} bold />
-            <p className="mb-1 mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">Profit & loss account</p>
+            <StatementRow label="Gross Profit" amount={data.grossProfit} bold />
+            <p className="mb-1 mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">Profit & Loss Account</p>
             {rows("INCOME", ["Indirect Incomes"]).map((r) => (
               <StatementRow key={r.id} code={r.code} label={`Add: ${r.name}`} amount={r.amount} indent />
             ))}
@@ -978,13 +995,13 @@ export function PnlTab({ range, rangeBar }: { range: Range; rangeBar: ReactNode 
           </Card>
           <div className="space-y-3">
             {[
-              ["Net sales", data.sales],
-              ["Gross profit", data.grossProfit],
-              ["Other income", data.otherIncome],
+              ["Net Sales", data.sales],
+              ["Gross Profit", data.grossProfit],
+              ["Other Income", data.otherIncome],
               ["Expenses", data.indirectExpenses],
-              ["Net profit", data.netProfit],
+              ["Net Profit", data.netProfit],
             ].map(([l, v]) => (
-              <div key={String(l)} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div key={String(l)} className="rounded-xl border border-slate-200 bg-surface p-4 shadow-sm">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{l}</p>
                 <p className={cx("num mt-1 text-xl font-semibold", Number(v) < 0 ? "text-red-600" : "text-slate-900")}>{inr(Number(v))}</p>
               </div>
@@ -1011,16 +1028,16 @@ export function BalanceSheetTab() {
   };
   return (
     <ReportFrame
-      title="Balance sheet"
+      title="Balance Sheet"
       period={`as on ${date(asOf)}`}
-      controls={<Input type="date" value={asOf} max={today()} onChange={(e) => setAsOf(e.target.value)} className="w-40" aria-label="As on" />}
+      controls={<DateInput value={asOf} max={today()} onChange={(e) => setAsOf(e.target.value)} className="w-40" aria-label="As on" />}
       onCsv={() =>
         data &&
         downloadCsv(`balance-sheet-${asOf}.csv`, ["Side", "Group", "Account", "Amount"], [
           ...data.liabilities.map((r) => ["Liabilities", r.group, r.name, r.balance]),
           ...data.equity.map((r) => ["Equity", r.group, r.name, r.balance]),
-          ["Equity", "Profit & Loss A/c", "Retained earnings", data.retainedEarnings],
-          ["Equity", "Profit & Loss A/c", "Profit for the year", data.currentProfit],
+          ["Equity", "Profit & Loss A/c", "Retained Earnings", data.retainedEarnings],
+          ["Equity", "Profit & Loss A/c", "Profit for the Year", data.currentProfit],
           ...data.assets.map((r) => ["Assets", r.group, r.name, r.balance]),
         ])
       }
@@ -1037,7 +1054,7 @@ export function BalanceSheetTab() {
             </div>
           )}
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card title="Liabilities & capital" bodyClassName="px-5 py-4">
+            <Card title="Liabilities & Capital" bodyClassName="px-5 py-4">
               {side(data.liabilities).map(([g, rows]) => (
                 <div key={g} className="mb-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{g}</p>
@@ -1056,8 +1073,8 @@ export function BalanceSheetTab() {
               ))}
               <div className="mb-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Profit & Loss A/c</p>
-                <StatementRow label="Retained earnings (earlier years)" amount={data.retainedEarnings} indent />
-                <StatementRow label={`Profit for the year from ${date(data.fyStart)}`} amount={data.currentProfit} indent />
+                <StatementRow label="Retained Earnings (Earlier Years)" amount={data.retainedEarnings} indent />
+                <StatementRow label={`Profit for the Year From ${date(data.fyStart)}`} amount={data.currentProfit} indent />
               </div>
               <StatementRow label="Total" amount={round2(data.totalLiabilities + data.totalEquity)} bold />
             </Card>
@@ -1125,7 +1142,7 @@ export function TallyTab({ range, rangeBar }: { range: Range; rangeBar: ReactNod
         <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
           <div className="space-y-3">
             {rangeBar}
-            <Field label="Tally company name" hint="Optional — leave blank to import into the company currently open in Tally">
+            <Field label="Tally Company Name" hint="Optional — leave blank to import into the company currently open in Tally">
               <Input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="e.g. OneRoot Agri Inputs" className="max-w-md" />
             </Field>
           </div>
@@ -1145,7 +1162,7 @@ export function TallyTab({ range, rangeBar }: { range: Range; rangeBar: ReactNod
         <Spinner page />
       ) : data ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          <Card title={`What will be exported · ${periodLabel(range)}`}>
+          <Card title={`What Will Be Exported · ${periodLabel(range)}`}>
             <dl className="grid grid-cols-2 gap-2 text-sm">
               <dt className="text-slate-500">Ledger masters</dt>
               <dd className="num font-medium">{data.masters.length}</dd>
@@ -1162,7 +1179,7 @@ export function TallyTab({ range, rangeBar }: { range: Range; rangeBar: ReactNod
               Vouchers use Tally&apos;s usual periodic style: purchases go to a <b>Purchases</b> ledger and stock-side entries are left out, so you enter closing stock in Tally as you normally do. Customers and vendors become ledgers under Sundry Debtors / Creditors with their opening balance as on {date(range.from)}.
             </p>
           </Card>
-          <Card title="How to import in Tally Prime">
+          <Card title="How to Import in Tally Prime">
             <ol className="list-decimal space-y-1.5 pl-5 text-sm text-slate-700">
               <li>Download both files above (masters first, then vouchers).</li>
               <li>

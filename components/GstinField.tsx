@@ -132,7 +132,7 @@ export function StateSelect({
   return (
     <Field label={label} hint={fromGstin && fromGstin === value ? "Filled from GSTIN" : undefined}>
       <Select value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">Select state</option>
+        <option value="">Select State</option>
         {options.map((s) => (
           <option key={s}>{s}</option>
         ))}

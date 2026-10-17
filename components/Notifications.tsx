@@ -7,7 +7,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { AppNotification, NotificationType, Paged } from "@/lib/types";
-import { cx } from "./ui";
+import { canOpenPath } from "./AppShell";
+import { TOP_ICON_BUTTON, cx } from "./ui";
 
 const POLL_MS = 30_000;
 
@@ -104,6 +105,7 @@ export function NotificationRow({
 
 /** Bell button with unread badge and a dropdown of the latest notifications */
 export function NotificationBell({ tone = "light" }: { tone?: "light" | "dark" }) {
+  const { can } = useAuth();
   const { unread, refresh } = useCounts();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -134,7 +136,8 @@ export function NotificationBell({ tone = "light" }: { tone?: "light" | "dark" }
       await api.patch(`/notifications/${n.id}/read`).catch(() => {});
       refresh();
     }
-    if (n.link) router.push(n.link);
+    // Links to pages the user can't open (their permissions changed since) just mark the note read
+    if (n.link && canOpenPath(n.link, can)) router.push(n.link);
   }
 
   async function readAll() {
@@ -149,30 +152,27 @@ export function NotificationBell({ tone = "light" }: { tone?: "light" | "dark" }
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
-        className={cx(
-          "relative rounded-lg p-2 transition-colors",
-          tone === "dark" ? "text-brand-100 hover:bg-white/10" : "text-slate-600 hover:bg-slate-100",
-        )}
+        className={tone === "dark" ? "relative rounded-lg p-2 text-mint-100 transition-colors hover:bg-white/10" : TOP_ICON_BUTTON}
       >
         <Bell className="size-5" />
         {unread > 0 && (
-          <span className="num absolute -right-0.5 -top-0.5 min-w-[18px] rounded-full bg-red-600 px-1 text-center text-[10px] font-semibold leading-[18px] text-white ring-2 ring-white">
+          <span className="num absolute -right-0.5 -top-0.5 min-w-[18px] rounded-full bg-red-600 px-1 text-center text-[10px] font-semibold leading-[18px] text-white ring-2 ring-surface">
             {unread > 99 ? "99+" : unread}
           </span>
         )}
       </button>
       {open && (
-        <div className="fixed inset-x-3 top-16 z-50 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[min(24rem,calc(100vw-2rem))]">
+        <div className="fixed inset-x-3 top-16 z-50 overflow-hidden rounded-xl border border-slate-200 bg-surface shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[min(24rem,calc(100vw-2rem))]">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
             <p className="text-sm font-semibold text-slate-900">Notifications</p>
             <div className="flex items-center gap-3 text-xs">
               {unread > 0 && (
                 <button onClick={readAll} className="font-medium text-slate-500 hover:text-slate-800">
-                  Mark all read
+                  Mark All Read
                 </button>
               )}
               <Link href="/notifications" onClick={() => setOpen(false)} className="font-medium text-brand-700 hover:underline">
-                See all
+                See All
               </Link>
             </div>
           </div>

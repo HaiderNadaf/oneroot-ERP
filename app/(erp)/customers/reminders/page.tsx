@@ -41,7 +41,7 @@ interface RemindersResponse {
 
 const CHANNELS: { value: ReminderChannel; label: string }[] = [
   { value: "WHATSAPP", label: "WhatsApp" },
-  { value: "CALL", label: "Phone call" },
+  { value: "CALL", label: "Phone Call" },
   { value: "SMS", label: "SMS" },
   { value: "VISIT", label: "Visit" },
   { value: "NOTE", label: "Note" },
@@ -51,6 +51,8 @@ export default function RemindersPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const { can } = useAuth();
+  // Opening WhatsApp, sending and logging all write to the follow-up log
+  const canLog = can("customers.manage");
   const [search, setSearch] = useState("");
   const [minDays, setMinDays] = useState("0");
   const [all, setAll] = useState(false);
@@ -91,7 +93,7 @@ export default function RemindersPage() {
 
   async function sendAll() {
     if (!data) return;
-    const ok = await confirm(`Send WhatsApp reminders to every overdue customer not reminded in the last ${cfg?.graceDays ?? 7} days?`, { confirmLabel: "Send reminders" });
+    const ok = await confirm(`Send WhatsApp reminders to every overdue customer not reminded in the last ${cfg?.graceDays ?? 7} days?`, { confirmLabel: "Send Reminders" });
     if (!ok) return;
     setRunning(true);
     try {
@@ -111,20 +113,20 @@ export default function RemindersPage() {
   return (
     <>
       <PageHeader
-        title="Due reminders"
+        title="Due Reminders"
         subtitle={`Customers whose bills are past the due date${cfg ? ` (plus ${cfg.graceDays} grace days)` : ""} — send WhatsApp reminders and keep a log of every follow-up`}
         actions={
           <>
             {can("admin.settings") && (
               <Link href="/admin/settings">
                 <Button variant="ghost" icon={<Settings className="size-4" />}>
-                  Template & rules
+                  Template & Rules
                 </Button>
               </Link>
             )}
             {cfg?.whatsappConfigured && can("customers.remind") && (
               <Button icon={<Send className="size-4" />} loading={running} onClick={sendAll} disabled={!rows.length}>
-                Send all via WhatsApp
+                Send All via WhatsApp
               </Button>
             )}
           </>
@@ -132,11 +134,11 @@ export default function RemindersPage() {
       />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Overdue customers" value={rows.length} icon={<BellRing />} tone="red" />
-        <StatCard label="Overdue amount" value={inr0(data?.total ?? 0)} tone="red" />
-        <StatCard label="Never reminded" value={neverReminded} tone="amber" />
+        <StatCard label="Overdue Customers" value={rows.length} icon={<BellRing />} tone="red" />
+        <StatCard label="Overdue Amount" value={inr0(data?.total ?? 0)} tone="red" />
+        <StatCard label="Never Reminded" value={neverReminded} tone="amber" />
         <StatCard
-          label="WhatsApp sending"
+          label="WhatsApp Sending"
           value={<span className="text-base">{cfg?.whatsappConfigured ? (cfg.autoReminders ? "Automatic, daily" : "API ready (manual)") : "Click-to-chat"}</span>}
           sub={cfg?.whatsappConfigured ? undefined : "Set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID on the server to send automatically"}
         />
@@ -146,14 +148,14 @@ export default function RemindersPage() {
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
           <SearchInput value={search} onChange={setSearch} placeholder="Search name, phone, village…" className="w-full flex-1 sm:w-auto sm:min-w-60" />
           <Select value={minDays} onChange={(e) => setMinDays(e.target.value)} className="w-full sm:w-40" aria-label="Minimum days overdue">
-            <option value="0">Any overdue</option>
+            <option value="0">Any Overdue</option>
             <option value="15">15+ days</option>
             <option value="30">30+ days</option>
             <option value="60">60+ days</option>
             <option value="90">90+ days</option>
           </Select>
           <div className="px-1">
-            <Checkbox label="Include dues not yet overdue" checked={all} onChange={setAll} />
+            <Checkbox label="Include Dues Not Yet Overdue" checked={all} onChange={setAll} />
           </div>
         </div>
         {error ? (
@@ -168,15 +170,15 @@ export default function RemindersPage() {
                 <Th right>Balance</Th>
                 <Th right>Overdue</Th>
                 <Th right>Days</Th>
-                <Th>Last reminder</Th>
-                <Th />
+                <Th>Last Reminder</Th>
+                {canLog && <Th />}
               </tr>
             </thead>
             <tbody>
               {loading && !data ? (
-                <LoadingRow colSpan={6} />
+                <LoadingRow colSpan={canLog ? 6 : 5} />
               ) : !rows.length ? (
-                <EmptyRow colSpan={6}>Nobody is overdue — nice.</EmptyRow>
+                <EmptyRow colSpan={canLog ? 6 : 5}>Nobody is overdue — nice.</EmptyRow>
               ) : (
                 rows.map((r) => (
                   <tr key={r.id} className="hover:bg-slate-50">
@@ -186,7 +188,7 @@ export default function RemindersPage() {
                       </Link>
                       {r.creditHold && (
                         <span className="ml-1.5">
-                          <Badge tone="red">Credit on hold</Badge>
+                          <Badge tone="red">Credit on Hold</Badge>
                         </span>
                       )}
                       <p className="text-xs text-slate-500">{[r.phone, r.village].filter(Boolean).join(" · ") || "—"}</p>
@@ -212,21 +214,23 @@ export default function RemindersPage() {
                         <span className="text-amber-700">Never</span>
                       )}
                     </Td>
-                    <Td right>
-                      <div className="flex flex-wrap justify-end gap-1">
-                        <Button size="sm" variant="secondary" icon={<MessageCircle className="size-4" />} onClick={() => whatsapp(r)} disabled={!r.phone} title="Open WhatsApp with the reminder text">
-                          WhatsApp
-                        </Button>
-                        {cfg?.whatsappConfigured && (
-                          <Button size="sm" variant="secondary" icon={<Send className="size-4" />} loading={sending === r.id} onClick={() => sendApi(r)} disabled={!r.phone} title="Send through the WhatsApp API">
-                            Send
+                    {canLog && (
+                      <Td right>
+                        <div className="flex flex-wrap justify-end gap-1">
+                          <Button size="sm" variant="secondary" icon={<MessageCircle className="size-4" />} onClick={() => whatsapp(r)} disabled={!r.phone} title="Open WhatsApp with the reminder text">
+                            WhatsApp
                           </Button>
-                        )}
-                        <Button size="sm" variant="ghost" icon={<PhoneCall className="size-4" />} onClick={() => setLogFor(r)} title="Log a call, visit or note">
-                          Log
-                        </Button>
-                      </div>
-                    </Td>
+                          {cfg?.whatsappConfigured && (
+                            <Button size="sm" variant="secondary" icon={<Send className="size-4" />} loading={sending === r.id} onClick={() => sendApi(r)} disabled={!r.phone} title="Send through the WhatsApp API">
+                              Send
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" icon={<PhoneCall className="size-4" />} onClick={() => setLogFor(r)} title="Log a call, visit or note">
+                            Log
+                          </Button>
+                        </div>
+                      </Td>
+                    )}
                   </tr>
                 ))
               )}
@@ -275,7 +279,7 @@ function LogBody({ row, onClose, onSaved }: { row: OverdueRow; onClose: () => vo
     <Modal
       open
       onClose={onClose}
-      title={`Log follow-up · ${row.name}`}
+      title={`Log Follow-Up · ${row.name}`}
       size="sm"
       footer={
         <>

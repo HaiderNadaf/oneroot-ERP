@@ -82,7 +82,7 @@ function Body({ onClose, initial }: { onClose: () => void; initial: LabelItem[] 
       <Modal
         open
         onClose={onClose}
-        title="Print barcode labels"
+        title="Print Barcode Labels"
         size="lg"
         footer={
           <>
@@ -96,7 +96,7 @@ function Body({ onClose, initial }: { onClose: () => void; initial: LabelItem[] 
         }
       >
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Field label="Label size" className="col-span-2">
+          <Field label="Label Size" className="col-span-2">
             <Select value={size} onChange={(e) => setSize(e.target.value as Size)}>
               {(Object.keys(SIZES) as Size[]).map((s) => (
                 <option key={s} value={s}>
@@ -106,9 +106,9 @@ function Body({ onClose, initial }: { onClose: () => void; initial: LabelItem[] 
             </Select>
           </Field>
           <div className="col-span-2 flex flex-wrap items-end gap-3 pb-1">
-            <Checkbox label="Store name" checked={showStore} onChange={setShowStore} />
-            <Checkbox label="MRP / price" checked={showPrice} onChange={setShowPrice} />
-            <Checkbox label="Batch & expiry" checked={showBatch} onChange={setShowBatch} />
+            <Checkbox label="Store Name" checked={showStore} onChange={setShowStore} />
+            <Checkbox label="MRP / Price" checked={showPrice} onChange={setShowPrice} />
+            <Checkbox label="Batch & Expiry" checked={showBatch} onChange={setShowBatch} />
           </div>
         </div>
 
@@ -119,7 +119,7 @@ function Body({ onClose, initial }: { onClose: () => void; initial: LabelItem[] 
             </span>
             {can("products.manage") && (
               <Button size="sm" variant="secondary" icon={<Sparkles className="size-4" />} loading={busy} onClick={generate}>
-                Generate in-store barcodes
+                Generate In-Store Barcodes
               </Button>
             )}
           </div>
@@ -168,7 +168,7 @@ function Body({ onClose, initial }: { onClose: () => void; initial: LabelItem[] 
         {labels[0] && (
           <div className="mt-4">
             <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Preview</p>
-            <div className="inline-block border border-dashed border-slate-300">
+            <div className="paper inline-block border border-dashed border-slate-300">
               <Label item={labels[0]} store={showStore ? store?.storeName : undefined} price={showPrice} batch={showBatch} small={small} style={labelStyle} />
             </div>
           </div>
@@ -178,7 +178,7 @@ function Body({ onClose, initial }: { onClose: () => void; initial: LabelItem[] 
       {/* Printed only in label mode (see globals.css) */}
       <PrintPortal className="label-host">
         <div
-          className={cx("label-sheet hidden")}
+          className={cx("paper label-sheet hidden")}
           style={spec.cols ? { gridTemplateColumns: `repeat(${spec.cols}, ${spec.w}mm)`, columnGap: "2.5mm", rowGap: "0" } : undefined}
         >
           {labels.map((item, i) => (

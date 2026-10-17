@@ -1,17 +1,17 @@
 "use client";
 
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { ProductPicker } from "@/components/pickers";
-import { ActionsTd, ActionsTh, Badge, Button, Card, Checkbox, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, RowAction, Select, Table, Tabs, Td, Textarea, Th, cx, errMsg, useConfirm, useToast } from "@/components/ui";
+import { ActionsTd, ActionsTh, Badge, Button, Card, Checkbox, DateInput, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, RowAction, Select, Table, Tabs, Td, Textarea, Th, cx, errMsg, useConfirm, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { date, inr, n, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { CustomerType, Product, Scheme, SchemeType } from "@/lib/types";
 
 type Tab = "schemes" | "types";
-const TYPE_LABEL: Record<SchemeType, string> = { BUY_X_GET_Y: "Buy X get Y free", PCT_OFF: "% off", FLAT_OFF: "Flat ₹ off per unit" };
+const TYPE_LABEL: Record<SchemeType, string> = { BUY_X_GET_Y: "Buy X Get Y Free", PCT_OFF: "% off", FLAT_OFF: "Flat ₹ Off per Unit" };
 /** Scheme dates are whole local days; the API sends them as ISO timestamps */
 const dayOf = (iso: string) => today(new Date(iso));
 
@@ -27,13 +27,13 @@ function Pricing() {
   const [tab, setTab] = useState<Tab>("schemes");
   return (
     <>
-      <PageHeader title="Schemes & customer types" subtitle="Company schemes apply by themselves at the counter (one per line, the best for the farmer); customer types add a fixed discount on top" />
+      <PageHeader title="Schemes & Customer Types" subtitle="Company schemes apply by themselves at the counter (one per line, the best for the farmer); customer types add a fixed discount on top" />
       <Tabs<Tab>
         value={tab}
         onChange={setTab}
         tabs={[
           { value: "schemes", label: "Schemes" },
-          { value: "types", label: "Customer types" },
+          { value: "types", label: "Customer Types" },
         ]}
       />
       {tab === "schemes" ? <SchemesTab /> : <TypesTab />}
@@ -71,13 +71,13 @@ function SchemesTab() {
     <>
       <div className="mb-3 flex items-center gap-2">
         <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-40" aria-label="Filter">
-          <option value="all">All schemes</option>
-          <option value="active">Running today</option>
-          <option value="">Switched on</option>
+          <option value="all">All Schemes</option>
+          <option value="active">Running Today</option>
+          <option value="">Switched On</option>
         </Select>
         <div className="flex-1" />
         <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
-          New scheme
+          New Scheme
         </Button>
       </div>
       <Card bodyClassName="p-0">
@@ -89,7 +89,7 @@ function SchemesTab() {
               <Th>Products</Th>
               <Th>Period</Th>
               <Th>Claim</Th>
-              <Th right>Used on</Th>
+              <Th right>Used On</Th>
               <Th>Status</Th>
               <ActionsTh />
             </tr>
@@ -113,12 +113,12 @@ function SchemesTab() {
                     <Td className="whitespace-nowrap text-xs">
                       {date(s.from)} – {s.to ? date(s.to) : "open"}
                     </Td>
-                    <Td>{s.claimable ? <Badge tone="blue">From company</Badge> : <Badge>Own cost</Badge>}</Td>
+                    <Td>{s.claimable ? <Badge tone="blue">From Company</Badge> : <Badge>Own Cost</Badge>}</Td>
                     <Td right>{s._count?.saleItems ?? 0} lines</Td>
                     <Td>{!s.isActive ? <Badge>Off</Badge> : running ? <Badge tone="green">Running</Badge> : dayOf(s.from) > now ? <Badge tone="amber">Scheduled</Badge> : <Badge>Ended</Badge>}</Td>
                     <ActionsTd>
                       <RowAction kind="edit" title={`Edit ${s.name}`} onClick={() => setEditing(s)} />
-                      <Button size="sm" variant="ghost" icon={<Trash2 className="size-4" />} onClick={() => remove(s)} aria-label="Delete" />
+                      <RowAction kind="delete" title={`Delete ${s.name}`} onClick={() => remove(s)} />
                     </ActionsTd>
                   </tr>
                 );
@@ -191,7 +191,7 @@ function SchemeForm({ scheme, onClose, onSaved }: { scheme: Scheme | null; onClo
     <Modal
       open
       onClose={onClose}
-      title={scheme ? `Edit ${scheme.name}` : "New scheme"}
+      title={scheme ? `Edit ${scheme.name}` : "New Scheme"}
       size="lg"
       footer={
         <>
@@ -199,7 +199,7 @@ function SchemeForm({ scheme, onClose, onSaved }: { scheme: Scheme | null; onClo
             Cancel
           </Button>
           <Button type="submit" form="scheme-form" loading={saving}>
-            {scheme ? "Save" : "Create scheme"}
+            {scheme ? "Save" : "Create Scheme"}
           </Button>
         </>
       }
@@ -222,7 +222,7 @@ function SchemeForm({ scheme, onClose, onSaved }: { scheme: Scheme | null; onClo
             <Field label="Buy" required>
               <Input type="number" min="1" step="1" value={buyQty} onChange={(e) => setBuyQty(e.target.value)} className="num" />
             </Field>
-            <Field label="Get free" required>
+            <Field label="Get Free" required>
               <Input type="number" min="1" step="1" value={freeQty} onChange={(e) => setFreeQty(e.target.value)} className="num" />
             </Field>
             <p className="self-end pb-2 text-xs text-slate-500">Free units go out of stock at zero price on the bill.</p>
@@ -237,14 +237,14 @@ function SchemeForm({ scheme, onClose, onSaved }: { scheme: Scheme | null; onClo
           </Field>
         )}
         <Field label="From" required>
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} required />
+          <DateInput value={from} onChange={(e) => setFrom(e.target.value)} required />
         </Field>
         <Field label="To" hint="Blank = until switched off">
-          <Input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
+          <DateInput value={to} min={from} onChange={(e) => setTo(e.target.value)} />
         </Field>
         <div className="flex flex-col justify-end gap-2 pb-1">
-          <Checkbox label="Claim back from the company" checked={claimable} onChange={setClaimable} />
-          <Checkbox label="Switched on" checked={isActive} onChange={setIsActive} />
+          <Checkbox label="Claim Back From the Company" checked={claimable} onChange={setClaimable} />
+          <Checkbox label="Switched On" checked={isActive} onChange={setIsActive} />
         </div>
         <Field label="Products" required className="sm:col-span-3">
           <ProductPicker onPick={(p: Product) => setProducts((ps) => (ps.some((x) => x.id === p.id) ? ps : [...ps, { id: p.id, name: p.name }]))} />
@@ -290,7 +290,7 @@ function TypesTab() {
     <>
       <div className="mb-3 flex justify-end">
         <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
-          New customer type
+          New Customer Type
         </Button>
       </div>
       <Card bodyClassName="p-0">
@@ -299,8 +299,8 @@ function TypesTab() {
             <tr>
               <Th>Type</Th>
               <Th right>Discount</Th>
-              <Th right>Only when bill ≥</Th>
-              <Th>Subsidised fertiliser</Th>
+              <Th right>Only When Bill ≥</Th>
+              <Th>Subsidised Fertiliser</Th>
               <Th right>Customers</Th>
               <Th>Status</Th>
               <ActionsTh />
@@ -322,7 +322,7 @@ function TypesTab() {
                   <Td>{t.isActive ? <Badge tone="green">On</Badge> : <Badge>Off</Badge>}</Td>
                   <ActionsTd>
                     <RowAction kind="edit" title={`Edit ${t.name}`} onClick={() => setEditing(t)} />
-                    <Button size="sm" variant="ghost" icon={<Trash2 className="size-4" />} onClick={() => remove(t)} aria-label="Delete" />
+                    <RowAction kind="delete" title={`Delete ${t.name}`} onClick={() => remove(t)} />
                   </ActionsTd>
                 </tr>
               ))
@@ -371,7 +371,7 @@ function TypeForm({ type, onClose, onSaved }: { type: CustomerType | null; onClo
     <Modal
       open
       onClose={onClose}
-      title={type ? `Edit ${type.name}` : "New customer type"}
+      title={type ? `Edit ${type.name}` : "New Customer Type"}
       size="sm"
       footer={
         <>
@@ -391,12 +391,12 @@ function TypeForm({ type, onClose, onSaved }: { type: CustomerType | null; onClo
         <Field label="Discount %" required>
           <Input type="number" min="0" max="100" step="0.5" value={pct} onChange={(e) => setPct(e.target.value)} className="num" required />
         </Field>
-        <Field label="Only when bill ≥ ₹" hint="0 = always">
+        <Field label="Only When Bill ≥ ₹" hint="0 = always">
           <Input type="number" min="0" step="100" value={minBill} onChange={(e) => setMinBill(e.target.value)} className="num" />
         </Field>
         <div className="space-y-2 sm:col-span-2">
-          <Checkbox label="Do not discount govt-subsidised fertiliser" checked={excl} onChange={setExcl} />
-          <Checkbox label="Switched on" checked={isActive} onChange={setIsActive} />
+          <Checkbox label="Do Not Discount Govt-Subsidised Fertiliser" checked={excl} onChange={setExcl} />
+          <Checkbox label="Switched On" checked={isActive} onChange={setIsActive} />
         </div>
       </form>
     </Modal>

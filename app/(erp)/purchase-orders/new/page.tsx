@@ -21,10 +21,10 @@ function NewPurchaseOrder() {
     <>
       <div className="mb-2">
         <Link href="/purchase-orders" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
-          <ArrowLeft className="size-4" /> Purchase orders
+          <ArrowLeft className="size-4" /> Purchase Orders
         </Link>
       </div>
-      <PageHeader title="New purchase order" subtitle="Order stock from a vendor; it goes for approval before goods can be received" />
+      <PageHeader title="New Purchase Order" subtitle="Order stock from a vendor; it goes for approval before goods can be received" />
       <PoForm presetVendorId={params.get("vendorId")} />
     </>
   );

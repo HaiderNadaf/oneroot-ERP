@@ -40,7 +40,7 @@ export function BranchNotice({ action = "continue", className }: { action?: stri
               key={b.id}
               type="button"
               onClick={() => setBranch(b.id)}
-              className="rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100"
+              className="rounded-md border border-amber-300 bg-surface px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100"
             >
               Use {b.name}
             </button>

@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Geist_Mono, Plus_Jakarta_Sans } from "next/font/go
 import { Suspense } from "react";
 import { ConfirmProvider, ToastProvider } from "@/components/ui";
 import { AuthProvider } from "@/lib/auth";
+import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
 const bodyFont = Plus_Jakarta_Sans({
@@ -29,7 +30,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${bodyFont.variable} ${displayFont.variable} ${geistMono.variable} h-full antialiased`}>
+    // suppressHydrationWarning: the theme script below adds the "dark" class before React hydrates
+    <html lang="en" className={`${bodyFont.variable} ${displayFont.variable} ${geistMono.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        {/* Applies the saved light / dark theme before the first paint, so pages never flash */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-full">
         <AuthProvider>
           <ToastProvider>

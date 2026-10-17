@@ -8,24 +8,28 @@ import { RequirePerm } from "@/components/AppShell";
 import { useCounts } from "@/components/Notifications";
 // Payment now (hidden for now): import { CASH_MODES, modeLabel } from "@/components/PartyPaymentForm";
 import {
+  // Notes (hidden for now)
+  Th,
+  // Payment mode (hidden for now)
+  Spinner,
+  // Select,
+  // Textarea,
   Button,
   Card,
+  DateInput,
   ErrorBox,
   Field,
   Info,
   Input,
   PageHeader,
-  // Select, // Payment mode (hidden for now)
-  Spinner,
   Table,
   Td,
-  // Textarea, // Notes (hidden for now)
-  Th,
   cx,
   errMsg,
   useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { placeOfSupply } from "@/lib/gst";
 import { date, inr, n, qty, round2, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
@@ -54,7 +58,7 @@ function addDays(day: string, days: number) {
 
 export default function BookInvoicePage() {
   return (
-    <RequirePerm perms={["purchases.view"]}>
+    <RequirePerm perms={["purchases.manage"]}>
       <BookInvoice />
     </RequirePerm>
   );
@@ -108,6 +112,7 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
   const router = useRouter();
   const toast = useToast();
   const counts = useCounts();
+  const { can } = useAuth();
   const { data: store } = useApi<StoreSettings>("/settings");
   const v = grn.vendor;
   const items = grn.items.filter((i) => n(i.passedQty) > 0);
@@ -196,14 +201,18 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
 
   return (
     <>
-      <PageHeader title="Book purchase invoice" subtitle={`Vendor's bill for the goods passed on ${grn.grnNo}`} />
+      <PageHeader title="Book Purchase Invoice" subtitle={`Vendor's bill for the goods passed on ${grn.grnNo}`} />
 
       <Card className="mb-4">
         <dl className="mb-4 grid grid-cols-2 gap-4 break-words sm:grid-cols-4">
           <Info label="Vendor">
-            <Link href={`/vendors/${v.id}`} className="hover:text-brand-700">
-              {v.name}
-            </Link>
+            {can("vendors.view") ? (
+              <Link href={`/vendors/${v.id}`} className="hover:text-brand-700">
+                {v.name}
+              </Link>
+            ) : (
+              v.name
+            )}
           </Info>
           <Info label="GRN">
             <Link href={`/goods-inward/${grn.id}`} className="text-brand-700 hover:underline">
@@ -211,17 +220,17 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
             </Link>
             <span className="font-normal text-slate-500"> · {date(grn.receivedAt)}</span>
           </Info>
-          <Info label="Purchase order">
+          <Info label="Purchase Order">
             <Link href={`/purchase-orders/${grn.po.id}`} className="text-brand-700 hover:underline">
               {grn.po.poNo}
             </Link>
           </Info>
-          <Info label="Tax type">
+          <Info label="Tax Type">
             {interState ? "IGST (inter-state)" : "CGST + SGST (intra-state)"}
           </Info>
         </dl>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Vendor invoice no." required>
+          <Field label="Vendor Invoice No." required>
             <Input
               value={vendorInvoiceNo}
               onChange={(e) => setVendorInvoiceNo(e.target.value)}
@@ -231,12 +240,11 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
             />
             {submitted && !vendorInvoiceNo.trim() && <span className="mt-1 block text-xs text-red-600">Required</span>}
           </Field>
-          <Field label="Invoice date" required>
-            <Input type="date" value={invoiceDate} max={today()} onChange={(e) => changeInvoiceDate(e.target.value)} />
+          <Field label="Invoice Date" required>
+            <DateInput value={invoiceDate} max={today()} onChange={(e) => changeInvoiceDate(e.target.value)} />
           </Field>
-          <Field label="Due date" hint={`${v.paymentTermsDays ?? 0} days credit terms`}>
-            <Input
-              type="date"
+          <Field label="Due Date" hint={`${v.paymentTermsDays ?? 0} days credit terms`}>
+            <DateInput
               value={dueDate}
               min={invoiceDate}
               onChange={(e) => {
@@ -253,9 +261,9 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
           <thead>
             <tr>
               <Th className="min-w-44 sm:min-w-52">Product</Th>
-              <Th right>Qty passed</Th>
-              <Th right>PO rate</Th>
-              <Th right>Invoice rate</Th>
+              <Th right>Qty Passed</Th>
+              <Th right>PO Rate</Th>
+              <Th right>Invoice Rate</Th>
               <Th right>Disc %</Th>
               <Th right>GST %</Th>
               <Th right>Taxable</Th>
@@ -342,9 +350,9 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Payment now and Notes — hidden for now; the invoice is booked on credit
-        <Card title="Payment now">
+        <Card title="Payment Now">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Amount paid (₹)" className="col-span-2" hint={paid > 0 && paid < total ? `${inr(total - paid)} will stay payable` : undefined}>
+            <Field label="Amount Paid (₹)" className="col-span-2" hint={paid > 0 && paid < total ? `${inr(total - paid)} will stay payable` : undefined}>
               <div className="flex gap-2">
                 <Input
                   type="number"
@@ -381,9 +389,9 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
 
         */}
 
-        <Card title="Invoice total" className="lg:col-start-3">
+        <Card title="Invoice Total" className="lg:col-start-3">
           <dl className="space-y-2 text-sm">
-            <SumRow label="Taxable value" value={inr(subtotal)} />
+            <SumRow label="Taxable Value" value={inr(subtotal)} />
             {interState ? (
               <SumRow label="IGST" value={inr(taxAmount)} />
             ) : (

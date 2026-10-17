@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Pencil, Search, X, XCircle } from "lucide-react";
+import { AlertTriangle, Calendar, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Pencil, Search, Trash2, X, XCircle } from "lucide-react";
 import {
   Children,
   createContext,
@@ -24,17 +24,22 @@ import {
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
+import { date } from "@/lib/format";
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
 // ───────────────────────── Buttons ─────────────────────────
 
+/** Bordered square icon button of the top bar (notifications, theme); 40px to line up with the POS button */
+export const TOP_ICON_BUTTON =
+  "relative inline-flex size-10 shrink-0 items-center justify-center rounded-[9px] border border-line bg-surface text-slate-600 transition-colors hover:border-line-3 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500";
+
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
 const buttonStyles: Record<ButtonVariant, string> = {
-  primary: "bg-brand-600 text-white hover:bg-brand-700 shadow-sm",
-  secondary: "bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 shadow-sm",
+  primary: "bg-brand-600 text-white hover:bg-forest-700 shadow-sm",
+  secondary: "bg-surface text-slate-700 border border-slate-300 hover:bg-slate-50 shadow-sm",
   ghost: "text-slate-600 hover:bg-slate-100",
-  danger: "bg-red-600 text-white hover:bg-red-700 shadow-sm",
+  danger: "bg-red-600 text-white hover:bg-crimson-700 shadow-sm",
 };
 
 export function Button({
@@ -70,7 +75,7 @@ export function Button({
     >
       {loading ? (
         <>
-          <Loader2 className="size-4 animate-spin" />
+          <InfinityLoader tone="current" className="size-5" />
           {hasLabel && loadingText}
         </>
       ) : (
@@ -86,7 +91,7 @@ export function Button({
 // ───────────────────────── Form controls ─────────────────────────
 
 const control =
-  "rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:bg-slate-50 disabled:text-slate-500";
+  "rounded-lg border border-slate-300 bg-surface px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:bg-slate-50 disabled:text-slate-500";
 
 /** Full width unless the caller passes its own width class (w-24, min-w-…, etc.) */
 const width = (className?: string) => (/(^|\s)!?(min-)?w-/.test(className ?? "") ? "" : "w-full");
@@ -153,6 +158,355 @@ export function Select({
   );
 }
 
+// ───────────────────────── Date picker ─────────────────────────
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+/** "2026-10-17" → local Date (no time-zone shift); null when blank or malformed */
+function parseDay(v: string | undefined | null) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v ?? "");
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+}
+
+const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+/** Same day n months on, clamped to the month's last day (31 Jan + 1 month = 28/29 Feb) */
+function addMonths(d: Date, n: number) {
+  const last = new Date(d.getFullYear(), d.getMonth() + n + 1, 0).getDate();
+  return new Date(d.getFullYear(), d.getMonth() + n, Math.min(d.getDate(), last));
+}
+
+/** Popup width; kept fixed so the grid never reflows between months */
+const CALENDAR_WIDTH = 288;
+
+/**
+ * Drop-in replacement for <Input type="date">: same `value` ("YYYY-MM-DD" or ""), `onChange={(e) => … e.target.value}`,
+ * `min`, `max` and `required`. Opens the common themed calendar; click the month or year in its header to jump
+ * straight to another month / year. Keys: arrows move a day / week, PageUp / PageDown a month (with Shift a year),
+ * Home / End the week's ends, Enter picks, Esc closes.
+ */
+export function DateInput({
+  value,
+  onChange,
+  min,
+  max,
+  required,
+  disabled,
+  className,
+  placeholder = "Select Date",
+  id,
+  title,
+  autoFocus,
+  "aria-label": ariaLabel,
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "min" | "max"> & { value: string; min?: string; max?: string }) {
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<"days" | "months" | "years">("days");
+  // The day the keyboard is on; its month is the one shown
+  const [cursor, setCursor] = useState(() => parseDay(value) ?? new Date());
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const grid = useRef<HTMLDivElement>(null);
+  const popupId = useId();
+
+  const classes = (className ?? "").split(/\s+/).filter(Boolean);
+  const outer = classes.filter((c) => LAYOUT_CLASS.test(c)).join(" ");
+  const inner = classes.filter((c) => !LAYOUT_CLASS.test(c)).join(" ");
+
+  const selected = parseDay(value);
+  const minDay = parseDay(min);
+  const maxDay = parseDay(max);
+  const todayDay = parseDay(dayKey(new Date()))!;
+  const outOfRange = (d: Date) => (!!minDay && d < minDay) || (!!maxDay && d > maxDay);
+  const clamp = (d: Date) => (minDay && d < minDay ? minDay : maxDay && d > maxDay ? maxDay : d);
+
+  // Below the field when it fits, else above; never off the sides of the screen
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      const r = trigger.current?.getBoundingClientRect();
+      const h = popup.current?.offsetHeight ?? 340;
+      if (!r) return;
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - CALENDAR_WIDTH - 8));
+      const top = r.bottom + 4 + h > window.innerHeight - 8 && r.top - 4 - h > 8 ? r.top - 4 - h : r.bottom + 4;
+      setPos({ left, top });
+    }
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open, view]);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!box.current?.contains(t) && !popup.current?.contains(t)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  // Keyboard focus follows the cursor day
+  useEffect(() => {
+    if (open && pos && view === "days") grid.current?.querySelector<HTMLButtonElement>(`[data-day="${dayKey(cursor)}"]`)?.focus();
+  }, [open, pos, view, cursor]);
+
+  function show() {
+    if (disabled) return;
+    setCursor(clamp(selected ?? todayDay));
+    setView("days");
+    setPos(null);
+    setOpen(true);
+  }
+
+  function close(refocus = true) {
+    setOpen(false);
+    if (refocus) trigger.current?.focus();
+  }
+
+  function emit(v: string) {
+    if (v !== value) onChange?.({ target: { value: v }, currentTarget: { value: v } } as unknown as ChangeEvent<HTMLInputElement>);
+  }
+
+  function pick(d: Date) {
+    if (outOfRange(d)) return;
+    emit(dayKey(d));
+    close();
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (!open) {
+      if (["ArrowDown", "Enter", " "].includes(e.key)) {
+        e.preventDefault();
+        show();
+      }
+      return;
+    }
+    if (e.key === "Escape") {
+      // Close just the calendar (or step back from the month / year list), not the modal around it
+      e.preventDefault();
+      e.stopPropagation();
+      if (view === "days") close();
+      else setView("days");
+      return;
+    }
+    if (e.key === "Tab") return close(false);
+    if (view !== "days") return;
+    const moves: Record<string, () => Date> = {
+      ArrowLeft: () => addDays(cursor, -1),
+      ArrowRight: () => addDays(cursor, 1),
+      ArrowUp: () => addDays(cursor, -7),
+      ArrowDown: () => addDays(cursor, 7),
+      PageUp: () => addMonths(cursor, e.shiftKey ? -12 : -1),
+      PageDown: () => addMonths(cursor, e.shiftKey ? 12 : 1),
+      Home: () => addDays(cursor, -cursor.getDay()),
+      End: () => addDays(cursor, 6 - cursor.getDay()),
+    };
+    if (moves[e.key]) {
+      e.preventDefault();
+      setCursor(moves[e.key]());
+    }
+  }
+
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  // Six rows from the Sunday on or before the 1st, so the popup keeps one height
+  const first = new Date(year, month, 1);
+  const days = Array.from({ length: 42 }, (_, i) => addDays(first, i - first.getDay()));
+  // Twelve years per page, with the shown year in it
+  const yearStart = year - (((year % 12) + 12) % 12);
+  const years = Array.from({ length: 12 }, (_, i) => yearStart + i);
+  const monthOff = (y: number, m: number) => (!!minDay && new Date(y, m + 1, 0) < minDay) || (!!maxDay && new Date(y, m, 1) > maxDay);
+  const yearOff = (y: number) => (!!minDay && y < minDay.getFullYear()) || (!!maxDay && y > maxDay.getFullYear());
+
+  function step(dir: -1 | 1) {
+    if (view === "days") setCursor(addMonths(cursor, dir));
+    else if (view === "months") setCursor(addMonths(cursor, dir * 12));
+    else setCursor(addMonths(cursor, dir * 144));
+  }
+
+  const headerButton = "rounded-md px-2 py-1 text-sm font-semibold text-slate-800 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500";
+  const navButton =
+    "flex size-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500";
+  const cellButton = (isSelected: boolean, isOff: boolean, extra?: string) =>
+    cx(
+      "flex items-center justify-center rounded-md text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
+      isSelected ? "bg-brand-600 font-semibold text-white hover:bg-forest-700" : "text-slate-700 hover:bg-brand-50",
+      isOff && "cursor-not-allowed opacity-35 hover:bg-transparent",
+      extra,
+    );
+
+  return (
+    <div ref={box} className={cx("relative", width(outer), outer)} onKeyDown={onKeyDown}>
+      <button
+        ref={trigger}
+        id={id}
+        type="button"
+        disabled={disabled}
+        title={title}
+        autoFocus={autoFocus}
+        onClick={() => (open ? close() : show())}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? popupId : undefined}
+        aria-label={ariaLabel ? `${ariaLabel}${selected ? `: ${date(selected)}` : ""}` : undefined}
+        className={cx(control, "flex w-full items-center gap-2 text-left", !/(^|\s)h-/.test(inner) && "h-9", inner)}
+      >
+        <span className={cx("min-w-0 flex-1 truncate", !selected && "text-slate-400")}>{selected ? date(selected) : placeholder}</span>
+        <Calendar className="size-4 shrink-0 text-slate-400" />
+      </button>
+      {/* Lets a form's own `required` check stop an empty date, with the browser's message pointing at this field */}
+      {required && (
+        <input
+          tabIndex={-1}
+          aria-hidden
+          required
+          value={value}
+          onChange={() => {}}
+          onFocus={() => trigger.current?.focus()}
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-px opacity-0"
+        />
+      )}
+
+      {open &&
+        createPortal(
+          <div
+            ref={popup}
+            id={popupId}
+            role="dialog"
+            aria-label={ariaLabel ?? "Choose date"}
+            style={{ left: pos?.left ?? -9999, top: pos?.top ?? 0, width: CALENDAR_WIDTH }}
+            className="no-print fixed z-[70] rounded-xl border border-slate-200 bg-surface p-3 shadow-lg"
+          >
+            <div className="mb-2 flex items-center justify-between gap-1">
+              <button type="button" className={navButton} onClick={() => step(-1)} aria-label={view === "days" ? "Previous Month" : view === "months" ? "Previous Year" : "Previous Years"}>
+                <ChevronLeft className="size-4" />
+              </button>
+              <div className="flex items-center">
+                {view === "years" ? (
+                  <span className="px-2 py-1 text-sm font-semibold text-slate-800">
+                    {years[0]} – {years[11]}
+                  </span>
+                ) : (
+                  <>
+                    {view === "days" && (
+                      <button type="button" className={headerButton} onClick={() => setView("months")} aria-label="Choose Month">
+                        {MONTHS[month]}
+                      </button>
+                    )}
+                    <button type="button" className={headerButton} onClick={() => setView("years")} aria-label="Choose Year">
+                      {year}
+                    </button>
+                  </>
+                )}
+              </div>
+              <button type="button" className={navButton} onClick={() => step(1)} aria-label={view === "days" ? "Next Month" : view === "months" ? "Next Year" : "Next Years"}>
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+
+            {view === "days" && (
+              <div ref={grid} role="grid" className="grid grid-cols-7 gap-0.5">
+                {WEEKDAYS.map((w) => (
+                  <span key={w} role="columnheader" className="flex h-7 items-center justify-center text-[11px] font-semibold uppercase text-slate-400">
+                    {w}
+                  </span>
+                ))}
+                {days.map((d) => {
+                  const key = dayKey(d);
+                  const isSelected = key === value;
+                  const off = outOfRange(d);
+                  const isToday = key === dayKey(todayDay);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      role="gridcell"
+                      data-day={key}
+                      tabIndex={key === dayKey(cursor) ? 0 : -1}
+                      aria-selected={isSelected}
+                      aria-disabled={off}
+                      aria-label={date(d)}
+                      onClick={() => pick(d)}
+                      className={cellButton(
+                        isSelected,
+                        off,
+                        cx("h-9", d.getMonth() !== month && !isSelected && "text-slate-400", isToday && !isSelected && "font-semibold text-brand-700 ring-1 ring-inset ring-brand-500/50"),
+                      )}
+                    >
+                      {d.getDate()}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {view === "months" && (
+              <div className="grid grid-cols-3 gap-1.5">
+                {MONTHS.map((m, i) => {
+                  const off = monthOff(year, i);
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      disabled={off}
+                      onClick={() => (setCursor(clamp(addMonths(cursor, i - month))), setView("days"))}
+                      className={cellButton(i === month, off, "h-11")}
+                    >
+                      {m.slice(0, 3)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {view === "years" && (
+              <div className="grid grid-cols-3 gap-1.5">
+                {years.map((y) => {
+                  const off = yearOff(y);
+                  return (
+                    <button
+                      key={y}
+                      type="button"
+                      disabled={off}
+                      onClick={() => (setCursor(addMonths(cursor, (y - year) * 12)), setView("months"))}
+                      className={cellButton(y === year, off, cx("h-11", y === todayDay.getFullYear() && y !== year && "font-semibold text-brand-700"))}
+                    >
+                      {y}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
+              <button
+                type="button"
+                disabled={outOfRange(todayDay)}
+                onClick={() => pick(todayDay)}
+                className="rounded-md px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Today
+              </button>
+              {!required && value && (
+                <button type="button" onClick={() => (emit(""), close())} className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700">
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
+
 /**
  * The full OneRoot.farm logo (black wordmark, green infinity on white) in a rounded white card.
  * `framed` adds a shadow and soft ring so the card lifts off a dark background (the sidebar);
@@ -174,7 +528,7 @@ export function Logo({
   return (
     <div
       className={cx(
-        "inline-flex items-center justify-center overflow-hidden rounded-xl bg-white",
+        "inline-flex items-center justify-center overflow-hidden rounded-xl bg-surface",
         framed && "shadow-lg shadow-black/25 ring-1 ring-white/40",
         className,
       )}
@@ -398,7 +752,7 @@ export function Dropdown({
           <div
             ref={popup}
             style={{ left: pos.left, width: pos.width, top: pos.top, maxHeight: pos.maxHeight }}
-            className="no-print fixed z-[70] flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+            className="no-print fixed z-[70] flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-surface shadow-lg"
           >
             {isSearch && (
               <div className="relative shrink-0 border-b border-slate-100 p-1.5">
@@ -558,30 +912,14 @@ export function SearchInput({
 
 // ───────────────────────── Layout ─────────────────────────
 
-/**
- * Shown under every PageHeader. The app shell fills it with the quick-actions bar (passed in through context
- * rather than imported here, which would loop: QuickActions → AppShell → ui).
- */
-const PageHeaderExtra = createContext<ReactNode>(null);
-export const PageHeaderExtraProvider = PageHeaderExtra.Provider;
-
-/** The quick-actions bar on its own, for pages with a custom heading instead of PageHeader (e.g. the POS) */
-export function PageHeaderExtraSlot({ className }: { className?: string }) {
-  const extra = useContext(PageHeaderExtra);
-  return extra ? <div className={cx("no-print mb-5", className)}>{extra}</div> : null;
-}
-
 export function PageHeader({
   title,
   subtitle,
   actions,
-  quickActions = true,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
-  /** false hides the quick-actions bar under the header on this page */
-  quickActions?: boolean;
 }) {
   return (
     <>
@@ -593,7 +931,6 @@ export function PageHeader({
         {/* Phones: the actions get their own row under the title */}
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      {quickActions && <PageHeaderExtraSlot className="-mt-1" />}
     </>
   );
 }
@@ -612,7 +949,7 @@ export function Card({
   children: ReactNode;
 }) {
   return (
-    <section className={cx("rounded-xl border border-slate-200 bg-white shadow-sm", className)}>
+    <section className={cx("rounded-xl border border-slate-200 bg-surface shadow-sm", className)}>
       {(title || actions) && (
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 sm:px-4">
           <h2 className="min-w-0 text-sm font-semibold text-slate-800">{title}</h2>
@@ -645,7 +982,7 @@ export function StatCard({
     blue: "bg-sky-50 text-sky-700",
   };
   return (
-    <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-surface p-3 shadow-sm sm:p-4">
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
         {icon && <span className={cx("rounded-lg p-1.5 [&>svg]:size-4", tones[tone])}>{icon}</span>}
@@ -708,7 +1045,9 @@ const statusTones: Record<string, Tone> = {
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  return <Badge tone={statusTones[status] ?? "slate"}>{status.charAt(0) + status.slice(1).toLowerCase().replace(/_/g, " ")}</Badge>;
+  // PENDING_APPROVAL → "Pending Approval"
+  const label = status.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return <Badge tone={statusTones[status] ?? "slate"}>{label}</Badge>;
 }
 
 /** Wrapper giving tables consistent styling; use <Th>/<Td> inside */
@@ -776,11 +1115,13 @@ export function ActionsTd({ children, className }: { children?: ReactNode; class
 const ROW_ACTION = {
   view: { icon: Eye, label: "View", tone: "bg-sky-50 text-sky-700 ring-sky-200 hover:bg-sky-100" },
   edit: { icon: Pencil, label: "Edit", tone: "bg-brand-50 text-brand-700 ring-brand-200 hover:bg-brand-100" },
+  delete: { icon: Trash2, label: "Delete", tone: "bg-red-50 text-red-700 ring-red-200 hover:bg-red-100" },
 } as const;
 
 /**
- * View / Edit button for a list row: a filled pill with its icon and label. Pass `href` to navigate, else `onClick`.
- * `label` overrides the text; `title` is the tooltip / accessible name (e.g. "Edit PO-26-27-00002").
+ * View / Edit / Delete button for a list row: a filled pill with its icon and label. Pass `href` to navigate, else `onClick`.
+ * `label` overrides the text (e.g. "Remove"); `title` is the tooltip / accessible name (e.g. "Edit PO-26-27-00002").
+ * `loading` shows a spinner and blocks clicks while the action runs.
  */
 export function RowAction({
   kind,
@@ -788,21 +1129,25 @@ export function RowAction({
   onClick,
   label,
   title,
+  disabled,
+  loading,
 }: {
   kind: keyof typeof ROW_ACTION;
   href?: string;
   onClick?: () => void;
   label?: string;
   title?: string;
+  disabled?: boolean;
+  loading?: boolean;
 }) {
   const { icon: Icon, label: text, tone } = ROW_ACTION[kind];
   const className = cx(
-    "inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg px-2.5 text-xs font-semibold ring-1 ring-inset transition-colors",
+    "inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg px-2.5 text-xs font-semibold ring-1 ring-inset transition-colors disabled:cursor-not-allowed disabled:opacity-50",
     tone,
   );
   const body = (
     <>
-      <Icon className="size-3.5" aria-hidden />
+      {loading ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Icon className="size-3.5" aria-hidden />}
       {label ?? text}
     </>
   );
@@ -811,7 +1156,7 @@ export function RowAction({
       {body}
     </Link>
   ) : (
-    <button type="button" onClick={onClick} className={className} title={title} aria-label={title}>
+    <button type="button" onClick={onClick} disabled={disabled || loading} className={className} title={title} aria-label={title}>
       {body}
     </button>
   );
@@ -832,7 +1177,7 @@ export function LoadingRow({ colSpan, text = "Loading…" }: { colSpan: number; 
     <tr>
       <td colSpan={colSpan} className="px-3 py-10 text-center">
         <span className="inline-flex items-center gap-2 text-sm text-slate-500" role="status">
-          <Loader2 className="size-5 animate-spin text-slate-400" />
+          <InfinityLoader className="size-6" />
           {text}
         </span>
       </td>
@@ -844,20 +1189,36 @@ export function LoadingRow({ colSpan, text = "Loading…" }: { colSpan: number; 
  * Loading indicator. `page` = a whole page (or the app) is loading: it sits in the exact centre of the screen,
  * whatever scrolls or sits around it. Without it, it fills the spot it is placed in (a card, a table cell).
  */
+/**
+ * The app's one loading icon: the "∞" of the OneRoot logo with a stroke running round it, turning in 90° steps
+ * for as long as something loads (styles in globals.css). Green by default; `tone="current"` takes the text
+ * colour instead, for use on coloured buttons where green would not show.
+ */
+export function InfinityLoader({ className, tone = "brand" }: { className?: string; tone?: "brand" | "current" }) {
+  const loop = "M5 30C5 16 21 16 30 30C39 44 55 44 55 30C55 16 39 16 30 30C21 44 5 44 5 30Z";
+  return (
+    // Square box so the loop can turn upright without pushing its neighbours
+    <svg viewBox="0 0 60 60" className={cx("or-loader-turn shrink-0", tone === "brand" && "text-brand-600", className)} aria-hidden>
+      <path d={loop} pathLength={200} fill="none" stroke="currentColor" strokeWidth={6} opacity={0.22} />
+      <path d={loop} pathLength={200} fill="none" stroke="currentColor" strokeWidth={6} strokeLinecap="round" className="or-loader-run" />
+    </svg>
+  );
+}
+
 export function Spinner({ className, text = "Loading…", page = false }: { className?: string; text?: ReactNode; page?: boolean }) {
   if (page) {
     return (
       <div className={cx("pointer-events-none fixed inset-0 z-40 flex items-center justify-center", className)} role="status" aria-live="polite">
-        <div className="flex flex-col items-center gap-2 rounded-xl bg-white/90 px-6 py-4 shadow-lg ring-1 ring-slate-200 backdrop-blur-sm">
-          <Loader2 className="size-7 animate-spin text-brand-600" />
-          {text && <span className="text-sm font-medium text-slate-600">{text}</span>}
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-surface/95 px-8 py-6 shadow-xl shadow-brand-900/10 backdrop-blur-sm">
+          <InfinityLoader className="size-14" />
+          {text && <span className="or-loader-text text-sm font-semibold tracking-wide text-brand-800">{text}</span>}
         </div>
       </div>
     );
   }
   return (
-    <div className={cx("flex flex-col items-center justify-center gap-2 py-16", className)} role="status">
-      <Loader2 className="size-6 animate-spin text-brand-600" />
+    <div className={cx("flex flex-col items-center justify-center gap-2.5 py-16", className)} role="status">
+      <InfinityLoader className="size-10" />
       {text && <span className="text-sm text-slate-500">{text}</span>}
     </div>
   );
@@ -911,14 +1272,16 @@ export function Tabs<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="no-print mb-4 flex gap-1 overflow-x-auto border-b border-slate-200">
+    // The base line is an inset shadow, not a border: tabs then sit inside the strip (no 1px overflow that made it
+    // scroll up and down). Still swipes sideways on narrow screens, without a scrollbar.
+    <div className="no-print no-scrollbar mb-4 flex gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--color-slate-200)]">
       {tabs.map((t) => (
         <button
           key={t.value}
           type="button"
           onClick={() => onChange(t.value)}
           className={cx(
-            "-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+            "whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors",
             value === t.value
               ? "border-brand-600 text-brand-700"
               : "border-transparent text-slate-500 hover:text-slate-800",
@@ -969,14 +1332,14 @@ export function Modal({
   if (!open) return null;
   const widths = { sm: "max-w-md", md: "max-w-lg", lg: "max-w-3xl", xl: "max-w-5xl" };
   return (
-    <div className="no-print fixed inset-0 z-50 flex items-stretch justify-center bg-slate-900/40 sm:items-start sm:overflow-y-auto sm:p-4 sm:pt-[8vh]">
+    <div className="no-print fixed inset-0 z-50 flex items-stretch justify-center bg-night-900/40 sm:items-start sm:overflow-y-auto sm:p-4 sm:pt-[8vh]">
       <div className="fixed inset-0" onClick={onClose} />
       {/* Phones: the whole screen, header and footer pinned, the body scrolls; wider: a centred dialog */}
       <div
         role="dialog"
         aria-modal="true"
         className={cx(
-          "relative flex h-[100dvh] w-full flex-col bg-white shadow-xl sm:h-auto sm:rounded-xl",
+          "relative flex h-[100dvh] w-full flex-col bg-surface shadow-xl sm:h-auto sm:rounded-xl",
           widths[size],
           "max-sm:max-w-none",
         )}
@@ -1027,7 +1390,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       <Modal
         open={!!state}
         onClose={() => close(false)}
-        title="Please confirm"
+        title="Please Confirm"
         size="sm"
         footer={
           <>

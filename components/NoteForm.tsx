@@ -1,6 +1,6 @@
 "use client";
 
-import { FilePlus2, Loader2, PackageMinus, Plus, Trash2 } from "lucide-react";
+import { FilePlus2, PackageMinus, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { date, inr, n, qty, round2, today } from "@/lib/format";
@@ -23,7 +23,7 @@ import {
 } from "@/lib/types";
 import { BranchBadge, BranchNotice } from "./BranchNotice";
 import { ProductPicker, VendorPicker } from "./pickers";
-import { Badge, Button, Field, Input, Modal, Select, StatusBadge, Table, Td, Th, cx, errMsg, useToast } from "./ui";
+import { Badge, Button, DateInput, Field, InfinityLoader, Input, Modal, Select, StatusBadge, Table, Td, Th, cx, errMsg, useToast } from "./ui";
 
 // ───────────────────────── Shared note helpers ─────────────────────────
 
@@ -405,7 +405,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
       open
       onClose={onClose}
       size="xl"
-      title={isDebit ? "New debit note (to vendor)" : "Record credit note (received from vendor)"}
+      title={isDebit ? "New Debit Note (To Vendor)" : "Record Credit Note (Received From Vendor)"}
       footer={
         <>
           <span className="mr-auto self-center text-sm text-slate-600">
@@ -420,7 +420,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
             Cancel
           </Button>
           <Button onClick={save} loading={saving} disabled={branchBlocked || (isReturn ? !returnLines.length : !moneyLines.length)}>
-            Save draft
+            Save Draft
           </Button>
         </>
       }
@@ -442,7 +442,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
               <VendorPicker value={pickedVendor} onChange={changeVendor} autoFocus />
             )}
           </Field>
-          <Field label={isDebit ? "Reason type" : "Credit for"} required>
+          <Field label={isDebit ? "Reason Type" : "Credit For"} required>
             <Select value={reasonType} onChange={(e) => changeReason(e.target.value as NoteReason)}>
               {reasons.map((r) => (
                 <option key={r} value={r}>
@@ -453,7 +453,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
             <span className="mt-1 block text-xs text-slate-500">{REASON_HELP[noteType][reasonType]}</span>
           </Field>
 
-          <Field label="Purchase order" required>
+          <Field label="Purchase Order" required>
             {preset?.po ? (
               <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-800">
                 {preset.po.poNo}
@@ -466,7 +466,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
                 className={submitted && !poId ? "border-red-400" : undefined}
               >
                 <option value="">
-                  {!vendor ? "Choose the vendor first" : pos.loading ? "Loading purchase orders…" : poOptions.length ? "Choose a purchase order" : "No received POs for this vendor"}
+                  {!vendor ? "Choose the Vendor First" : pos.loading ? "Loading Purchase Orders…" : poOptions.length ? "Choose a Purchase Order" : "No Received POs for This Vendor"}
                 </option>
                 {poOptions.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -478,7 +478,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
             {pos.error && <span className="mt-1 block text-xs text-red-600">{pos.error}</span>}
           </Field>
 
-          <Field label="Goods inward (GRN)" required>
+          <Field label="Goods Inward (GRN)" required>
             {preset?.grn ? (
               <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-800">
                 {preset.grn.grnNo}
@@ -491,7 +491,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
                 className={submitted && !grnId ? "border-red-400" : undefined}
               >
                 <option value="">
-                  {!poId ? "Choose the purchase order first" : grns.loading ? "Loading goods inwards…" : grnOptions.length ? "Choose a goods inward" : "No goods received on this PO yet"}
+                  {!poId ? "Choose the Purchase Order First" : grns.loading ? "Loading Goods Inwards…" : grnOptions.length ? "Choose a Goods Inward" : "No Goods Received on This PO Yet"}
                 </option>
                 {grnOptions.map((g) => (
                   <option key={g.id} value={g.id}>
@@ -503,14 +503,14 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
             {grns.error && <span className="mt-1 block text-xs text-red-600">{grns.error}</span>}
           </Field>
 
-          <Field label="Against invoice" hint={preset?.purchase ? undefined : "Optional — posting settles this invoice's due first"}>
+          <Field label="Against Invoice" hint={preset?.purchase ? undefined : "Optional — posting settles this invoice's due first"}>
             {preset?.purchase ? (
               <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-800">
                 {invoiceLabel}
               </div>
             ) : (
               <Select value={purchaseId} onChange={(e) => changeInvoice(e.target.value)} disabled={!vendor || invoices.loading}>
-                <option value="">{!vendor ? "Choose the vendor first" : invoices.loading ? "Loading invoices…" : "Not against a specific invoice"}</option>
+                <option value="">{!vendor ? "Choose the Vendor First" : invoices.loading ? "Loading Invoices…" : "Not Against a Specific Invoice"}</option>
                 {invoiceOptions.map((p) => {
                   const due = round2(n(p.totalAmount) - n(p.paidAmount));
                   return (
@@ -527,15 +527,15 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label={isDebit ? "Vendor's ref. (optional)" : "Vendor's note no."}>
+            <Field label={isDebit ? "Vendor's Ref. (Optional)" : "Vendor's Note No."}>
               <Input
                 value={vendorRef}
                 onChange={(e) => setVendorRef(e.target.value)}
                 placeholder={isDebit ? "e.g. their RMA no." : "e.g. CN-0423"}
               />
             </Field>
-            <Field label="Note date" required>
-              <Input type="date" value={noteDate} max={today()} onChange={(e) => setNoteDate(e.target.value)} />
+            <Field label="Note Date" required>
+              <DateInput value={noteDate} max={today()} onChange={(e) => setNoteDate(e.target.value)} />
             </Field>
           </div>
 
@@ -571,7 +571,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
             {branchBlocked ? (
               <BranchNotice action="return goods from its stock" />
             ) : (
-              <BranchBadge label="Returning stock from" />
+              <BranchBadge label="Returning Stock From" />
             )}
             <div>
               <p className="mb-1 text-xs font-medium text-slate-600">Products to return</p>
@@ -603,13 +603,13 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
                     </div>
                     {!l.batches ? (
                       <p className="flex items-center gap-2 py-2 text-xs text-slate-500">
-                        <Loader2 className="size-4 animate-spin" /> Loading batches…
+                        <InfinityLoader className="size-5" /> Loading batches…
                       </p>
                     ) : (
                       <div className="flex flex-wrap items-end gap-3">
                         <Field label="Batch" className="min-w-full flex-1 sm:min-w-64">
                           <Select value={l.batchId} onChange={(e) => updateReturn(l.key, { batchId: e.target.value })} disabled={!l.batches.length}>
-                            {!l.batches.length && <option value="">No stock</option>}
+                            {!l.batches.length && <option value="">No Stock</option>}
                             {l.batches.map((b) => (
                               <option key={b.id} value={b.id}>
                                 {b.batchNo} · exp {date(b.expiryDate)} · {qty(b.quantity)} {l.product.unit} available
@@ -629,7 +629,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
                             onChange={(e) => updateReturn(l.key, { quantity: e.target.value })}
                           />
                         </Field>
-                        <Field label="Rate (₹, excl. GST)">
+                        <Field label="Rate (₹, Excl. GST)">
                           <Input
                             type="number"
                             step="0.01"
@@ -667,7 +667,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
               <Table>
                 <thead>
                   <tr>
-                    <Th>Product / description</Th>
+                    <Th>Product / Description</Th>
                     <Th right>Qty</Th>
                     <Th right>{rateLabel}</Th>
                     <Th right>GST %</Th>
@@ -768,7 +768,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
                 icon={<Plus className="size-4" />}
                 onClick={() => setMoneyLines((ls) => [...ls, blankMoneyLine()])}
               >
-                Description line
+                Description Line
               </Button>
               <div className="w-full sm:w-80">
                 <ProductPicker onPick={addMoneyProduct} />

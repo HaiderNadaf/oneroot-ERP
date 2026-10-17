@@ -9,7 +9,7 @@ export const PO_TERMS: { title: string; text: string }[] = [
     text: "This purchase order is valid only for the expiry days chosen on it, counted from the invoice date. Goods supplied after it expires may be refused.",
   },
   {
-    title: "Quantity & specification",
+    title: "Quantity & Specification",
     text: "Supply exactly the products, pack sizes and quantities ordered. Short, excess or substituted supply must be agreed in writing before dispatch.",
   },
   {
@@ -21,15 +21,15 @@ export const PO_TERMS: { title: string; text: string }[] = [
     text: "Deliver to the branch named on the PO by the expected delivery date, with the tax invoice and delivery challan quoting this PO number.",
   },
   {
-    title: "Batch, expiry & licences",
+    title: "Batch, Expiry & Licences",
     text: "Seeds, fertilisers and pesticides must carry batch number, manufacturing and expiry dates on every pack, and be covered by valid licences / registrations. Stock with less than six months of shelf life left may be rejected.",
   },
   {
-    title: "Inspection & rejection",
+    title: "Inspection & Rejection",
     text: "All goods are checked at goods inward. Damaged, expired, mislabelled or sub-standard goods will be rejected and returned at the vendor's cost, and a debit note raised.",
   },
   {
-    title: "Invoice & payment",
+    title: "Invoice & Payment",
     text: "The vendor's GST invoice must show our GSTIN, the PO number and HSN codes. Payment is made on the vendor's agreed credit terms, for the quantity accepted at goods inward.",
   },
   {

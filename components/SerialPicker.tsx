@@ -59,7 +59,7 @@ function PickerBody({ productId, productName, quantity, value, onClose, onChange
     <Modal
       open
       onClose={onClose}
-      title={`Serial numbers · ${productName}`}
+      title={`Serial Numbers · ${productName}`}
       size="sm"
       footer={
         <>

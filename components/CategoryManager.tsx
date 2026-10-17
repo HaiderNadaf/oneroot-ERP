@@ -1,12 +1,12 @@
 "use client";
 
-import { Check, ListPlus, Pencil, Trash2, X } from "lucide-react";
+import { Check, ListPlus, Pencil, X } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { PRODUCT_TYPES, TYPE_LABEL, type Category, type ProductType, type SubCategory } from "@/lib/types";
 import { CategoryFieldsEditor } from "./CategoryFieldsEditor";
-import { Button, Dropdown, Input, Modal, cx, errMsg, useConfirm, useToast, type DropdownOption } from "./ui";
+import { Button, Dropdown, Input, Modal, RowAction, cx, errMsg, useConfirm, useToast, type DropdownOption } from "./ui";
 
 /** SKU codes are numbers 1–999 */
 const cleanCode = (v: string) => v.replace(/\D/g, "").replace(/^0+/, "").slice(0, 3);
@@ -15,12 +15,12 @@ const TYPE_OPTIONS: DropdownOption[] = PRODUCT_TYPES.map((t) => ({ value: t, lab
 
 /**
  * Product categories and their sub-categories (two tables), or expense categories with `kind="expense"`.
- * A product's SKU is ORI + category code + sub-category code + a running number, 11 digits after ORI in all.
+ * A product's SKU is ORI + category code + sub-category code + a number counted per sub-category, 11 digits after ORI in all.
  */
 export function CategoryManager({ open, onClose, kind = "product" }: { open: boolean; onClose: () => void; kind?: "product" | "expense" }) {
   if (kind === "expense") return <ExpenseCategories open={open} onClose={onClose} />;
   return (
-    <Modal open={open} onClose={onClose} title="Product categories" size="xl">
+    <Modal open={open} onClose={onClose} title="Product Categories" size="xl">
       {open && <ProductCategories />}
     </Modal>
   );
@@ -113,8 +113,8 @@ function ProductCategories() {
     <>
       <p className="mb-3 rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">
         Every product sits in a <b>category</b> and one of its <b>sub-categories</b>. Its SKU is{" "}
-        <b className="font-mono">ORI</b> + category code + sub-category code + a running number (e.g. 1 → 2 → <b className="font-mono">ORI12000000001</b>),
-        unique across all products. Codes lock once products use them.
+        <b className="font-mono">ORI</b> + category code + sub-category code + a number counted within that sub-category (e.g. category 1 → sub-category 2:
+        the first product is <b className="font-mono">ORI12000000001</b>, the next <b className="font-mono">ORI12000000002</b>). Every SKU is unique. Codes lock once products use them.
       </p>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section>
@@ -148,13 +148,9 @@ function ProductCategories() {
                     aria-label={`Tax type for ${c.name}`}
                   />
                 </div>
-                <button
-                  onClick={(e) => (e.stopPropagation(), void removeCategory(c))}
-                  className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                  aria-label={`Delete ${c.name}`}
-                >
-                  <Trash2 className="size-4" />
-                </button>
+                <span onClick={(e) => e.stopPropagation()} className="shrink-0">
+                  <RowAction kind="delete" title={`Delete ${c.name}`} onClick={() => void removeCategory(c)} />
+                </span>
               </li>
             ))}
             {categories && !categories.length && <li className="px-3 py-6 text-center text-sm text-slate-400">No categories yet</li>}
@@ -188,9 +184,7 @@ function ProductCategories() {
                 >
                   <ListPlus className="size-3.5" /> Fields{s.fields?.length ? ` · ${s.fields.length}` : ""}
                 </button>
-                <button onClick={() => void removeSub(s)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Delete ${s.name}`}>
-                  <Trash2 className="size-4" />
-                </button>
+                <RowAction kind="delete" title={`Delete ${s.name}`} onClick={() => void removeSub(s)} />
               </li>
             ))}
             {subs && !subs.length && <li className="px-3 py-6 text-center text-sm text-slate-400">No sub-categories yet</li>}
@@ -289,7 +283,7 @@ function ExpenseCategories({ open, onClose }: { open: boolean; onClose: () => vo
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Expense categories" size="sm">
+    <Modal open={open} onClose={onClose} title="Expense Categories" size="sm">
       <form onSubmit={add} className="mb-3 flex gap-2">
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New category name" className="min-w-0 flex-1" />
         <Button type="submit" loading={busy}>
@@ -300,9 +294,7 @@ function ExpenseCategories({ open, onClose }: { open: boolean; onClose: () => vo
         {data?.map((c) => (
           <li key={c.id} className="flex items-center gap-3 py-2 text-sm">
             <span className="min-w-0 flex-1 truncate">{c.name}</span>
-            <button onClick={() => void remove(c)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Delete ${c.name}`}>
-              <Trash2 className="size-4" />
-            </button>
+            <RowAction kind="delete" title={`Delete ${c.name}`} onClick={() => void remove(c)} />
           </li>
         ))}
       </ul>

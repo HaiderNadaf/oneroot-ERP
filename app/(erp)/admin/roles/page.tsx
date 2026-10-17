@@ -1,7 +1,7 @@
 "use client";
 
-import { Plus, Save, Trash2 } from "lucide-react";
-import { PermissionPicker } from "@/components/PermissionPicker";
+import { Plus, Save } from "lucide-react";
+import { PermissionPicker, useCanGrantAll } from "@/components/PermissionPicker";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { RoleTemplateForm } from "@/components/RoleTemplateForm";
@@ -64,16 +64,16 @@ function Roles() {
 
   return (
     <>
-      <PageHeader title="Roles & authority limits" subtitle="Each built-in role gets a ceiling. Anything above it needs a manager's PIN at the counter or an approval from the inbox. Blank = no limit. Your own roles below inherit the ceilings of the role they are based on." />
+      <PageHeader title="Roles & Authority Limits" subtitle="Each built-in role gets a ceiling. Anything above it needs a manager's PIN at the counter or an approval from the inbox. Blank = no limit. Your own roles below inherit the ceilings of the role they are based on." />
       <Card bodyClassName="p-0">
         <Table>
           <thead>
             <tr>
               <Th>Role</Th>
-              <Th right>Max discount %</Th>
-              <Th right>Return / refund up to ₹</Th>
-              <Th right>Stock adjustment up to ₹</Th>
-              <Th>See cost price</Th>
+              <Th right>Max Discount %</Th>
+              <Th right>Return / Refund Up To ₹</Th>
+              <Th right>Stock Adjustment Up To ₹</Th>
+              <Th>See Cost Price</Th>
               <Th />
             </tr>
           </thead>
@@ -89,9 +89,9 @@ function Roles() {
                       {l.role === "ADMIN" ? "Owner — approves everyone, no limits" : l.role === "MANAGER" ? "Approves cashiers by PIN or from the inbox" : l.role === "CASHIER" ? "Counter billing and receipts" : "Books, payments, reports"}
                     </p>
                   </Td>
-                  <Td right>{admin ? "Any" : <Input type="number" min="0" max="100" step="0.5" value={d.maxDiscountPct} placeholder="no limit" onChange={(e) => set(l, { maxDiscountPct: e.target.value })} className="num h-8 w-24 text-right" />}</Td>
-                  <Td right>{admin ? "Any" : <Input type="number" min="0" step="100" value={d.returnLimit} placeholder="no limit" onChange={(e) => set(l, { returnLimit: e.target.value })} className="num h-8 w-28 text-right sm:w-32" />}</Td>
-                  <Td right>{admin ? "Any" : <Input type="number" min="0" step="100" value={d.adjustmentLimit} placeholder="no limit" onChange={(e) => set(l, { adjustmentLimit: e.target.value })} className="num h-8 w-28 text-right sm:w-32" />}</Td>
+                  <Td right>{admin ? "Any" : <Input type="number" min="0" max="100" step="0.5" value={d.maxDiscountPct} placeholder="No limit" onChange={(e) => set(l, { maxDiscountPct: e.target.value })} className="num h-8 w-24 text-right" />}</Td>
+                  <Td right>{admin ? "Any" : <Input type="number" min="0" step="100" value={d.returnLimit} placeholder="No limit" onChange={(e) => set(l, { returnLimit: e.target.value })} className="num h-8 w-28 text-right sm:w-32" />}</Td>
+                  <Td right>{admin ? "Any" : <Input type="number" min="0" step="100" value={d.adjustmentLimit} placeholder="No limit" onChange={(e) => set(l, { adjustmentLimit: e.target.value })} className="num h-8 w-28 text-right sm:w-32" />}</Td>
                   <Td>{admin ? "Yes" : <Checkbox label="" checked={d.seeCostPrice} onChange={(v) => set(l, { seeCostPrice: v })} />}</Td>
                   <Td right>
                     {!admin && (
@@ -135,11 +135,12 @@ function PermissionSummary({ keys }: { keys: string[] }) {
 
 /** What Manager / Accountant / Cashier may open: everyone on the role follows it, plus their own extras / removals */
 function BuiltInRoles() {
+  const canGrantAll = useCanGrantAll();
   const { data, error, loading, reload } = useApi<BuiltInRole[]>("/roles/built-in");
   const [editing, setEditing] = useState<BuiltInRole | null>(null);
 
   return (
-    <Card title="Role permissions" className="mt-4" bodyClassName="p-0">
+    <Card title="Role Permissions" className="mt-4" bodyClassName="p-0">
       {error ? (
         <div className="p-4">
           <ErrorBox message={error} onRetry={reload} />
@@ -149,7 +150,7 @@ function BuiltInRoles() {
           <thead>
             <tr>
               <Th>Role</Th>
-              <Th>Can open</Th>
+              <Th>Can Open</Th>
               <Th right>Users</Th>
               <ActionsTh />
             </tr>
@@ -187,7 +188,9 @@ function BuiltInRoles() {
                     </Td>
                     <Td right>{r.userCount ? <Badge tone="blue">{r.userCount}</Badge> : <span className="text-xs text-slate-400">none</span>}</Td>
                     <ActionsTd>
-                      <RowAction kind="edit" title={`Edit ${roleName(r.role)} permissions`} onClick={() => setEditing(r)} />
+                      {canGrantAll(r.permissions) && (
+                        <RowAction kind="edit" title={`Edit ${roleName(r.role)} permissions`} onClick={() => setEditing(r)} />
+                      )}
                     </ActionsTd>
                   </tr>
                 );
@@ -239,7 +242,7 @@ function BuiltInRoleForm({ role, onClose, onSaved }: { role: BuiltInRole; onClos
     <Modal
       open
       onClose={onClose}
-      title={`${roleName(role.role)} permissions`}
+      title={`${roleName(role.role)} Permissions`}
       size="lg"
       footer={
         <>
@@ -247,7 +250,7 @@ function BuiltInRoleForm({ role, onClose, onSaved }: { role: BuiltInRole; onClos
             Cancel
           </Button>
           <Button loading={saving} onClick={save}>
-            Save role
+            Save Role
           </Button>
         </>
       }
@@ -257,7 +260,7 @@ function BuiltInRoleForm({ role, onClose, onSaved }: { role: BuiltInRole; onClos
           value={permissions}
           onChange={setPermissions}
           defaults={normalizePermissions(role.defaults)}
-          resetLabel={`Reset to standard ${roleName(role.role)}`}
+          resetLabel={`Reset to Standard ${roleName(role.role)}`}
         />
         <p className="text-xs text-slate-500 sm:col-span-2">
           {role.userCount
@@ -274,6 +277,7 @@ function BuiltInRoleForm({ role, onClose, onSaved }: { role: BuiltInRole; onClos
 function CustomRoles() {
   const toast = useToast();
   const confirm = useConfirm();
+  const canGrantAll = useCanGrantAll();
   const { data, error, loading, reload } = useApi<RoleTemplate[]>("/roles/custom");
   const [form, setForm] = useState<{ open: boolean; template: RoleTemplate | null }>({ open: false, template: null });
   const [removing, setRemoving] = useState<string | null>(null);
@@ -295,12 +299,12 @@ function CustomRoles() {
 
   return (
     <Card
-      title="Your roles"
+      title="Your Roles"
       className="mt-4"
       bodyClassName="p-0"
       actions={
         <Button size="sm" icon={<Plus className="size-4" />} onClick={() => setForm({ open: true, template: null })}>
-          New role
+          New Role
         </Button>
       }
     >
@@ -314,7 +318,7 @@ function CustomRoles() {
             <tr>
               <Th>Role</Th>
               <Th>Department</Th>
-              <Th>Money limits</Th>
+              <Th>Money Limits</Th>
               <Th>Permissions</Th>
               <Th right>Users</Th>
               <ActionsTh />
@@ -345,8 +349,8 @@ function CustomRoles() {
                   </Td>
                   <Td right>{t.userCount ? <Badge tone="blue">{t.userCount}</Badge> : <span className="text-xs text-slate-400">none</span>}</Td>
                   <ActionsTd>
-                    <RowAction kind="edit" title={`Edit ${t.name}`} onClick={() => setForm({ open: true, template: t })} />
-                    <Button variant="ghost" size="sm" icon={<Trash2 className="size-4" />} loading={removing === t.id} disabled={t.userCount > 0} onClick={() => remove(t)} aria-label="Delete role" />
+                    {canGrantAll(t.permissions) && <RowAction kind="edit" title={`Edit ${t.name}`} onClick={() => setForm({ open: true, template: t })} />}
+                    <RowAction kind="delete" title={t.userCount > 0 ? `${t.name} is still assigned to users` : `Delete ${t.name}`} loading={removing === t.id} disabled={t.userCount > 0} onClick={() => remove(t)} />
                   </ActionsTd>
                 </tr>
               ))

@@ -100,7 +100,13 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
   );
   const [notes, setNotes] = useState(po?.notes ?? "");
   const [termsOpen, setTermsOpen] = useState(false);
-  const [transportCharges, setTransportCharges] = useState(po && n(po.transportCharges) ? String(n(po.transportCharges)) : "");
+  // An inclusive PO shows the amount as it was entered (value before GST + its GST)
+  const [transportCharges, setTransportCharges] = useState(() => {
+    if (!po || !n(po.transportCharges)) return "";
+    const rate = po.transportGstRate != null ? n(po.transportGstRate) : CHARGES_GST_RATE;
+    return String(po.transportGstInclusive ? round2(n(po.transportCharges) * (1 + rate / 100)) : n(po.transportCharges));
+  });
+  const [transportInclusive, setTransportInclusive] = useState(!!po?.transportGstInclusive);
   const [otherCharges, setOtherCharges] = useState(po && n(po.otherCharges) ? String(n(po.otherCharges)) : "");
   const [transportGstRate, setTransportGstRate] = useState(String(po?.transportGstRate != null ? n(po.transportGstRate) : CHARGES_GST_RATE));
   const [otherChargesGstRate, setOtherChargesGstRate] = useState(String(po?.otherChargesGstRate != null ? n(po.otherChargesGstRate) : CHARGES_GST_RATE));
@@ -195,7 +201,9 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
 
   const subtotal = round2(lines.reduce((s, l) => s + lineTaxable(l), 0));
   const discountTotal = round2(lines.reduce((s, l) => s + lineGross(l) - lineTaxable(l), 0));
-  const transport = round2(Math.max(0, Number(transportCharges) || 0));
+  // Transport is taxed on its value before GST; an amount entered "Incl. GST" is brought back to it (same as the backend)
+  const transportEntered = round2(Math.max(0, Number(transportCharges) || 0));
+  const transport = transportInclusive ? round2(transportEntered / (1 + Number(transportGstRate) / 100)) : transportEntered;
   const other = round2(Math.max(0, Number(otherCharges) || 0));
   // Same as the backend: each item is taxed at its own GST rate, and each charge at its own rate (18% by default)
   const slabs = gstSlabs([
@@ -247,6 +255,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
       notes: notes.trim() || undefined,
       transportCharges: Number(transportCharges) || 0,
       transportGstRate: Number(transportGstRate),
+      transportGstInclusive: transportInclusive,
       otherCharges: Number(otherCharges) || 0,
       otherChargesGstRate: Number(otherChargesGstRate),
       otherChargesNote: otherChargesNote.trim() || undefined,
@@ -543,12 +552,19 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
             {/* Charges come before GST: each is taxed at its own rate (18% by default) */}
             <div className="space-y-2 border-y border-dashed border-slate-200 py-2">
               <ChargeInput
-                label="Transportation (Excl. GST)"
+                label="Transportation"
                 value={transportCharges}
                 onChange={setTransportCharges}
                 gstRate={transportGstRate}
                 onGstRate={setTransportGstRate}
+                inclusive={transportInclusive}
+                onInclusive={setTransportInclusive}
               />
+              {transportInclusive && transportEntered > 0 && (
+                <p className="text-right text-[11px] text-slate-500">
+                  {inr(transportEntered)} incl. GST = {inr(transport)} + GST {inr(round2(transportEntered - transport))}
+                </p>
+              )}
               <ChargeInput
                 label="Other Charges (Excl. GST)"
                 value={otherCharges}
@@ -624,12 +640,17 @@ function ChargeInput({
   onChange,
   gstRate,
   onGstRate,
+  inclusive,
+  onInclusive,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   gstRate: string;
   onGstRate: (v: string) => void;
+  /** When given, a GST type choice is shown: the amount is before GST (exclusive) or already includes it (inclusive) */
+  inclusive?: boolean;
+  onInclusive?: (v: boolean) => void;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -642,6 +663,18 @@ function ChargeInput({
             </option>
           ))}
         </Select>
+        {onInclusive && (
+          <Select
+            value={inclusive ? "INCL" : "EXCL"}
+            onChange={(e) => onInclusive(e.target.value === "INCL")}
+            className="h-8 w-28 text-xs"
+            aria-label={`GST type on ${label}`}
+            title="Is GST already included in the amount?"
+          >
+            <option value="EXCL">Excl. GST</option>
+            <option value="INCL">Incl. GST</option>
+          </Select>
+        )}
         <Input
           type="number"
           step="0.01"

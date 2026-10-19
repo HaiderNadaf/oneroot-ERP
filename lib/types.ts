@@ -750,6 +750,8 @@ export interface PurchaseOrder {
   transportCharges?: Dec;
   /** GST % on the transportation / other charges (18 by default) */
   transportGstRate?: Dec;
+  /** The transport amount was entered including GST; transportCharges is still the value before GST */
+  transportGstInclusive?: boolean;
   otherCharges?: Dec;
   otherChargesGstRate?: Dec;
   otherChargesNote?: string | null;

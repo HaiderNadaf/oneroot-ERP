@@ -334,7 +334,7 @@ export default function PurchaseOrderDetailPage() {
             <dl className="space-y-1.5 text-sm sm:ml-auto sm:w-72">
               {/* Charges come before GST: each is taxed at its own rate (18% by default) */}
               <Row label="Items Value" value={inr(po.subtotal)} />
-              {n(po.transportCharges) > 0 && <Row label={`Transportation Charges (Excl. GST ${chargeRate(po.transportGstRate)}%)`} value={inr(po.transportCharges)} />}
+              {n(po.transportCharges) > 0 && <Row label={`Transportation Charges ${transportNote(po)}`} value={inr(po.transportCharges)} />}
               {n(po.otherCharges) > 0 && (
                 <Row
                   label={`${po.otherChargesNote ? `Other charges (${po.otherChargesNote})` : "Other Charges"} (excl. GST ${chargeRate(po.otherChargesGstRate)}%)`}
@@ -764,6 +764,12 @@ function fitPoPrintToPages() {
 
 /** GST % on a charge; older POs without one were saved before the 18% default */
 const chargeRate = (rate: PurchaseOrder["transportGstRate"]) => (rate != null ? n(rate) : CHARGES_GST_RATE);
+/** "(Excl. GST 18%)", or for an amount entered with GST: "(₹1,000.00 incl. GST 18% · value before GST)" */
+const transportNote = (po: PurchaseOrder) => {
+  const rate = chargeRate(po.transportGstRate);
+  if (!po.transportGstInclusive) return `(Excl. GST ${rate}%)`;
+  return `(${inr(round2(n(po.transportCharges) * (1 + rate / 100)))} incl. GST ${rate}% · value before GST)`;
+};
 
 /** Rate-wise GST of a saved PO: each item at its own rate (its amount less its taxable value), each charge at its rate */
 function poGstSlabs(po: PurchaseOrder) {
@@ -977,7 +983,7 @@ function PoPrint({ po, store, notApproved }: { po: PurchaseOrder; store: StoreSe
                       {discount > 0.004 && <Row label="Gross Value" value={inr(gross)} />}
                       {discount > 0.004 && <Row label="Discount" value={`−${inr(discount)}`} />}
                       <Row label="Items Value" value={inr(po.subtotal)} />
-                      {n(po.transportCharges) > 0 && <Row label={`Transportation (Excl. GST ${chargeRate(po.transportGstRate)}%)`} value={inr(po.transportCharges)} />}
+                      {n(po.transportCharges) > 0 && <Row label={`Transportation ${transportNote(po)}`} value={inr(po.transportCharges)} />}
                       {n(po.otherCharges) > 0 && (
                         <Row
                           label={`${po.otherChargesNote ? `Other (${po.otherChargesNote})` : "Other Charges"} (excl. GST ${chargeRate(po.otherChargesGstRate)}%)`}

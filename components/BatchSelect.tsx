@@ -32,6 +32,7 @@ export function BatchSelect({
   onChange,
   placeholder = "Select batch",
   invalid,
+  onAddMultiple,
 }: {
   id?: string;
   productId: string;
@@ -40,6 +41,8 @@ export function BatchSelect({
   onChange: (pick: BatchPick) => void;
   placeholder?: string;
   invalid?: boolean;
+  /** When given, the bottom of the list offers "Multiple batches" next to "Single batch" */
+  onAddMultiple?: () => void;
 }) {
   const { data, loading } = useApi<Paged<Batch>>("/inventory/batches", { productId, status: "all", pageSize: 100 });
   const batches = (data?.items ?? [])
@@ -203,6 +206,26 @@ export function BatchSelect({
                   <Button size="sm" onClick={addNew} disabled={!draft.trim()}>
                     Add
                   </Button>
+                </div>
+              ) : onAddMultiple ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAdding(true)}
+                    className="inline-flex items-center justify-center gap-1 rounded-md border border-dashed border-brand-300 bg-white px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                  >
+                    <Plus className="size-3.5" /> Single batch
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      onAddMultiple();
+                    }}
+                    className="inline-flex items-center justify-center gap-1 rounded-md border border-dashed border-brand-300 bg-white px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                  >
+                    <Plus className="size-3.5" /> Multiple batches
+                  </button>
                 </div>
               ) : (
                 <button

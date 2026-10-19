@@ -60,6 +60,15 @@ let batchSeq = 0;
 const blankBatch = (qtyValue = ""): BatchRow => ({ key: ++batchSeq, qty: qtyValue, batchNo: "", mfgDate: "", expiryDate: "" });
 const serialsOf = (l: Line) => l.serials.map((x) => x.trim()).filter(Boolean);
 
+/** Batch numbers counted up from the first one: TL-001 → TL-001, TL-002 …; without a number at the end: LOT → LOT-1, LOT-2 … */
+function numberedBatches(first: string, count: number) {
+  const m = /^(.*?)(\d+)$/.exec(first.trim());
+  if (!m) return Array.from({ length: count }, (_, i) => `${first.trim()}-${i + 1}`);
+  const [, prefix, digits] = m;
+  const start = Number(digits);
+  return Array.from({ length: count }, (_, i) => `${prefix}${String(start + i).padStart(digits.length, "0")}`);
+}
+
 const OUT_FIELDS = [
   { key: "rejected", label: "Rejected", hint: "Debit note to vendor", tone: "text-red-600" },
   { key: "damaged", label: "Damaged", hint: "Written off", tone: "text-amber-700" },
@@ -717,6 +726,9 @@ function BatchesModal({
   const p = item.product;
   const pending = pendingOf(item);
   const rows = line.batches;
+  // "Multiple batches": several rows at once, numbered up from the first, all with the same dates
+  const [multi, setMulti] = useState<{ rowKey: number | null; count: string; each: string; first: string; mfgDate: string; expiryDate: string } | null>(null);
+  const [multiError, setMultiError] = useState<string | null>(null);
   const received = receivedOf(line);
   const outOfStock = r3(num(line.rejected) + num(line.damaged) + num(line.expired));
   const left = r3(pending - received - outOfStock);
@@ -725,6 +737,41 @@ function BatchesModal({
   const remove = (key: number) => onChange(rows.length > 1 ? rows.filter((b) => b.key !== key) : [blankBatch()]);
   // A new row starts with whatever is still due
   const add = () => onChange([...rows, blankBatch(left > 0 ? String(left) : "")]);
+
+  /** Opens the multiple-batches form; from a row it takes that row's quantity (one each) and dates */
+  function startMulti(rowKey: number | null) {
+    const row = rowKey !== null ? rows.find((b) => b.key === rowKey) : null;
+    const base = row ? num(row.qty) : left;
+    const whole = Number.isInteger(base) && base > 0 ? base : 2;
+    setMultiError(null);
+    setMulti({ rowKey, count: String(whole), each: "1", first: row?.batchNo ?? "", mfgDate: row?.mfgDate ?? "", expiryDate: row?.expiryDate ?? "" });
+  }
+
+  function createMulti() {
+    if (!multi) return;
+    const count = Number(multi.count);
+    const each = Number(multi.each);
+    if (!Number.isInteger(count) || count < 2 || count > 500) return setMultiError("Number of batches must be a whole number from 2 to 500");
+    if (!(each > 0)) return setMultiError("Enter the quantity in each batch");
+    if (!multi.first.trim()) return setMultiError("Enter the first batch number");
+    if (p.trackBatch && !multi.expiryDate) return setMultiError("Enter the expiry date");
+    if (multi.expiryDate && multi.expiryDate <= today()) return setMultiError("Expiry must be a future date");
+    if (multi.mfgDate && multi.expiryDate && multi.expiryDate < multi.mfgDate) return setMultiError("Expiry is before the Mfg date");
+    const made = numberedBatches(multi.first, count).map((batchNo) => ({ ...blankBatch(String(each)), batchNo, mfgDate: multi.mfgDate, expiryDate: multi.expiryDate }));
+    const taken = new Set(rows.filter((b) => b.key !== multi.rowKey).map((b) => b.batchNo.trim().toLowerCase()).filter(Boolean));
+    const clash = made.find((b) => taken.has(b.batchNo.toLowerCase()));
+    if (clash) return setMultiError(`${clash.batchNo} is already on another row`);
+    if (multi.rowKey !== null) {
+      // From a row: that row becomes the new batches, in its place
+      const at = rows.findIndex((b) => b.key === multi.rowKey);
+      onChange([...rows.slice(0, at), ...made, ...rows.slice(at + 1)]);
+    } else {
+      // From the bottom: added after the others; a single row without a batch number gives way
+      const lone = rows.length === 1 && !rows[0].batchNo.trim();
+      onChange(lone ? made : [...rows, ...made]);
+    }
+    setMulti(null);
+  }
 
   return (
     <Modal
@@ -795,6 +842,7 @@ function BatchesModal({
                         value={b.batchNo}
                         invalid={!!msg && /batch no/i.test(msg)}
                         placeholder={p.trackBatch ? "Select or add batch" : "Optional"}
+                        onAddMultiple={() => startMulti(b.key)}
                         onChange={(pick: BatchPick) =>
                           set(b.key, pick.existing ? { batchNo: pick.batchNo, mfgDate: pick.mfgDate ?? "", expiryDate: pick.expiryDate ?? "" } : { batchNo: pick.batchNo })
                         }
@@ -837,13 +885,65 @@ function BatchesModal({
           </tbody>
         </table>
       </div>
-      <button
-        type="button"
-        onClick={add}
-        className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-dashed border-brand-300 px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50"
-      >
-        <Plus className="size-4" /> Add batch
-      </button>
+      {multi ? (
+        <div className="mt-3 rounded-lg border border-brand-200 bg-brand-50/40 p-3">
+          <p className="mb-2 text-sm font-semibold text-slate-800">Add multiple batches</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <Field label="Number of Batches" required>
+              <Input type="number" min="2" step="1" inputMode="numeric" value={multi.count} onChange={(e) => setMulti({ ...multi, count: e.target.value })} className="num text-right" aria-label="Number of batches" />
+            </Field>
+            <Field label={`Qty in Each (${p.unit})`} required>
+              <Input type="number" min="0" step="any" inputMode="decimal" value={multi.each} onChange={(e) => setMulti({ ...multi, each: e.target.value })} className="num text-right" aria-label="Quantity in each batch" />
+            </Field>
+            <Field label="First Batch No." required>
+              <Input value={multi.first} onChange={(e) => setMulti({ ...multi, first: e.target.value })} placeholder="e.g. TL-001" className="font-mono" data-scan-input aria-label="First batch number" />
+            </Field>
+            <Field label="Mfg Date">
+              <DateInput max={today()} value={multi.mfgDate} onChange={(e) => setMulti({ ...multi, mfgDate: e.target.value })} aria-label="Mfg date for all" />
+            </Field>
+            <Field label="Expiry Date" required={p.trackBatch}>
+              <DateInput value={multi.expiryDate} min={multi.mfgDate || undefined} onChange={(e) => setMulti({ ...multi, expiryDate: e.target.value })} aria-label="Expiry date for all" />
+            </Field>
+          </div>
+          {(() => {
+            const count = Number(multi.count);
+            if (!multi.first.trim() || !Number.isInteger(count) || count < 2 || count > 500) return null;
+            const list = numberedBatches(multi.first, count);
+            return (
+              <p className="mt-2 text-xs text-slate-600">
+                Creates <b>{count}</b> batches · <span className="font-mono">{list.slice(0, 3).join(", ")}{count > 3 ? ` … ${list[count - 1]}` : ""}</span> ·{" "}
+                {qty(count * (Number(multi.each) || 0))} {p.unit} in all, each with the same Mfg and expiry date
+              </p>
+            );
+          })()}
+          {multiError && <p className="mt-1 text-xs font-medium text-red-600">{multiError}</p>}
+          <div className="mt-3 flex gap-2">
+            <Button size="sm" onClick={createMulti}>
+              Create batches
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setMulti(null)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={add}
+            className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-brand-300 px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50"
+          >
+            <Plus className="size-4" /> Add batch
+          </button>
+          <button
+            type="button"
+            onClick={() => startMulti(null)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-brand-300 px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50"
+          >
+            <Plus className="size-4" /> Add multiple batches
+          </button>
+        </div>
+      )}
       <p className="mt-2 text-xs text-slate-500">
         Enter what passed QC, batch by batch. Rejected, damaged or expired goods go in the line&apos;s details (▸), not here.
       </p>

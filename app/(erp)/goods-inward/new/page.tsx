@@ -60,14 +60,6 @@ let batchSeq = 0;
 const blankBatch = (qtyValue = ""): BatchRow => ({ key: ++batchSeq, qty: qtyValue, batchNo: "", mfgDate: "", expiryDate: "" });
 const serialsOf = (l: Line) => l.serials.map((x) => x.trim()).filter(Boolean);
 
-/** Batch numbers counted up from the first one: TL-001 → TL-001, TL-002 …; without a number at the end: LOT → LOT-1, LOT-2 … */
-function numberedBatches(first: string, count: number) {
-  const m = /^(.*?)(\d+)$/.exec(first.trim());
-  if (!m) return Array.from({ length: count }, (_, i) => `${first.trim()}-${i + 1}`);
-  const [, prefix, digits] = m;
-  const start = Number(digits);
-  return Array.from({ length: count }, (_, i) => `${prefix}${String(start + i).padStart(digits.length, "0")}`);
-}
 
 const OUT_FIELDS = [
   { key: "rejected", label: "Rejected", hint: "Debit note to vendor", tone: "text-red-600" },
@@ -726,8 +718,8 @@ function BatchesModal({
   const p = item.product;
   const pending = pendingOf(item);
   const rows = line.batches;
-  // "Multiple batches": several rows at once, numbered up from the first, all with the same dates
-  const [multi, setMulti] = useState<{ rowKey: number | null; count: string; each: string; first: string; mfgDate: string; expiryDate: string } | null>(null);
+  // "Multiple batches": one empty batch-number box per unit; each becomes its own batch of 1, all with the same dates
+  const [multi, setMulti] = useState<{ rowKey: number | null; count: string; numbers: string[]; mfgDate: string; expiryDate: string } | null>(null);
   const [multiError, setMultiError] = useState<string | null>(null);
   const received = receivedOf(line);
   const outOfStock = r3(num(line.rejected) + num(line.damaged) + num(line.expired));
@@ -738,26 +730,56 @@ function BatchesModal({
   // A new row starts with whatever is still due
   const add = () => onChange([...rows, blankBatch(left > 0 ? String(left) : "")]);
 
-  /** Opens the multiple-batches form; from a row it takes that row's quantity (one each) and dates */
+  /** Opens the multiple-batches form with one empty box per unit; from a row it takes that row's quantity and dates */
   function startMulti(rowKey: number | null) {
     const row = rowKey !== null ? rows.find((b) => b.key === rowKey) : null;
     const base = row ? num(row.qty) : left;
-    const whole = Number.isInteger(base) && base > 0 ? base : 2;
+    const whole = Number.isInteger(base) && base > 0 ? Math.min(base, 500) : 2;
     setMultiError(null);
-    setMulti({ rowKey, count: String(whole), each: "1", first: row?.batchNo ?? "", mfgDate: row?.mfgDate ?? "", expiryDate: row?.expiryDate ?? "" });
+    setMulti({ rowKey, count: String(whole), numbers: Array(whole).fill(""), mfgDate: row?.mfgDate ?? "", expiryDate: row?.expiryDate ?? "" });
+  }
+
+  /** The number of boxes follows the quantity (typed numbers are kept) */
+  function setCount(value: string) {
+    if (!multi) return;
+    const c = Number(value);
+    const size = Number.isInteger(c) && c > 0 ? Math.min(c, 500) : 0;
+    setMulti({ ...multi, count: value, numbers: Array.from({ length: size }, (_, i) => multi.numbers[i] ?? "") });
+  }
+
+  function setNumber(i: number, value: string) {
+    if (!multi) return;
+    setMulti({ ...multi, numbers: multi.numbers.map((x, j) => (j === i ? value : x)) });
+  }
+
+  /** Several batch numbers pasted at once fill the boxes from this one on */
+  function pasteNumbers(i: number, text: string) {
+    if (!multi) return false;
+    const parts = text.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+    if (parts.length < 2) return false;
+    const next = [...multi.numbers];
+    parts.forEach((part, k) => {
+      if (i + k < next.length) next[i + k] = part;
+    });
+    setMulti({ ...multi, numbers: next });
+    return true;
   }
 
   function createMulti() {
     if (!multi) return;
     const count = Number(multi.count);
-    const each = Number(multi.each);
-    if (!Number.isInteger(count) || count < 2 || count > 500) return setMultiError("Number of batches must be a whole number from 2 to 500");
-    if (!(each > 0)) return setMultiError("Enter the quantity in each batch");
-    if (!multi.first.trim()) return setMultiError("Enter the first batch number");
+    if (!Number.isInteger(count) || count < 2 || count > 500) return setMultiError("Quantity must be a whole number from 2 to 500");
+    const numbers = multi.numbers.map((x) => x.trim());
+    const empty = numbers.findIndex((x) => !x);
+    if (empty >= 0) return setMultiError(`Enter the batch number in box ${empty + 1}`);
+    const lower = numbers.map((x) => x.toLowerCase());
+    const twice = lower.findIndex((x, i) => lower.indexOf(x) !== i);
+    if (twice >= 0) return setMultiError(`${numbers[twice]} is entered twice`);
     if (p.trackBatch && !multi.expiryDate) return setMultiError("Enter the expiry date");
     if (multi.expiryDate && multi.expiryDate <= today()) return setMultiError("Expiry must be a future date");
     if (multi.mfgDate && multi.expiryDate && multi.expiryDate < multi.mfgDate) return setMultiError("Expiry is before the Mfg date");
-    const made = numberedBatches(multi.first, count).map((batchNo) => ({ ...blankBatch(String(each)), batchNo, mfgDate: multi.mfgDate, expiryDate: multi.expiryDate }));
+    // One batch per box, quantity 1 each, all with the dates entered once
+    const made = numbers.map((batchNo) => ({ ...blankBatch("1"), batchNo, mfgDate: multi.mfgDate, expiryDate: multi.expiryDate }));
     const taken = new Set(rows.filter((b) => b.key !== multi.rowKey).map((b) => b.batchNo.trim().toLowerCase()).filter(Boolean));
     const clash = made.find((b) => taken.has(b.batchNo.toLowerCase()));
     if (clash) return setMultiError(`${clash.batchNo} is already on another row`);
@@ -887,16 +909,10 @@ function BatchesModal({
       </div>
       {multi ? (
         <div className="mt-3 rounded-lg border border-brand-200 bg-brand-50/40 p-3">
-          <p className="mb-2 text-sm font-semibold text-slate-800">Add multiple batches</p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <Field label="Number of Batches" required>
-              <Input type="number" min="2" step="1" inputMode="numeric" value={multi.count} onChange={(e) => setMulti({ ...multi, count: e.target.value })} className="num text-right" aria-label="Number of batches" />
-            </Field>
-            <Field label={`Qty in Each (${p.unit})`} required>
-              <Input type="number" min="0" step="any" inputMode="decimal" value={multi.each} onChange={(e) => setMulti({ ...multi, each: e.target.value })} className="num text-right" aria-label="Quantity in each batch" />
-            </Field>
-            <Field label="First Batch No." required>
-              <Input value={multi.first} onChange={(e) => setMulti({ ...multi, first: e.target.value })} placeholder="e.g. TL-001" className="font-mono" data-scan-input aria-label="First batch number" />
+          <p className="mb-2 text-sm font-semibold text-slate-800">Add multiple batches · one batch number per unit</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Field label={`Quantity (${p.unit})`} required hint="One box below for each unit">
+              <Input type="number" min="2" step="1" inputMode="numeric" value={multi.count} onChange={(e) => setCount(e.target.value)} className="num text-right" aria-label="Number of batches" />
             </Field>
             <Field label="Mfg Date">
               <DateInput max={today()} value={multi.mfgDate} onChange={(e) => setMulti({ ...multi, mfgDate: e.target.value })} aria-label="Mfg date for all" />
@@ -905,17 +921,41 @@ function BatchesModal({
               <DateInput value={multi.expiryDate} min={multi.mfgDate || undefined} onChange={(e) => setMulti({ ...multi, expiryDate: e.target.value })} aria-label="Expiry date for all" />
             </Field>
           </div>
-          {(() => {
-            const count = Number(multi.count);
-            if (!multi.first.trim() || !Number.isInteger(count) || count < 2 || count > 500) return null;
-            const list = numberedBatches(multi.first, count);
-            return (
-              <p className="mt-2 text-xs text-slate-600">
-                Creates <b>{count}</b> batches · <span className="font-mono">{list.slice(0, 3).join(", ")}{count > 3 ? ` … ${list[count - 1]}` : ""}</span> ·{" "}
-                {qty(count * (Number(multi.each) || 0))} {p.unit} in all, each with the same Mfg and expiry date
-              </p>
-            );
-          })()}
+          {multi.numbers.length > 0 && (
+            <>
+              <div className="mb-1 mt-3 flex items-baseline justify-between gap-2">
+                <span className="text-xs font-medium text-slate-600">Batch Numbers</span>
+                <span className="num text-xs text-slate-500">
+                  {multi.numbers.filter((x) => x.trim()).length} of {multi.numbers.length} entered
+                </span>
+              </div>
+              <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
+                {multi.numbers.map((no, i) => (
+                  <div key={i} className="flex items-center gap-1">
+                    <span className="num w-7 shrink-0 text-right text-xs text-slate-400">{i + 1}.</span>
+                    <Input
+                      value={no}
+                      onChange={(e) => setNumber(i, e.target.value)}
+                      onPaste={(e) => {
+                        if (pasteNumbers(i, e.clipboardData.getData("text"))) e.preventDefault();
+                      }}
+                      onKeyDown={(e) => {
+                        // Scanners end each code with Enter: move on to the next box
+                        if (e.key !== "Enter") return;
+                        e.preventDefault();
+                        document.querySelector<HTMLInputElement>(`input[aria-label="Batch number ${i + 2}"]`)?.focus();
+                      }}
+                      className="font-mono"
+                      placeholder="Batch no."
+                      data-scan-input
+                      aria-label={`Batch number ${i + 1}`}
+                      autoFocus={i === 0}
+                    />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           {multiError && <p className="mt-1 text-xs font-medium text-red-600">{multiError}</p>}
           <div className="mt-3 flex gap-2">
             <Button size="sm" onClick={createMulti}>

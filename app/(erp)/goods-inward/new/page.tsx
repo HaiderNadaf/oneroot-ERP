@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown, Info as InfoIcon, Layers, PackageCheck, Plus, ScanLine, Store, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Info as InfoIcon, Layers, PackageCheck, Plus, ScanLine, Store, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useState } from "react";
@@ -47,22 +47,10 @@ interface BatchRow {
 interface Line {
   /** Received (QC passed) stock, batch by batch; the Received Qty is their total */
   batches: BatchRow[];
-  rejected: string;
-  damaged: string;
-  expired: string;
-  location: string;
 }
 
-type OutKey = "rejected" | "damaged" | "expired";
 let batchSeq = 0;
 const blankBatch = (qtyValue = ""): BatchRow => ({ key: ++batchSeq, qty: qtyValue, batchNo: "", mfgDate: "", expiryDate: "" });
-
-
-const OUT_FIELDS = [
-  { key: "rejected", label: "Rejected", hint: "Debit note to vendor", tone: "text-red-600" },
-  { key: "damaged", label: "Damaged", hint: "Written off", tone: "text-amber-700" },
-  { key: "expired", label: "Expired", hint: "Kept out of stock", tone: "text-amber-700" },
-] as const;
 
 const num = (s: string) => Number(s) || 0;
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
@@ -75,23 +63,20 @@ const pendingOf = (i: PoItem) =>
 function check(item: PoItem, l: Line) {
   const pending = pendingOf(item);
   const passed = receivedOf(l);
-  const expired = num(l.expired);
-  const total = r3(passed + num(l.rejected) + num(l.damaged) + expired);
+  const total = passed;
   const track = item.product.trackBatch;
-  const errors: Partial<Record<OutKey | "total" | "batches", { msg: string; required?: boolean }>> = {};
-  for (const f of OUT_FIELDS) if (num(l[f.key]) < 0) errors[f.key] = { msg: "Can't be negative" };
+  const errors: Partial<Record<"total" | "batches", { msg: string; required?: boolean }>> = {};
   if (total > pending + 0.0005) errors.total = { msg: `${qty(total)} entered — only ${qty(pending)} pending` };
 
   // Each batch row: the quantity, and when the product tracks batches its number and a future expiry
-  const rowErrors = l.batches.map((b, i): { msg: string; required?: boolean } | null => {
+  const rowErrors = l.batches.map((b): { msg: string; required?: boolean } | null => {
     const q = num(b.qty);
-    const used = q > 0 || (i === 0 && expired > 0);
+    const used = q > 0;
     if (q < 0) return { msg: "Quantity can't be negative" };
     if (!used) return b.batchNo.trim() || b.mfgDate || b.expiryDate ? { msg: "Enter its quantity", required: true } : null;
     if (track && !b.batchNo.trim()) return { msg: "Batch no. is required", required: true };
     if (q > 0 && track && !b.expiryDate) return { msg: "Expiry date is required", required: true };
-    if (q > 0 && b.expiryDate && b.expiryDate <= today())
-      return { msg: track ? "Expiry must be a future date — count expired goods under Expired" : "Already expired — count these under Expired" };
+    if (q > 0 && b.expiryDate && b.expiryDate <= today()) return { msg: "Expiry must be a future date — expired goods aren't taken into stock" };
     if (b.mfgDate && b.mfgDate > today()) return { msg: "Mfg date can't be in the future" };
     if (b.mfgDate && b.expiryDate && b.expiryDate < b.mfgDate) return { msg: "Expiry is before the Mfg date" };
     return null;
@@ -163,13 +148,11 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const [receivedAt, setReceivedAt] = useState(today());
   // Every open line starts as fully received in one batch; the batch popup splits it
   const [lines, setLines] = useState<Record<string, Line>>(() =>
-    Object.fromEntries(items.map((i) => [i.id, { batches: [blankBatch(String(pendingOf(i)))], rejected: "", damaged: "", expired: "", location: "" } as Line])),
+    Object.fromEntries(items.map((i) => [i.id, { batches: [blankBatch(String(pendingOf(i)))] } as Line])),
   );
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [scanned, setScanned] = useState<string | null>(null);
-  // Rows whose details (rejected / damaged / expired, location) are open
-  const [openRows, setOpenRows] = useState<Record<string, boolean>>({});
   // Line whose batch popup is open
   const [batchFor, setBatchFor] = useState<string | null>(null);
   const { currentId, branches, locked, setBranch } = useBranch();
@@ -193,13 +176,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const open = items.filter((i) => pendingOf(i) > 0);
   const checks = new Map(open.map((i) => [i.id, check(i, lines[i.id])]));
 
-  const sumOut = (k: OutKey) => r3(open.reduce((s, i) => s + num(lines[i.id][k]), 0));
-  const totals = {
-    passed: r3(open.reduce((s, i) => s + receivedOf(lines[i.id]), 0)),
-    rejected: sumOut("rejected"),
-    damaged: sumOut("damaged"),
-    expired: sumOut("expired"),
-  };
+  const totals = { passed: r3(open.reduce((s, i) => s + receivedOf(lines[i.id]), 0)) };
   const passedValue = round2(open.reduce((s, i) => s + receivedOf(lines[i.id]) * n(i.rate), 0));
   const shortfall = r3(open.reduce((s, i) => s + Math.max(0, pendingOf(i) - (checks.get(i.id)?.total ?? 0)), 0));
   const anyQty = open.some((i) => (checks.get(i.id)?.total ?? 0) > 0);
@@ -220,16 +197,11 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
       if (errs.length) return toast.error(`${i.product.name}: ${errs[0]!.msg}`);
     }
 
-    const received = totals.passed + totals.rejected + totals.damaged + totals.expired;
-    const parts = [`${qty(received)} received in total`, `${qty(totals.passed)} into stock`];
-    if (totals.rejected) parts.push(`${qty(totals.rejected)} rejected (a debit note will be drafted to ${po.vendor?.name ?? "the vendor"})`);
-    if (totals.damaged) parts.push(`${qty(totals.damaged)} written off as damaged`);
-    if (totals.expired) parts.push(`${qty(totals.expired)} expired, kept out of stock`);
     const balance = shortLines.length
       ? ` ${shortLines.length} line${shortLines.length === 1 ? "" : "s"} will stay open for the balance.`
       : " The PO will be marked fully received.";
     const invoiceNote = totals.passed > 0 ? ` The purchase invoice will be booked under ${supplierInvoiceNo.trim()}.` : "";
-    if (!(await confirm(`Post goods inward for ${po.poNo}? ${parts.join(", ")}.${balance}${invoiceNote}`, { confirmLabel: "Post GRN" }))) return;
+    if (!(await confirm(`Post goods inward for ${po.poNo}? ${qty(totals.passed)} received into stock.${balance}${invoiceNote}`, { confirmLabel: "Post GRN" }))) return;
 
     setSaving(true);
     try {
@@ -237,20 +209,18 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
         vehicleNo: vehicleNo.trim() || undefined,
         supplierInvoiceNo: supplierInvoiceNo.trim() || undefined,
         receivedAt,
-        // One row per batch with a quantity; the first carries the rejected / damaged / expired counts
+        // One row per batch with a quantity; stock goes to the product's usual location
         items: open.flatMap((i) => {
           const l = lines[i.id];
           const filled = l.batches.filter((b) => num(b.qty) > 0);
           const rows = filled.length ? filled : [l.batches[0]];
-          const location = l.location.trim() || undefined;
-          return rows.map((b, k) => ({
+          return rows.map((b) => ({
             poItemId: i.id,
             passedQty: num(b.qty),
-            rejectedQty: k === 0 ? num(l.rejected) : 0,
-            damagedQty: k === 0 ? num(l.damaged) : 0,
-            expiredQty: k === 0 ? num(l.expired) : 0,
+            rejectedQty: 0,
+            damagedQty: 0,
+            expiredQty: 0,
             batchNo: b.batchNo.trim() || undefined,
-            location,
             mfgDate: b.mfgDate || undefined,
             expiryDate: b.expiryDate || undefined,
           }));
@@ -258,7 +228,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
       });
       // The purchase invoice is booked automatically when anything passed inspection
       toast.success(
-        `${grn.grnNo} posted · stock updated${grn.purchase ? ` · invoice ${grn.purchase.purchaseNo} booked` : ""}${totals.rejected > 0 ? " · debit note drafted" : ""}`,
+        `${grn.grnNo} posted · stock updated${grn.purchase ? ` · invoice ${grn.purchase.purchaseNo} booked` : ""}`,
       );
       if (grn.invoiceError) toast.warn(`Purchase invoice not booked: ${grn.invoiceError}. Book it from the GRN.`);
       counts.refresh();
@@ -345,9 +315,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
         <InfoIcon className="mt-0.5 size-4 shrink-0" />
         <p>
           Click <b>Batch No.</b> on a line to enter each batch received — its quantity, batch number, Mfg and expiry date; <b>Received Qty</b> is
-          their total. Open <b>▸</b> on a line for goods that were <b>rejected</b> (debit note to the vendor), <b>damaged</b> (written off) or{" "}
-          <b>expired</b> (kept out of stock), and the location. Anything not counted stays open on the PO for a later
-          delivery.
+          their total. Anything not received stays open on the PO for a later delivery.
           <span className="mt-1 flex items-center gap-1 text-xs text-sky-700">
             <ScanLine className="size-3.5" /> Scan a pack&apos;s barcode to jump to its line and fill the batch details.
           </span>
@@ -365,7 +333,6 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
               <Th right>PO Rate</Th>
               <Th right className="min-w-36">Received Qty</Th>
               <Th right>Total Amount</Th>
-              <Th />
             </tr>
           </thead>
           <tbody>
@@ -386,7 +353,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                     </Td>
                     <Td>—</Td>
                     <Td right>{inr(item.rate)}</Td>
-                    <Td right colSpan={3}>
+                    <Td right colSpan={2}>
                       <Badge tone="green">
                         <CheckCircle2 className="mr-1 size-3.5" /> Fully Received
                       </Badge>
@@ -402,14 +369,9 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
               };
               const over = !!c.errors.total;
               const short = r3(Math.max(0, pending - c.total));
-              const outOfStock = r3(num(l.rejected) + num(l.damaged) + num(l.expired));
               const amount = round2(c.passed * n(item.rate));
               const batchProblem = show("batches");
               const named = l.batches.filter((b) => b.batchNo.trim());
-              // Details open by themselves when they hold something or have a problem to fix
-              const detailError = !!(show("rejected") || show("damaged") || show("expired"));
-              const expanded = openRows[item.id] ?? (outOfStock > 0 || detailError);
-              const toggle = () => setOpenRows((o) => ({ ...o, [item.id]: !expanded }));
               return (
                 <Fragment key={item.id}>
                   <tr id={`grn-line-${item.id}`} className={cx("align-top", scanned === item.id && "bg-brand-50/60", over && "bg-red-50/60")}>
@@ -494,74 +456,12 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                           {l.batches.length > 1 ? `${l.batches.length} batches · ` : ""}QC passed
                         </p>
                       )}
-                      {outOfStock > 0 && <p className="text-[11px] text-slate-500">+ {qty(outOfStock)} not taken into stock</p>}
                     </Td>
                     <Td right className="whitespace-nowrap pt-3">
                       <span className="num font-semibold text-slate-900">{inr(amount)}</span>
                       <p className="text-[11px] text-slate-500">excl. GST</p>
                     </Td>
-                    <Td className="pt-2.5">
-                      <button
-                        type="button"
-                        onClick={toggle}
-                        aria-expanded={expanded}
-                        aria-label={`${expanded ? "Hide" : "Show"} details for ${p.name}`}
-                        title="Rejected / damaged / expired, location"
-                        className={cx("rounded-md p-1.5 hover:bg-slate-100", detailError ? "text-red-600" : "text-slate-500")}
-                      >
-                        <ChevronDown className={cx("size-4 transition-transform", expanded && "rotate-180")} />
-                      </button>
-                    </Td>
                   </tr>
-                  {expanded && (
-                    <tr className="bg-slate-50/70">
-                      <td colSpan={8} className="border-b border-slate-100 px-3 pb-4 pt-2 sm:px-4">
-                        <div className="flex flex-wrap items-center gap-2 pb-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              update(item.id, {
-                                batches: l.batches.length > 1 ? l.batches : [{ ...l.batches[0], qty: String(pending) }],
-                                rejected: "",
-                                damaged: "",
-                                expired: "",
-                              })
-                            }
-                          >
-                            All Passed
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => update(item.id, { batches: l.batches.map((b) => ({ ...b, qty: "" })), rejected: "", damaged: "", expired: "" })}
-                          >
-                            Not Arrived
-                          </Button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                          {OUT_FIELDS.map((f) => (
-                            <Field key={f.key} label={f.label} hint={f.hint}>
-                              <Input
-                                type="number"
-                                step="any"
-                                min="0"
-                                inputMode="decimal"
-                                className={cx("num w-full text-right font-medium", f.tone, show(f.key) && "border-red-400")}
-                                value={l[f.key]}
-                                placeholder="0"
-                                onChange={(e) => update(item.id, { [f.key]: e.target.value })}
-                              />
-                            </Field>
-                          ))}
-                          <Field label="Location" hint={p.location ? `Usually ${p.location}` : "Rack / bin (optional)"}>
-                            <Input value={l.location} onChange={(e) => update(item.id, { location: e.target.value })} placeholder={p.location ?? ""} />
-                          </Field>
-                        </div>
-
-                      </td>
-                    </tr>
-                  )}
                 </Fragment>
               );
             })}
@@ -577,7 +477,6 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
               <Td right className="num whitespace-nowrap text-slate-900">
                 {inr(passedValue)}
               </Td>
-              <Td />
             </tr>
           </tfoot>
         </Table>
@@ -585,11 +484,8 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-6">
-            <Total label="QC Passed" value={qty(totals.passed)} className="text-brand-700" />
-            <Total label="Rejected" value={qty(totals.rejected)} className={totals.rejected ? "text-red-600" : undefined} />
-            <Total label="Damaged" value={qty(totals.damaged)} className={totals.damaged ? "text-amber-700" : undefined} />
-            <Total label="Expired" value={qty(totals.expired)} className={totals.expired ? "text-amber-700" : undefined} />
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+            <Total label="Received" value={qty(totals.passed)} className="text-brand-700" />
             <Total label="Shortfall" value={qty(shortfall)} className={shortfall ? "text-amber-700" : undefined} />
             <Total label="Passed Value (PO Rate)" value={inr(passedValue)} />
           </dl>
@@ -649,8 +545,7 @@ function BatchesModal({
   const [multi, setMulti] = useState<{ rowKey: number | null; count: string; numbers: string[]; mfgDate: string; expiryDate: string } | null>(null);
   const [multiError, setMultiError] = useState<string | null>(null);
   const received = receivedOf(line);
-  const outOfStock = r3(num(line.rejected) + num(line.damaged) + num(line.expired));
-  const left = r3(pending - received - outOfStock);
+  const left = r3(pending - received);
   const set = (key: number, patch: Partial<BatchRow>) => onChange(rows.map((b) => (b.key === key ? { ...b, ...patch } : b)));
   // Removing the only row clears it instead
   const remove = (key: number) => onChange(rows.length > 1 ? rows.filter((b) => b.key !== key) : [blankBatch()]);
@@ -911,9 +806,6 @@ function BatchesModal({
           </button>
         </div>
       )}
-      <p className="mt-2 text-xs text-slate-500">
-        Enter what passed QC, batch by batch. Rejected, damaged or expired goods go in the line&apos;s details (▸), not here.
-      </p>
     </Modal>
   );
 }

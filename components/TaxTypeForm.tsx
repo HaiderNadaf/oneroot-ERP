@@ -1,12 +1,12 @@
 "use client";
 
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { n } from "@/lib/format";
 import { clearApiCache, useApi } from "@/lib/hooks";
 import { GST_RATES, UNITS, type TaxType } from "@/lib/types";
-import { Badge, Button, Checkbox, Field, Input, Modal, Select, cx, errMsg, useToast } from "./ui";
+import { Badge, Button, Checkbox, Field, Input, Modal, Select, cx, errMsg, useConfirm, useToast } from "./ui";
 
 /** "+ Add new tax type…" in a tax type dropdown */
 export const NEW_TAX_TYPE = "__new_tax_type__";
@@ -17,28 +17,11 @@ export function taxTypeOptions(types: TaxType[] | null | undefined, canAdd: bool
   return canAdd ? [...opts, { value: NEW_TAX_TYPE, label: "+ Add new tax type…" }] : opts;
 }
 
-/**
- * The tax type from the store's own list whose rules another one follows: the starting row that carries
- * those rules (licences, govt fertiliser checks). Null = no special rules.
- */
-function ruleSource(t: TaxType, all: TaxType[]) {
-  if (t.builtIn || t.baseType === "OTHER") return null;
-  return all.find((x) => x.builtIn && x.baseType === t.baseType) ?? null;
-}
-
-/**
- * Create or edit a tax type: its name, which tax type in the list it behaves like (licences, govt fertiliser rules),
- * and the GST %, HSN, unit and batch tracking a new product in its categories starts with.
- */
+/** Create or edit a tax type: its name and the GST %, HSN, unit and batch tracking a new product in its categories starts with */
 export function TaxTypeForm({ taxType, onClose, onSaved }: { taxType: TaxType | null; onClose: () => void; onSaved: (t: TaxType) => void }) {
   const toast = useToast();
   const editing = !!taxType;
   const [name, setName] = useState(taxType?.name ?? "");
-  // "Behaves like" is picked from the store's own tax type list, not from a fixed list
-  const { data: allTypes } = useApi<TaxType[]>("/tax-types", { all: "true" });
-  const others = (allTypes ?? []).filter((t) => t.id !== taxType?.id);
-  const [likeId, setLikeId] = useState<string | null>(null);
-  const currentLike = likeId ?? (taxType && allTypes ? (ruleSource(taxType, allTypes)?.id ?? "") : "");
   const [gstRate, setGstRate] = useState(String(taxType ? n(taxType.gstRate) : 18));
   const [hsnCode, setHsnCode] = useState(taxType?.hsnCode ?? "");
   const [unit, setUnit] = useState(taxType?.unit ?? "NOS");
@@ -52,18 +35,10 @@ export function TaxTypeForm({ taxType, onClose, onSaved }: { taxType: TaxType | 
     if (hsnCode.trim() && !/^\d{4,8}$/.test(hsnCode.trim())) return toast.error("HSN code is 4 to 8 digits");
     setSaving(true);
     try {
-      // Follows the rules of the tax type it behaves like; none = no special rules
-      const like = others.find((t) => t.id === currentLike);
-      const body = {
-        name: name.trim(),
-        ...(taxType?.builtIn ? {} : { baseType: like?.baseType ?? "OTHER" }),
-        gstRate: Number(gstRate),
-        hsnCode: hsnCode.trim(),
-        unit,
-        trackBatch,
-        isActive,
-      };
-      const saved = editing ? await api.patch<TaxType>(`/tax-types/${taxType.id}`, body) : await api.post<TaxType>("/tax-types", body);
+      const body = { name: name.trim(), gstRate: Number(gstRate), hsnCode: hsnCode.trim(), unit, trackBatch, isActive };
+      const saved = editing
+        ? await api.patch<TaxType>(`/tax-types/${taxType.id}`, body)
+        : await api.post<TaxType>("/tax-types", { ...body, baseType: "OTHER" });
       clearApiCache("/tax-types");
       clearApiCache("/categories");
       toast.success(editing ? `${saved.name} updated` : `Tax type "${saved.name}" added`);
@@ -116,30 +91,7 @@ export function TaxTypeForm({ taxType, onClose, onSaved }: { taxType: TaxType | 
             ))}
           </Select>
         </Field>
-        <Field
-          label="Behaves Like"
-          hint={
-            taxType?.builtIn
-              ? "One of the starting tax types: it carries its own rules"
-              : "Pick a tax type from your list to follow its licence and govt fertiliser rules, or None"
-          }
-        >
-          {taxType?.builtIn ? (
-            <Input value={taxType.name} readOnly disabled aria-label="Behaves like" />
-          ) : (
-            <Select value={currentLike} onChange={(e) => setLikeId(e.target.value)} aria-label="Behaves like" isSearch={others.length > 8}>
-              <option value="">None (no special rules)</option>
-              {others
-                .filter((t) => t.isActive)
-                .map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-            </Select>
-          )}
-        </Field>
-        <div className="flex flex-col gap-2 sm:col-span-2">
+        <div className="flex flex-col justify-end gap-2 pb-1">
           <Checkbox label="Track batches and expiry by default" checked={trackBatch} onChange={setTrackBatch} />
           {editing && <Checkbox label="Active — offered when setting a category's tax type" checked={isActive} onChange={setIsActive} />}
         </div>
@@ -149,10 +101,25 @@ export function TaxTypeForm({ taxType, onClose, onSaved }: { taxType: TaxType | 
   );
 }
 
-/** List of tax types with edit; opened from Product Categories */
+/** List of tax types with edit and delete; opened from Product Categories */
 export function TaxTypesManager({ onClose, canEdit }: { onClose: () => void; canEdit: boolean }) {
+  const toast = useToast();
+  const confirm = useConfirm();
   const { data, reload } = useApi<TaxType[]>("/tax-types", { all: "true" });
   const [form, setForm] = useState<{ taxType: TaxType | null } | null>(null);
+
+  async function remove(t: TaxType) {
+    if (!(await confirm(`Delete the tax type "${t.name}"?`, { danger: true, confirmLabel: "Delete" }))) return;
+    try {
+      await api.del(`/tax-types/${t.id}`);
+      clearApiCache("/tax-types");
+      toast.success(`${t.name} deleted`);
+      void reload();
+    } catch (err) {
+      toast.error(errMsg(err));
+    }
+  }
+
   return (
     <Modal
       open
@@ -173,26 +140,38 @@ export function TaxTypesManager({ onClose, canEdit }: { onClose: () => void; can
       }
     >
       <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
-        {(data ?? []).map((t) => (
-          <li key={t.id} className={cx("flex items-center gap-3 px-3 py-2 text-sm", !t.isActive && "opacity-60")}>
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-slate-900">
-                {t.name} {t.builtIn && <Badge>Built-in</Badge>} {!t.isActive && <Badge tone="amber">Off</Badge>}
-              </p>
-              <p className="text-xs text-slate-500">
-                GST {n(t.gstRate)}% · HSN {t.hsnCode || "—"} · {t.unit}
-                {t.trackBatch ? " · batches" : ""}
-                {ruleSource(t, data ?? []) && ` · behaves like ${ruleSource(t, data ?? [])!.name}`}
-                {t._count ? ` · ${t._count.categories} categor${t._count.categories === 1 ? "y" : "ies"}` : ""}
-              </p>
-            </div>
-            {canEdit && (
-              <Button variant="ghost" size="sm" icon={<Pencil className="size-4" />} onClick={() => setForm({ taxType: t })}>
-                Edit
-              </Button>
-            )}
-          </li>
-        ))}
+        {(data ?? []).map((t) => {
+          const used = t._count?.categories ?? 0;
+          return (
+            <li key={t.id} className={cx("flex items-center gap-3 px-3 py-2 text-sm", !t.isActive && "opacity-60")}>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-slate-900">
+                  {t.name} {!t.isActive && <Badge tone="amber">Off</Badge>}
+                </p>
+                <p className="text-xs text-slate-500">
+                  GST {n(t.gstRate)}% · HSN {t.hsnCode || "—"} · {t.unit}
+                  {t.trackBatch ? " · batches" : ""} · {used} categor{used === 1 ? "y" : "ies"}
+                </p>
+              </div>
+              {canEdit && (
+                <>
+                  <Button variant="ghost" size="sm" icon={<Pencil className="size-4" />} onClick={() => setForm({ taxType: t })}>
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<Trash2 className="size-4" />}
+                    onClick={() => void remove(t)}
+                    disabled={used > 0}
+                    title={used > 0 ? "Move its categories to another tax type first" : `Delete ${t.name}`}
+                    aria-label={`Delete ${t.name}`}
+                  />
+                </>
+              )}
+            </li>
+          );
+        })}
       </ul>
       {form && (
         <TaxTypeForm

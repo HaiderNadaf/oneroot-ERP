@@ -114,8 +114,14 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
   }, [vendors, f.brand, f.manufacturer]);
 
   function changeCategory(categoryId: string) {
-    const type = categories?.find((c) => c.id === categoryId)?.type;
-    const d = type ? TYPE_DEFAULTS[type] : null;
+    const cat = categories?.find((c) => c.id === categoryId);
+    // The category's tax type gives the starting GST / HSN / unit / batch tracking (built-in defaults as a fallback)
+    const t = cat?.taxType;
+    const d = t
+      ? { gstRate: n(t.gstRate), unit: t.unit, hsnCode: t.hsnCode ?? "", trackBatch: t.trackBatch }
+      : cat?.type
+        ? TYPE_DEFAULTS[cat.type]
+        : null;
     setF((s) => ({
       ...s,
       category: categoryId,

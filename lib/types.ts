@@ -343,9 +343,27 @@ export interface Category {
   description?: string | null;
   /** Tax type: drives GST / HSN defaults for every product under it */
   type?: ProductType | null;
+  /** The store's tax type (name and defaults); `type` is the built-in type it behaves like */
+  taxTypeId?: string | null;
+  taxType?: TaxType | null;
   _count?: { products: number; subCategories: number };
   /** Present with GET /categories?withSubs=true */
   subCategories?: SubCategory[];
+}
+
+/** A tax type a category can use: the five built-in ones plus any the store adds */
+export interface TaxType {
+  id: string;
+  name: string;
+  /** Built-in type it behaves like (licences, govt fertiliser rules) */
+  baseType: ProductType;
+  gstRate: Dec;
+  hsnCode?: string | null;
+  unit: string;
+  trackBatch: boolean;
+  builtIn: boolean;
+  isActive: boolean;
+  _count?: { categories: number };
 }
 
 /** Sub-category of one category, from GET /categories/:id/sub-categories */

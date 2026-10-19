@@ -1,17 +1,18 @@
 "use client";
 
-import { Check, ListPlus, Pencil, X } from "lucide-react";
+import { Check, ListPlus, Pencil, Receipt, X } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
-import { PRODUCT_TYPES, TYPE_LABEL, type Category, type ProductType, type SubCategory } from "@/lib/types";
+import type { Category, SubCategory, TaxType } from "@/lib/types";
 import { CategoryFieldsEditor } from "./CategoryFieldsEditor";
+import { NEW_TAX_TYPE, TaxTypeForm, TaxTypesManager, taxTypeOptions } from "./TaxTypeForm";
 import { Button, Dropdown, Input, Modal, RowAction, cx, errMsg, useConfirm, useToast, type DropdownOption } from "./ui";
 
 /** SKU codes are numbers 1–999 */
 const cleanCode = (v: string) => v.replace(/\D/g, "").replace(/^0+/, "").slice(0, 3);
 
-const TYPE_OPTIONS: DropdownOption[] = PRODUCT_TYPES.map((t) => ({ value: t, label: TYPE_LABEL[t] }));
 
 /**
  * Product categories and their sub-categories (two tables), or expense categories with `kind="expense"`.
@@ -34,8 +35,16 @@ function ProductCategories() {
   const picked = categories?.find((c) => c.id === pickedId) ?? categories?.[0] ?? null;
   const { data: subs, reload: reloadSubs } = useApi<SubCategory[]>(picked ? `/categories/${picked.id}/sub-categories` : null);
 
+  const { can } = useAuth();
+  const canManage = can("products.manage");
+  const { data: taxTypes, reload: reloadTaxTypes } = useApi<TaxType[]>("/tax-types");
+  const TYPE_OPTIONS: DropdownOption[] = taxTypeOptions(taxTypes, canManage);
+  // A tax type is missing: add it, then put it on the new category or on this category
+  const [newTaxFor, setNewTaxFor] = useState<{ categoryId: string | null } | null>(null);
+  const [taxTypesOpen, setTaxTypesOpen] = useState(false);
+
   const [name, setName] = useState("");
-  const [type, setType] = useState<ProductType | "">("");
+  const [type, setType] = useState<string>("");
   const [subName, setSubName] = useState("");
   const [busy, setBusy] = useState<"cat" | "sub" | null>(null);
   const [fieldsFor, setFieldsFor] = useState<SubCategory | null>(null);
@@ -46,7 +55,7 @@ function ProductCategories() {
     if (!type) return toast.error("Pick the tax type (GST / HSN defaults) for this category");
     setBusy("cat");
     try {
-      const created = await api.post<Category>("/categories", { name: name.trim(), type });
+      const created = await api.post<Category>("/categories", { name: name.trim(), taxTypeId: type });
       toast.success(`${created.name} added with code ${created.code}`);
       setName("");
       setType("");
@@ -118,10 +127,22 @@ function ProductCategories() {
       </p>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section>
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Categories</h4>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Categories</h4>
+            <button type="button" onClick={() => setTaxTypesOpen(true)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50">
+              <Receipt className="size-3.5" /> Tax types
+            </button>
+          </div>
           <form onSubmit={addCategory} className="mb-2 flex gap-2">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New category" className="min-w-0 flex-1" />
-            <Dropdown options={TYPE_OPTIONS} value={type} onChange={(v) => setType(v as ProductType)} placeholder="Tax type" className="w-32 shrink-0" aria-label="Tax type" />
+            <Dropdown
+              options={TYPE_OPTIONS}
+              value={type}
+              onChange={(v) => (v === NEW_TAX_TYPE ? setNewTaxFor({ categoryId: null }) : setType(v))}
+              placeholder="Tax type"
+              className="w-40 shrink-0"
+              aria-label="Tax type"
+            />
             <Button type="submit" loading={busy === "cat"}>
               Add
             </Button>
@@ -141,8 +162,8 @@ function ProductCategories() {
                 <div onClick={(e) => e.stopPropagation()}>
                   <Dropdown
                     options={TYPE_OPTIONS}
-                    value={c.type ?? ""}
-                    onChange={(v) => void patch(`/categories/${c.id}`, { type: v }, () => void reload())}
+                    value={c.taxTypeId ?? ""}
+                    onChange={(v) => (v === NEW_TAX_TYPE ? setNewTaxFor({ categoryId: c.id }) : void patch(`/categories/${c.id}`, { taxTypeId: v }, () => void reload()))}
                     placeholder="Tax type"
                     className="w-28 shrink-0"
                     aria-label={`Tax type for ${c.name}`}
@@ -191,6 +212,29 @@ function ProductCategories() {
           </ul>
         </section>
       </div>
+      {newTaxFor && (
+        <TaxTypeForm
+          taxType={null}
+          onClose={() => setNewTaxFor(null)}
+          onSaved={(t) => {
+            const forId = newTaxFor.categoryId;
+            setNewTaxFor(null);
+            void reloadTaxTypes();
+            if (forId) void patch(`/categories/${forId}`, { taxTypeId: t.id }, () => void reload());
+            else setType(t.id);
+          }}
+        />
+      )}
+      {taxTypesOpen && (
+        <TaxTypesManager
+          canEdit={canManage}
+          onClose={() => {
+            setTaxTypesOpen(false);
+            void reloadTaxTypes();
+            void reload();
+          }}
+        />
+      )}
       {fieldsFor && (
         <CategoryFieldsEditor
           category={fieldsFor}

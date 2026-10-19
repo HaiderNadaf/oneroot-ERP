@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Badge, Card, DateInput, EmptyRow, Select, StatusBadge, Table, Td, Th, cx } from "@/components/ui";
 import { date, dateTime, downloadCsv, inr, n, qty, round2, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import { PRODUCT_TYPES, TYPE_LABEL, type DocStatus, type PaymentMode } from "@/lib/types";
+import type { DocStatus, PaymentMode, TaxType } from "@/lib/types";
 import { ReportFrame, ReportLink, TotalRow } from "./ReportKit";
 
 const modeLabel = (m: string) => m.charAt(0) + m.slice(1).toLowerCase();
@@ -16,6 +16,9 @@ interface StockRow {
   sku: string;
   name: string;
   type: string;
+  taxTypeId: string | null;
+  /** Tax type of the product's category */
+  taxType: string | null;
   category: string | null;
   unit: string;
   stock: number;
@@ -27,7 +30,8 @@ interface StockRow {
 
 export function StockValuationReport() {
   const [type, setType] = useState("");
-  const { data, error, loading, reload } = useApi<{ items: StockRow[]; totals: { costValue: number; saleValue: number } }>("/reports/stock", { type });
+  const { data, error, loading, reload } = useApi<{ items: StockRow[]; totals: { costValue: number; saleValue: number } }>("/reports/stock", { taxTypeId: type });
+  const { data: taxTypes } = useApi<TaxType[]>("/tax-types");
 
   function csv() {
     if (!data) return;
@@ -35,7 +39,7 @@ export function StockValuationReport() {
       `stock-valuation-${today()}.csv`,
       ["SKU", "Product", "Type", "Category", "Stock", "Unit", "Reorder Level", "Sale Price", "Value at Cost", "Value at Sale Price"],
       [
-        ...data.items.map((r) => [r.sku, r.name, r.type, r.category, r.stock, r.unit, r.reorderLevel, r.salePrice, r.costValue, r.saleValue]),
+        ...data.items.map((r) => [r.sku, r.name, r.taxType ?? "", r.category, r.stock, r.unit, r.reorderLevel, r.salePrice, r.costValue, r.saleValue]),
         ["", "TOTAL", "", "", "", "", "", "", data.totals.costValue, data.totals.saleValue],
       ],
     );
@@ -45,14 +49,14 @@ export function StockValuationReport() {
 
   return (
     <ReportFrame
-      title={`Stock valuation${type ? ` · ${TYPE_LABEL[type as keyof typeof TYPE_LABEL]}` : ""}`}
+      title={`Stock valuation${type ? ` · ${taxTypes?.find((t) => t.id === type)?.name ?? ""}` : ""}`}
       period={`as on ${date(new Date())}`}
       controls={
         <Select value={type} onChange={(e) => setType(e.target.value)} className="w-44">
-          <option value="">All Product Types</option>
-          {PRODUCT_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {TYPE_LABEL[t]}
+          <option value="">All Tax Types</option>
+          {(taxTypes ?? []).map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
             </option>
           ))}
         </Select>
@@ -100,7 +104,7 @@ export function StockValuationReport() {
                           </p>
                         </Td>
                         <Td>
-                          <StatusBadge status={r.type} />
+                          {r.taxType ? <Badge>{r.taxType}</Badge> : <span className="text-slate-400">—</span>}
                         </Td>
                         <Td right className={r.stock <= 0 ? "text-slate-400" : low ? "font-medium text-red-600" : "font-medium"}>
                           {qty(r.stock)} <span className="text-xs font-normal text-slate-500">{r.unit}</span>

@@ -403,7 +403,8 @@ export interface Product {
   name: string;
   type: ProductType;
   categoryId?: string | null;
-  category?: { id: string; name: string } | null;
+  /** taxType: the category's tax type (shown as the product's type) */
+  category?: { id: string; name: string; taxType?: { id: string; name: string } | null } | null;
   subCategoryId?: string | null;
   subCategory?: { id: string; name: string; fields?: FieldDef[] | null } | null;
   brand?: string | null;

@@ -20,7 +20,6 @@ import {
   Pagination,
   SearchInput,
   Select,
-  StatusBadge,
   Table,
   Td,
   Th,
@@ -31,7 +30,7 @@ import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
 import { downloadCsv, inr, n, qty } from "@/lib/format";
 import { useApi, useDebounced } from "@/lib/hooks";
-import { PRODUCT_TYPES, TYPE_LABEL, type Category, type Paged, type Product } from "@/lib/types";
+import type { Category, Paged, Product, TaxType } from "@/lib/types";
 import { LazyCategoryManager, LazyProductForm } from "@/components/lazy";
 
 /** Margin on the GST-exclusive selling price */
@@ -70,6 +69,7 @@ export default function ProductsPage() {
   const branchCode = current && (branches.length > 1 || locked) ? current.code : null;
   const [search, setSearch] = useState("");
   const [type, setType] = useState("");
+  const { data: taxTypes } = useApi<TaxType[]>("/tax-types");
   const [categoryId, setCategoryId] = useState("");
   const [status, setStatus] = useState("active");
   const [stock, setStock] = useState("");
@@ -86,7 +86,8 @@ export default function ProductsPage() {
   const [pickKind, pickId] = categoryId.split(":");
   const filters = {
     search: q,
-    type,
+    // "type" filters by the category's tax type
+    taxTypeId: type,
     categoryId: pickKind === "cat" ? pickId : "",
     subCategoryId: pickKind === "sub" ? pickId : "",
     status,
@@ -118,8 +119,9 @@ export default function ProductsPage() {
         id: "type",
         label: "Type",
         defaultVisible: true,
-        render: (p) => <StatusBadge status={p.type} />,
-        csv: (p) => TYPE_LABEL[p.type],
+        // The tax type set on the product's category (Products → Categories)
+        render: (p) => (p.category?.taxType ? <Badge>{p.category.taxType.name}</Badge> : <span className="text-slate-400">—</span>),
+        csv: (p) => p.category?.taxType?.name ?? "",
       },
       { id: "category", label: "Category", defaultVisible: true, render: (p) => dash(categoryPath(p)), csv: (p) => categoryPath(p) },
       { id: "brand", label: "Brand", defaultVisible: true, render: (p) => dash(p.brand), csv: (p) => p.brand },
@@ -277,9 +279,9 @@ export default function ProductsPage() {
           />
           <Select value={type} onChange={(e) => (setType(e.target.value), setPage(1))} className="w-[calc(50%-0.25rem)] sm:w-36" aria-label="Type">
             <option value="">All Types</option>
-            {PRODUCT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {TYPE_LABEL[t]}
+            {(taxTypes ?? []).map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
               </option>
             ))}
           </Select>

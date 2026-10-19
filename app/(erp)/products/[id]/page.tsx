@@ -20,7 +20,6 @@ import {
   PageHeader,
   Pagination,
   Spinner,
-  StatusBadge,
   Table,
   Td,
   Th,
@@ -128,7 +127,7 @@ export default function ProductDetailPage() {
         title={
           <span className="flex flex-wrap items-center gap-2">
             {p.name}
-            <StatusBadge status={p.type} />
+            {p.category?.taxType && <Badge>{p.category.taxType.name}</Badge>}
             {!p.isActive && <Badge>Inactive</Badge>}
           </span>
         }

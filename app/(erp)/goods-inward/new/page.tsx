@@ -1,9 +1,9 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, CheckCircle2, Info as InfoIcon, PackageCheck, Plus, ScanLine, Store, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown, Info as InfoIcon, PackageCheck, Plus, ScanLine, Store, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { BatchSelect, type BatchPick } from "@/components/BatchSelect";
 import { useCounts } from "@/components/Notifications";
@@ -18,6 +18,9 @@ import {
   Input,
   PageHeader,
   Spinner,
+  Table,
+  Td,
+  Th,
   cx,
   errMsg,
   useConfirm,
@@ -182,6 +185,8 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [scanned, setScanned] = useState<string | null>(null);
+  // Rows whose details (QC split, dates, location, more batches, serials) are open
+  const [openRows, setOpenRows] = useState<Record<string, boolean>>({});
   const { currentId, branches, locked, setBranch } = useBranch();
 
   // A barcode scan jumps to that PO line, marks the pending quantity as passed and focuses the batch box
@@ -375,245 +380,330 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
       <div className="mb-4 flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 sm:px-4 text-sm text-sky-800">
         <InfoIcon className="mt-0.5 size-4 shrink-0" />
         <p>
-          Count every item and split it: <b>Passed</b> goes into sellable stock · <b>Rejected</b> is returned and a debit note is drafted to
-          the vendor · <b>Damaged</b> is written off · <b>Expired</b> is kept out of stock. Anything not counted stays open on the PO for a
-          later delivery.
+          Enter the <b>Received Qty</b> that passed QC for each line and pick its batch. Open <b>▸</b> on a line for goods that were{" "}
+          <b>rejected</b> (debit note to the vendor), <b>damaged</b> (written off) or <b>expired</b> (kept out of stock), the Mfg date, location,
+          more batches and chassis / serial numbers. Anything not counted stays open on the PO for a later delivery.
           <span className="mt-1 flex items-center gap-1 text-xs text-sky-700">
             <ScanLine className="size-3.5" /> Scan a pack&apos;s barcode to jump to its line and fill the batch details.
           </span>
         </p>
       </div>
 
-      <div className="mb-4 space-y-3">
-        {items.map((item) => {
-          const pending = pendingOf(item);
-          const p = item.product;
-          if (pending <= 0) {
-            return (
-              <Card key={item.id} bodyClassName="flex flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-4">
-                <div className="min-w-0">
-                  <p className="font-medium text-slate-500">{p.name}</p>
-                  <p className="text-xs text-slate-400">
-                    {[p.sku, p.packSize, p.unit].filter(Boolean).join(" · ")} · ordered {qty(item.quantity)}
-                  </p>
-                </div>
-                <Badge tone="green">
-                  <CheckCircle2 className="mr-1 size-3.5" /> Fully Received
-                </Badge>
-              </Card>
-            );
-          }
-          const l = lines[item.id];
-          const c = checks.get(item.id)!;
-          const show = (k: keyof Line) => {
-            const e = c.errors[k];
-            return e && (!e.required || submitted) ? e.msg : null;
-          };
-          const over = !!c.errors.total;
-          return (
-            <div key={item.id} id={`grn-line-${item.id}`}>
-            <Card className={cx(over && "border-red-300", scanned === item.id && "ring-2 ring-brand-500")}>
-              <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="break-words font-semibold text-slate-900">{p.name}</p>
-                  <p className="text-xs text-slate-500">
-                    {[p.sku, p.packSize, `per ${p.unit}`].filter(Boolean).join(" · ")} · PO rate {inr(item.rate)} · ordered {qty(item.quantity)}
-                    {p.trackBatch && " · batch tracked"}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => update(item.id, { passed: String(pending), rejected: "", damaged: "", expired: "" })}
-                  >
-                    All Passed
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => update(item.id, { passed: "", rejected: "", damaged: "", expired: "" })}>
-                    Not Arrived
-                  </Button>
-                </div>
-              </div>
-
-              {/* The four figures checked at the gate: ordered, accepted by QC, counted in total, still short */}
-              <QtySummary
-                unit={p.unit}
-                ordered={n(item.quantity)}
-                pending={pending}
-                accepted={num(l.passed)}
-                total={c.total}
-                outOfStock={r3(num(l.rejected) + num(l.damaged) + num(l.expired))}
-                over={over}
-              />
-
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {QTY_FIELDS.map((f) => (
-                  <Field key={f.key} label={f.label} hint={f.hint}>
-                    <Input
-                      type="number"
-                      step="any"
-                      min="0"
-                      inputMode="decimal"
-                      className={cx("num w-full text-right font-medium", f.tone, (over || show(f.key)) && "border-red-400")}
-                      value={l[f.key]}
-                      placeholder="0"
-                      onChange={(e) => update(item.id, { [f.key]: e.target.value })}
-                    />
-                  </Field>
-                ))}
-              </div>
-              {over && (
-                <p className="mt-2 flex items-center gap-1 text-xs text-red-600">
-                  <AlertTriangle className="size-3.5" /> {c.errors.total!.msg}
-                </p>
-              )}
-
-              <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-3">
-                <Field
-                  label={l.extra.length ? `Batch 1 · ${qty(Math.max(0, r3(num(l.passed) - c.extraTotal)))} ${p.unit}` : "Batch No."}
-                  required={p.trackBatch && (num(l.passed) > 0 || num(l.expired) > 0)}
-                >
-                  <BatchSelect
-                    id={`grn-batch-${item.id}`}
-                    productId={item.productId}
-                    unit={p.unit}
-                    value={l.batchNo}
-                    invalid={!!show("batchNo")}
-                    placeholder={p.trackBatch ? "Select or add batch" : "Optional"}
-                    onChange={(b: BatchPick) =>
-                      update(item.id, b.existing ? { batchNo: b.batchNo, mfgDate: b.mfgDate ?? "", expiryDate: b.expiryDate ?? "" } : { batchNo: b.batchNo })
-                    }
-                  />
-                  <FieldError msg={show("batchNo")} />
-                </Field>
-                <Field label="Mfg Date">
-                  <DateInput
-                    max={today()}
-                    className={cx(show("mfgDate") && "border-red-400")}
-                    value={l.mfgDate}
-                    onChange={(e) => update(item.id, { mfgDate: e.target.value })}
-                  />
-                  <FieldError msg={show("mfgDate")} />
-                </Field>
-                <Field label="Expiry Date" required={p.trackBatch && num(l.passed) > 0}>
-                  <DateInput
-                    className={cx(show("expiryDate") && "border-red-400")}
-                    value={l.expiryDate}
-                    min={l.mfgDate || undefined}
-                    onChange={(e) => update(item.id, { expiryDate: e.target.value })}
-                  />
-                  <FieldError msg={show("expiryDate")} />
-                </Field>
-                <Field label="Location" hint={p.location ? `Usually ${p.location}` : "Rack / bin (optional)"}>
-                  <Input value={l.location} onChange={(e) => update(item.id, { location: e.target.value })} placeholder={p.location ?? ""} />
-                </Field>
-              </div>
-
-              {/* Further batches of this line: the + adds a row; batch 1 above keeps the rest of the passed qty */}
-              {l.extra.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {l.extra.map((b, idx) => (
-                    <div key={b.key} className="grid grid-cols-2 items-end gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2 sm:grid-cols-[1.4fr_0.8fr_1fr_1fr_auto]">
-                      <Field label={`Batch ${idx + 2} No.`} required={p.trackBatch}>
-                        <BatchSelect
-                          productId={item.productId}
-                          unit={p.unit}
-                          value={b.batchNo}
-                          placeholder={p.trackBatch ? "Select or add batch" : "Optional"}
-                          onChange={(pick: BatchPick) =>
-                            updateBatch(item.id, b.key, pick.existing ? { batchNo: pick.batchNo, mfgDate: pick.mfgDate ?? "", expiryDate: pick.expiryDate ?? "" } : { batchNo: pick.batchNo })
-                          }
-                        />
-                      </Field>
-                      <Field label={`Qty (${p.unit})`} required>
-                        <Input type="number" step="any" min="0" inputMode="decimal" className="num text-right" value={b.qty} placeholder="0" onChange={(e) => updateBatch(item.id, b.key, { qty: e.target.value })} />
-                      </Field>
-                      <Field label="Mfg Date">
-                        <DateInput max={today()} value={b.mfgDate} onChange={(e) => updateBatch(item.id, b.key, { mfgDate: e.target.value })} />
-                      </Field>
-                      <Field label="Expiry Date" required={p.trackBatch}>
-                        <DateInput value={b.expiryDate} min={b.mfgDate || undefined} onChange={(e) => updateBatch(item.id, b.key, { expiryDate: e.target.value })} />
-                      </Field>
+      <Card className="mb-4" bodyClassName="p-0">
+        <Table>
+          <thead>
+            <tr>
+              <Th className="w-8">#</Th>
+              <Th>Product</Th>
+              <Th right>PO Qty</Th>
+              <Th className="min-w-56">Batch No.</Th>
+              <Th right>PO Rate</Th>
+              <Th right className="min-w-36">Received Qty</Th>
+              <Th right>Total Amount</Th>
+              <Th />
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, idx) => {
+              const pending = pendingOf(item);
+              const p = item.product;
+              const earlier = r3(n(item.quantity) - pending);
+              if (pending <= 0) {
+                return (
+                  <tr key={item.id} className="text-slate-400">
+                    <Td>{idx + 1}</Td>
+                    <Td>
+                      <p className="font-medium text-slate-500">{p.name}</p>
+                      <p className="text-xs">{[p.sku, p.packSize].filter(Boolean).join(" · ")}</p>
+                    </Td>
+                    <Td right className="whitespace-nowrap">
+                      {qty(item.quantity)} {p.unit}
+                    </Td>
+                    <Td>—</Td>
+                    <Td right>{inr(item.rate)}</Td>
+                    <Td right colSpan={3}>
+                      <Badge tone="green">
+                        <CheckCircle2 className="mr-1 size-3.5" /> Fully Received
+                      </Badge>
+                    </Td>
+                  </tr>
+                );
+              }
+              const l = lines[item.id];
+              const c = checks.get(item.id)!;
+              const show = (k: keyof Line) => {
+                const e = c.errors[k];
+                return e && (!e.required || submitted) ? e.msg : null;
+              };
+              const over = !!c.errors.total;
+              const short = r3(Math.max(0, pending - c.total));
+              const outOfStock = r3(num(l.rejected) + num(l.damaged) + num(l.expired));
+              const amount = round2(num(l.passed) * n(item.rate));
+              // Details open by themselves when they hold something or have a problem to fix
+              const detailError = !!(show("rejected") || show("damaged") || show("expired") || show("mfgDate") || show("extra") || show("serials"));
+              const expanded = openRows[item.id] ?? (!!p.trackSerial || l.extra.length > 0 || outOfStock > 0 || detailError);
+              const toggle = () => setOpenRows((o) => ({ ...o, [item.id]: !expanded }));
+              return (
+                <Fragment key={item.id}>
+                  <tr id={`grn-line-${item.id}`} className={cx("align-top", scanned === item.id && "bg-brand-50/60", over && "bg-red-50/60")}>
+                    <Td className="pt-4 text-slate-400">{idx + 1}</Td>
+                    <Td className="min-w-48 pt-3">
+                      <p className="break-words font-medium text-slate-900">{p.name}</p>
+                      <p className="text-xs text-slate-500">
+                        <span className="font-mono">{p.sku}</span>
+                        {p.packSize && ` · ${p.packSize}`}
+                        {p.trackBatch && " · batch tracked"}
+                      </p>
+                    </Td>
+                    <Td right className="whitespace-nowrap pt-3">
+                      <span className="num font-medium text-slate-900">
+                        {qty(item.quantity)} <span className="text-xs font-normal text-slate-500">{p.unit}</span>
+                      </span>
+                      {earlier > 0 && (
+                        <p className="text-[11px] text-slate-500">
+                          {qty(earlier)} received earlier · {qty(pending)} due
+                        </p>
+                      )}
+                    </Td>
+                    <Td className="pt-2">
+                      {l.extra.length > 0 && (
+                        <p className="mb-0.5 text-[11px] font-medium text-slate-500">
+                          Batch 1 · {qty(Math.max(0, r3(num(l.passed) - c.extraTotal)))} {p.unit}
+                        </p>
+                      )}
+                      <BatchSelect
+                        id={`grn-batch-${item.id}`}
+                        productId={item.productId}
+                        unit={p.unit}
+                        value={l.batchNo}
+                        invalid={!!show("batchNo")}
+                        placeholder={p.trackBatch ? "Select or add batch" : "Optional"}
+                        onChange={(b: BatchPick) =>
+                          update(item.id, b.existing ? { batchNo: b.batchNo, mfgDate: b.mfgDate ?? "", expiryDate: b.expiryDate ?? "" } : { batchNo: b.batchNo })
+                        }
+                      />
+                      <FieldError msg={show("batchNo")} />
+                      {(p.trackBatch || l.expiryDate) && (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <span className="shrink-0 text-[11px] font-medium text-slate-500">Expiry{p.trackBatch && num(l.passed) > 0 ? " *" : ""}</span>
+                          <DateInput
+                            className={cx("h-8 text-xs", show("expiryDate") && "border-red-400")}
+                            value={l.expiryDate}
+                            min={l.mfgDate || undefined}
+                            onChange={(e) => update(item.id, { expiryDate: e.target.value })}
+                            aria-label={`Expiry date of ${p.name}`}
+                          />
+                        </div>
+                      )}
+                      <FieldError msg={show("expiryDate")} />
+                    </Td>
+                    <Td right className="whitespace-nowrap pt-3">
+                      <span className="num">{inr(item.rate)}</span>
+                      <p className="text-[11px] text-slate-500">per {p.unit}</p>
+                    </Td>
+                    <Td right className="pt-2">
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        inputMode="decimal"
+                        className={cx("num ml-auto h-9 w-28 text-right font-semibold text-brand-700", (over || show("passed")) && "border-red-400")}
+                        value={l.passed}
+                        placeholder="0"
+                        onChange={(e) => update(item.id, { passed: e.target.value })}
+                        aria-label={`Received quantity of ${p.name}`}
+                      />
+                      {over ? (
+                        <p className="mt-1 text-[11px] font-medium text-red-600">{c.errors.total!.msg}</p>
+                      ) : short > 0 ? (
+                        <p className="mt-1 text-[11px] font-medium text-amber-700">
+                          Short {qty(short)} {p.unit} · stays open
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-[11px] text-slate-500">QC passed</p>
+                      )}
+                      {outOfStock > 0 && <p className="text-[11px] text-slate-500">+ {qty(outOfStock)} not taken into stock</p>}
+                    </Td>
+                    <Td right className="whitespace-nowrap pt-3">
+                      <span className="num font-semibold text-slate-900">{inr(amount)}</span>
+                      <p className="text-[11px] text-slate-500">excl. GST</p>
+                    </Td>
+                    <Td className="pt-2.5">
                       <button
                         type="button"
-                        onClick={() => update(item.id, { extra: l.extra.filter((x) => x.key !== b.key) })}
-                        className="mb-1 justify-self-end rounded-md p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                        aria-label={`Remove batch ${idx + 2}`}
+                        onClick={toggle}
+                        aria-expanded={expanded}
+                        aria-label={`${expanded ? "Hide" : "Show"} details for ${p.name}`}
+                        title="Rejected / damaged / expired, Mfg date, location, more batches, serial numbers"
+                        className={cx("rounded-md p-1.5 hover:bg-slate-100", detailError ? "text-red-600" : "text-slate-500")}
                       >
-                        <X className="size-4" />
+                        <ChevronDown className={cx("size-4 transition-transform", expanded && "rotate-180")} />
                       </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <FieldError msg={show("extra")} />
-              {num(l.passed) > 0 && (
-                <button
-                  type="button"
-                  onClick={() => update(item.id, { extra: [...l.extra, blankBatch()] })}
-                  className="mt-2 inline-flex items-center gap-1 rounded-md border border-dashed border-brand-300 px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
-                >
-                  <Plus className="size-3.5" /> Add another batch
-                </button>
-              )}
+                    </Td>
+                  </tr>
+                  {expanded && (
+                    <tr className="bg-slate-50/70">
+                      <td colSpan={8} className="border-b border-slate-100 px-3 pb-4 pt-2 sm:px-4">
+                        <div className="flex flex-wrap items-center gap-2 pb-2">
+                          <Button size="sm" variant="ghost" onClick={() => update(item.id, { passed: String(pending), rejected: "", damaged: "", expired: "" })}>
+                            All Passed
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => update(item.id, { passed: "", rejected: "", damaged: "", expired: "" })}>
+                            Not Arrived
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                          {QTY_FIELDS.filter((f) => f.key !== "passed").map((f) => (
+                            <Field key={f.key} label={f.label} hint={f.hint}>
+                              <Input
+                                type="number"
+                                step="any"
+                                min="0"
+                                inputMode="decimal"
+                                className={cx("num w-full text-right font-medium", f.tone, show(f.key) && "border-red-400")}
+                                value={l[f.key]}
+                                placeholder="0"
+                                onChange={(e) => update(item.id, { [f.key]: e.target.value })}
+                              />
+                            </Field>
+                          ))}
+                          <Field label="Mfg Date">
+                            <DateInput
+                              max={today()}
+                              className={cx(show("mfgDate") && "border-red-400")}
+                              value={l.mfgDate}
+                              onChange={(e) => update(item.id, { mfgDate: e.target.value })}
+                            />
+                            <FieldError msg={show("mfgDate")} />
+                          </Field>
+                          <Field label="Location" hint={p.location ? `Usually ${p.location}` : "Rack / bin (optional)"}>
+                            <Input value={l.location} onChange={(e) => update(item.id, { location: e.target.value })} placeholder={p.location ?? ""} />
+                          </Field>
+                        </div>
 
-              {p.trackSerial && num(l.passed) > 0 && (
-                <div className="mt-3 border-t border-slate-100 pt-3">
-                  <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="text-xs font-medium text-slate-600">Chassis / Serial Numbers of the Passed Units</span>
-                    <span className={cx("num text-xs", serialsOf(l).length === num(l.passed) ? "text-brand-700" : "text-slate-500")}>
-                      {serialsOf(l).length} of {qty(num(l.passed))} entered
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    {l.serials.map((sn, idx) => (
-                      <div key={idx} className="flex items-center gap-1">
-                        <span className="num w-6 shrink-0 text-right text-xs text-slate-400">{idx + 1}.</span>
-                        <Input
-                          value={sn}
-                          onChange={(e) => setSerial(item.id, idx, e.target.value)}
-                          onPaste={(e) => {
-                            if (pasteSerials(item.id, idx, e.clipboardData.getData("text"))) e.preventDefault();
-                          }}
-                          onKeyDown={(e) => {
-                            // A scanner ends each code with Enter: open the next box for the next unit
-                            if (e.key !== "Enter") return;
-                            e.preventDefault();
-                            if (sn.trim() && idx === l.serials.length - 1 && l.serials.length < num(l.passed)) update(item.id, { serials: [...l.serials, ""] });
-                          }}
-                          className="font-mono"
-                          placeholder="Chassis / serial no."
-                          data-scan-input
-                          autoFocus={idx === l.serials.length - 1 && !sn}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => update(item.id, { serials: l.serials.filter((_, j) => j !== idx) })}
-                          className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                          aria-label={`Remove serial ${idx + 1}`}
-                        >
-                          <X className="size-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <FieldError msg={show("serials")} />
-                  {serialsOf(l).length < num(l.passed) && (
-                    <button
-                      type="button"
-                      onClick={() => update(item.id, { serials: [...l.serials, ""] })}
-                      className="mt-2 inline-flex items-center gap-1 rounded-md border border-dashed border-brand-300 px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
-                    >
-                      <Plus className="size-3.5" /> Add chassis / serial no.
-                    </button>
+                        {/* Further batches of this line: the + adds a row; batch 1 above keeps the rest of the received qty */}
+                        {l.extra.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {l.extra.map((b, bi) => (
+                              <div key={b.key} className="grid grid-cols-2 items-end gap-2 rounded-lg border border-slate-200 bg-white p-2 sm:grid-cols-[1.4fr_0.8fr_1fr_1fr_auto]">
+                                <Field label={`Batch ${bi + 2} No.`} required={p.trackBatch}>
+                                  <BatchSelect
+                                    productId={item.productId}
+                                    unit={p.unit}
+                                    value={b.batchNo}
+                                    placeholder={p.trackBatch ? "Select or add batch" : "Optional"}
+                                    onChange={(pick: BatchPick) =>
+                                      updateBatch(item.id, b.key, pick.existing ? { batchNo: pick.batchNo, mfgDate: pick.mfgDate ?? "", expiryDate: pick.expiryDate ?? "" } : { batchNo: pick.batchNo })
+                                    }
+                                  />
+                                </Field>
+                                <Field label={`Qty (${p.unit})`} required>
+                                  <Input type="number" step="any" min="0" inputMode="decimal" className="num text-right" value={b.qty} placeholder="0" onChange={(e) => updateBatch(item.id, b.key, { qty: e.target.value })} />
+                                </Field>
+                                <Field label="Mfg Date">
+                                  <DateInput max={today()} value={b.mfgDate} onChange={(e) => updateBatch(item.id, b.key, { mfgDate: e.target.value })} />
+                                </Field>
+                                <Field label="Expiry Date" required={p.trackBatch}>
+                                  <DateInput value={b.expiryDate} min={b.mfgDate || undefined} onChange={(e) => updateBatch(item.id, b.key, { expiryDate: e.target.value })} />
+                                </Field>
+                                <button
+                                  type="button"
+                                  onClick={() => update(item.id, { extra: l.extra.filter((x) => x.key !== b.key) })}
+                                  className="mb-1 justify-self-end rounded-md p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                  aria-label={`Remove batch ${bi + 2}`}
+                                >
+                                  <X className="size-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <FieldError msg={show("extra")} />
+                        {num(l.passed) > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => update(item.id, { extra: [...l.extra, blankBatch()] })}
+                            className="mt-2 inline-flex items-center gap-1 rounded-md border border-dashed border-brand-300 bg-white px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                          >
+                            <Plus className="size-3.5" /> Add another batch
+                          </button>
+                        )}
+
+                        {p.trackSerial && num(l.passed) > 0 && (
+                          <div className="mt-3 border-t border-slate-200 pt-3">
+                            <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
+                              <span className="text-xs font-medium text-slate-600">Chassis / Serial Numbers of the Received Units</span>
+                              <span className={cx("num text-xs", serialsOf(l).length === num(l.passed) ? "text-brand-700" : "text-slate-500")}>
+                                {serialsOf(l).length} of {qty(num(l.passed))} entered
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                              {l.serials.map((sn, si) => (
+                                <div key={si} className="flex items-center gap-1">
+                                  <span className="num w-6 shrink-0 text-right text-xs text-slate-400">{si + 1}.</span>
+                                  <Input
+                                    value={sn}
+                                    onChange={(e) => setSerial(item.id, si, e.target.value)}
+                                    onPaste={(e) => {
+                                      if (pasteSerials(item.id, si, e.clipboardData.getData("text"))) e.preventDefault();
+                                    }}
+                                    onKeyDown={(e) => {
+                                      // A scanner ends each code with Enter: open the next box for the next unit
+                                      if (e.key !== "Enter") return;
+                                      e.preventDefault();
+                                      if (sn.trim() && si === l.serials.length - 1 && l.serials.length < num(l.passed)) update(item.id, { serials: [...l.serials, ""] });
+                                    }}
+                                    className="font-mono"
+                                    placeholder="Chassis / serial no."
+                                    data-scan-input
+                                    autoFocus={si === l.serials.length - 1 && !sn}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => update(item.id, { serials: l.serials.filter((_, j) => j !== si) })}
+                                    className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                    aria-label={`Remove serial ${si + 1}`}
+                                  >
+                                    <X className="size-4" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                            <FieldError msg={show("serials")} />
+                            {serialsOf(l).length < num(l.passed) && (
+                              <button
+                                type="button"
+                                onClick={() => update(item.id, { serials: [...l.serials, ""] })}
+                                className="mt-2 inline-flex items-center gap-1 rounded-md border border-dashed border-brand-300 bg-white px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                              >
+                                <Plus className="size-3.5" /> Add chassis / serial no.
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
                   )}
-                </div>
-              )}
-            </Card>
-            </div>
-          );
-        })}
-      </div>
+                </Fragment>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="bg-slate-50 font-semibold">
+              <Td colSpan={5} className="text-right text-slate-600">
+                Total
+              </Td>
+              <Td right className="num text-brand-700">
+                {qty(totals.passed)}
+              </Td>
+              <Td right className="num whitespace-nowrap text-slate-900">
+                {inr(passedValue)}
+              </Td>
+              <Td />
+            </tr>
+          </tfoot>
+        </Table>
+      </Card>
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -641,61 +731,6 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
         )}
       </Card>
     </>
-  );
-}
-
-/** Ordered (as per PO) · received as per QC · total counted · shortfall still open on the PO */
-function QtySummary({
-  unit,
-  ordered,
-  pending,
-  accepted,
-  total,
-  outOfStock,
-  over,
-}: {
-  unit: string;
-  ordered: number;
-  pending: number;
-  accepted: number;
-  total: number;
-  outOfStock: number;
-  over: boolean;
-}) {
-  const earlier = r3(ordered - pending);
-  const short = r3(Math.max(0, pending - total));
-  const box = "rounded-lg border px-3 py-2";
-  return (
-    <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-      <div className={cx(box, "border-slate-200 bg-slate-50")}>
-        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Total Qty as per PO</p>
-        <p className="num text-base font-semibold text-slate-900">
-          {qty(ordered)} <span className="text-xs font-normal text-slate-500">{unit}</span>
-        </p>
-        <p className="text-[11px] text-slate-500">{earlier > 0 ? `${qty(earlier)} received earlier · ${qty(pending)} due` : "Ordered on the PO"}</p>
-      </div>
-      <div className={cx(box, "border-brand-200 bg-brand-50/60")}>
-        <p className="text-[11px] font-medium uppercase tracking-wide text-brand-800">Received Qty as per QC</p>
-        <p className="num text-base font-semibold text-brand-800">
-          {qty(accepted)} <span className="text-xs font-normal text-brand-700">{unit}</span>
-        </p>
-        <p className="text-[11px] text-brand-700">Passed QC, goes into stock</p>
-      </div>
-      <div className={cx(box, over ? "border-red-300 bg-red-50" : "border-slate-200 bg-white")}>
-        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Total Quantity</p>
-        <p className={cx("num text-base font-semibold", over ? "text-red-700" : "text-slate-900")}>
-          {qty(total)} <span className="text-xs font-normal text-slate-500">{unit}</span>
-        </p>
-        <p className="text-[11px] text-slate-500">{outOfStock > 0 ? `incl. ${qty(outOfStock)} rejected / damaged / expired` : "All that arrived"}</p>
-      </div>
-      <div className={cx(box, short > 0 ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white")}>
-        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Shortfall of Quantity</p>
-        <p className={cx("num text-base font-semibold", short > 0 ? "text-amber-800" : "text-slate-900")}>
-          {qty(short)} <span className="text-xs font-normal text-slate-500">{unit}</span>
-        </p>
-        <p className={cx("text-[11px]", short > 0 ? "text-amber-700" : "text-slate-500")}>{short > 0 ? "Stays open on the PO" : "Nothing short"}</p>
-      </div>
-    </div>
   );
 }
 

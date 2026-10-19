@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
+import { BatchSelect, type BatchPick } from "@/components/BatchSelect";
 import { useCounts } from "@/components/Notifications";
 import {
   Badge,
@@ -60,7 +61,7 @@ const serialsOf = (l: Line) => l.serials.map((x) => x.trim()).filter(Boolean);
 const extraQty = (l: Line) => r3(l.extra.reduce((s, b) => s + num(b.qty), 0));
 
 const QTY_FIELDS = [
-  { key: "passed", label: "Passed", hint: "Into sellable stock", tone: "text-brand-700" },
+  { key: "passed", label: "QC Passed", hint: "Accepted into sellable stock", tone: "text-brand-700" },
   { key: "rejected", label: "Rejected", hint: "Debit note to vendor", tone: "text-red-600" },
   { key: "damaged", label: "Damaged", hint: "Written off", tone: "text-amber-700" },
   { key: "expired", label: "Expired", hint: "Kept out of stock", tone: "text-amber-700" },
@@ -192,7 +193,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
     setLines((ls) => (num(ls[hit.id].passed) > 0 ? ls : { ...ls, [hit.id]: { ...ls[hit.id], passed: String(pendingOf(hit)) } }));
     document.getElementById(`grn-line-${hit.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     setTimeout(() => document.getElementById(`grn-batch-${hit.id}`)?.focus(), 250);
-  });
+  }, true, (t) => !!t?.closest("[data-scan-input]")); // a batch or chassis number scanned into its box stays there
   // Goods are received into the branch the PO delivers to; with another branch selected the API refuses
   const poBranchId = po.branchId ?? po.branch?.id ?? null;
   const wrongBranch = !!poBranchId && currentId !== "all" && currentId !== poBranchId;
@@ -220,6 +221,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const sum = (k: QtyKey) => r3(open.reduce((s, i) => s + num(lines[i.id][k]), 0));
   const totals = { passed: sum("passed"), rejected: sum("rejected"), damaged: sum("damaged"), expired: sum("expired") };
   const passedValue = round2(open.reduce((s, i) => s + num(lines[i.id].passed) * n(i.rate), 0));
+  const shortfall = r3(open.reduce((s, i) => s + Math.max(0, pendingOf(i) - (checks.get(i.id)?.total ?? 0)), 0));
   const anyQty = open.some((i) => (checks.get(i.id)?.total ?? 0) > 0);
   const shortLines = open.filter((i) => {
     const c = checks.get(i.id);
@@ -420,14 +422,6 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={cx(
-                      "num rounded-full px-2.5 py-0.5 text-xs font-medium",
-                      over ? "bg-red-100 text-red-700" : c.total === pending ? "bg-brand-50 text-brand-700" : "bg-slate-100 text-slate-700",
-                    )}
-                  >
-                    {qty(c.total)} of {qty(pending)} pending
-                  </span>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -440,6 +434,17 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                   </Button>
                 </div>
               </div>
+
+              {/* The four figures checked at the gate: ordered, accepted by QC, counted in total, still short */}
+              <QtySummary
+                unit={p.unit}
+                ordered={n(item.quantity)}
+                pending={pending}
+                accepted={num(l.passed)}
+                total={c.total}
+                outOfStock={r3(num(l.rejected) + num(l.damaged) + num(l.expired))}
+                over={over}
+              />
 
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {QTY_FIELDS.map((f) => (
@@ -468,12 +473,16 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                   label={l.extra.length ? `Batch 1 · ${qty(Math.max(0, r3(num(l.passed) - c.extraTotal)))} ${p.unit}` : "Batch No."}
                   required={p.trackBatch && (num(l.passed) > 0 || num(l.expired) > 0)}
                 >
-                  <Input
+                  <BatchSelect
                     id={`grn-batch-${item.id}`}
-                    className={cx(show("batchNo") && "border-red-400")}
+                    productId={item.productId}
+                    unit={p.unit}
                     value={l.batchNo}
-                    onChange={(e) => update(item.id, { batchNo: e.target.value })}
-                    placeholder={p.trackBatch ? "As printed on the pack" : "Optional"}
+                    invalid={!!show("batchNo")}
+                    placeholder={p.trackBatch ? "Select or add batch" : "Optional"}
+                    onChange={(b: BatchPick) =>
+                      update(item.id, b.existing ? { batchNo: b.batchNo, mfgDate: b.mfgDate ?? "", expiryDate: b.expiryDate ?? "" } : { batchNo: b.batchNo })
+                    }
                   />
                   <FieldError msg={show("batchNo")} />
                 </Field>
@@ -506,7 +515,15 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                   {l.extra.map((b, idx) => (
                     <div key={b.key} className="grid grid-cols-2 items-end gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2 sm:grid-cols-[1.4fr_0.8fr_1fr_1fr_auto]">
                       <Field label={`Batch ${idx + 2} No.`} required={p.trackBatch}>
-                        <Input value={b.batchNo} onChange={(e) => updateBatch(item.id, b.key, { batchNo: e.target.value })} placeholder={p.trackBatch ? "As printed on the pack" : "Optional"} />
+                        <BatchSelect
+                          productId={item.productId}
+                          unit={p.unit}
+                          value={b.batchNo}
+                          placeholder={p.trackBatch ? "Select or add batch" : "Optional"}
+                          onChange={(pick: BatchPick) =>
+                            updateBatch(item.id, b.key, pick.existing ? { batchNo: pick.batchNo, mfgDate: pick.mfgDate ?? "", expiryDate: pick.expiryDate ?? "" } : { batchNo: pick.batchNo })
+                          }
+                        />
                       </Field>
                       <Field label={`Qty (${p.unit})`} required>
                         <Input type="number" step="any" min="0" inputMode="decimal" className="num text-right" value={b.qty} placeholder="0" onChange={(e) => updateBatch(item.id, b.key, { qty: e.target.value })} />
@@ -566,6 +583,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                           }}
                           className="font-mono"
                           placeholder="Chassis / serial no."
+                          data-scan-input
                           autoFocus={idx === l.serials.length - 1 && !sn}
                         />
                         <button
@@ -599,11 +617,12 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-5">
-            <Total label="Passed" value={qty(totals.passed)} className="text-brand-700" />
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-6">
+            <Total label="QC Passed" value={qty(totals.passed)} className="text-brand-700" />
             <Total label="Rejected" value={qty(totals.rejected)} className={totals.rejected ? "text-red-600" : undefined} />
             <Total label="Damaged" value={qty(totals.damaged)} className={totals.damaged ? "text-amber-700" : undefined} />
             <Total label="Expired" value={qty(totals.expired)} className={totals.expired ? "text-amber-700" : undefined} />
+            <Total label="Shortfall" value={qty(shortfall)} className={shortfall ? "text-amber-700" : undefined} />
             <Total label="Passed Value (PO Rate)" value={inr(passedValue)} />
           </dl>
           <div className="flex w-full items-center gap-2 sm:w-auto">
@@ -622,6 +641,61 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
         )}
       </Card>
     </>
+  );
+}
+
+/** Ordered (as per PO) · received as per QC · total counted · shortfall still open on the PO */
+function QtySummary({
+  unit,
+  ordered,
+  pending,
+  accepted,
+  total,
+  outOfStock,
+  over,
+}: {
+  unit: string;
+  ordered: number;
+  pending: number;
+  accepted: number;
+  total: number;
+  outOfStock: number;
+  over: boolean;
+}) {
+  const earlier = r3(ordered - pending);
+  const short = r3(Math.max(0, pending - total));
+  const box = "rounded-lg border px-3 py-2";
+  return (
+    <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className={cx(box, "border-slate-200 bg-slate-50")}>
+        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Total Qty as per PO</p>
+        <p className="num text-base font-semibold text-slate-900">
+          {qty(ordered)} <span className="text-xs font-normal text-slate-500">{unit}</span>
+        </p>
+        <p className="text-[11px] text-slate-500">{earlier > 0 ? `${qty(earlier)} received earlier · ${qty(pending)} due` : "Ordered on the PO"}</p>
+      </div>
+      <div className={cx(box, "border-brand-200 bg-brand-50/60")}>
+        <p className="text-[11px] font-medium uppercase tracking-wide text-brand-800">Received Qty as per QC</p>
+        <p className="num text-base font-semibold text-brand-800">
+          {qty(accepted)} <span className="text-xs font-normal text-brand-700">{unit}</span>
+        </p>
+        <p className="text-[11px] text-brand-700">Passed QC, goes into stock</p>
+      </div>
+      <div className={cx(box, over ? "border-red-300 bg-red-50" : "border-slate-200 bg-white")}>
+        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Total Quantity</p>
+        <p className={cx("num text-base font-semibold", over ? "text-red-700" : "text-slate-900")}>
+          {qty(total)} <span className="text-xs font-normal text-slate-500">{unit}</span>
+        </p>
+        <p className="text-[11px] text-slate-500">{outOfStock > 0 ? `incl. ${qty(outOfStock)} rejected / damaged / expired` : "All that arrived"}</p>
+      </div>
+      <div className={cx(box, short > 0 ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white")}>
+        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Shortfall of Quantity</p>
+        <p className={cx("num text-base font-semibold", short > 0 ? "text-amber-800" : "text-slate-900")}>
+          {qty(short)} <span className="text-xs font-normal text-slate-500">{unit}</span>
+        </p>
+        <p className={cx("text-[11px]", short > 0 ? "text-amber-700" : "text-slate-500")}>{short > 0 ? "Stays open on the PO" : "Nothing short"}</p>
+      </div>
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown, Info as InfoIcon, PackageCheck, Plus, ScanLine, Store, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown, Info as InfoIcon, Layers, PackageCheck, Plus, ScanLine, Store, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useState } from "react";
@@ -16,6 +16,7 @@ import {
   Field,
   Info,
   Input,
+  Modal,
   PageHeader,
   Spinner,
   Table,
@@ -34,8 +35,8 @@ import { useApi } from "@/lib/hooks";
 import { useScanner } from "@/lib/scanner";
 import type { Grn, PoItem, PurchaseOrder } from "@/lib/types";
 
-/** A further batch of the same line (the first batch is the line's own batch fields and takes the rest of the passed qty) */
-interface ExtraBatch {
+/** One batch of a line, entered in the Batch No. popup: its quantity, number and dates */
+interface BatchRow {
   key: number;
   qty: string;
   batchNo: string;
@@ -44,27 +45,22 @@ interface ExtraBatch {
 }
 
 interface Line {
-  passed: string;
+  /** Received (QC passed) stock, batch by batch; the Received Qty is their total */
+  batches: BatchRow[];
   rejected: string;
   damaged: string;
   expired: string;
-  batchNo: string;
-  mfgDate: string;
-  expiryDate: string;
   location: string;
-  /** Chassis / serial numbers of the passed units, one per box */
+  /** Chassis / serial numbers of the received units, one per box */
   serials: string[];
-  extra: ExtraBatch[];
 }
 
-type QtyKey = "passed" | "rejected" | "damaged" | "expired";
+type OutKey = "rejected" | "damaged" | "expired";
 let batchSeq = 0;
-const blankBatch = (): ExtraBatch => ({ key: ++batchSeq, qty: "", batchNo: "", mfgDate: "", expiryDate: "" });
+const blankBatch = (qtyValue = ""): BatchRow => ({ key: ++batchSeq, qty: qtyValue, batchNo: "", mfgDate: "", expiryDate: "" });
 const serialsOf = (l: Line) => l.serials.map((x) => x.trim()).filter(Boolean);
-const extraQty = (l: Line) => r3(l.extra.reduce((s, b) => s + num(b.qty), 0));
 
-const QTY_FIELDS = [
-  { key: "passed", label: "QC Passed", hint: "Accepted into sellable stock", tone: "text-brand-700" },
+const OUT_FIELDS = [
   { key: "rejected", label: "Rejected", hint: "Debit note to vendor", tone: "text-red-600" },
   { key: "damaged", label: "Damaged", hint: "Written off", tone: "text-amber-700" },
   { key: "expired", label: "Expired", hint: "Kept out of stock", tone: "text-amber-700" },
@@ -72,49 +68,45 @@ const QTY_FIELDS = [
 
 const num = (s: string) => Number(s) || 0;
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
+/** Received Qty of a line: the total of its batch quantities */
+const receivedOf = (l: Line) => r3(l.batches.reduce((s, b) => s + num(b.qty), 0));
 const pendingOf = (i: PoItem) =>
   i.pendingQty ?? r3(Math.max(0, n(i.quantity) - n(i.passedQty) - n(i.rejectedQty) - n(i.damagedQty) - n(i.expiredQty)));
 
-/** Problems with a line, mirroring the backend's createGrn checks. `required` errors only show after a submit attempt. */
+/** Problems with a line, mirroring the backend's createGrn checks. `required` problems only show after a submit attempt. */
 function check(item: PoItem, l: Line) {
   const pending = pendingOf(item);
-  const passed = num(l.passed);
+  const passed = receivedOf(l);
   const expired = num(l.expired);
   const total = r3(passed + num(l.rejected) + num(l.damaged) + expired);
-  const errors: Partial<Record<keyof Line | "total", { msg: string; required?: boolean }>> = {};
-  const extraTotal = extraQty(l);
-  for (const f of QTY_FIELDS) if (num(l[f.key]) < 0) errors[f.key] = { msg: "Can't be negative" };
-  if (total > pending + 0.0005) errors.total = { msg: `${qty(total)} entered — only ${qty(pending)} pending` };
   const track = item.product.trackBatch;
-  if (track && (passed > 0 || expired > 0) && !l.batchNo.trim()) errors.batchNo = { msg: "Batch no. is required", required: true };
-  if (track && passed > 0 && !l.expiryDate) errors.expiryDate = { msg: "Expiry date is required for passed stock", required: true };
-  else if (passed > 0 && l.expiryDate && l.expiryDate <= today())
-    errors.expiryDate = track
-      ? { msg: "Must be a future date — count expired goods under Expired" }
-      : { msg: "Already expired — count these under Expired" };
-  if (l.mfgDate && l.mfgDate > today()) errors.mfgDate = { msg: "Can't be in the future" };
-  else if (l.mfgDate && l.expiryDate && l.expiryDate < l.mfgDate) errors.expiryDate = { msg: "Before the manufacturing date" };
-  // Further batches: each needs a quantity (and batch no. / expiry when tracked); the first batch keeps the rest of the passed qty
-  if (l.extra.length) {
-    const label = (i: number) => `Batch ${i + 2}`;
-    const bad = l.extra
-      .map((b, i) => {
-        if (!(num(b.qty) > 0)) return `${label(i)}: enter its quantity`;
-        if (track && !b.batchNo.trim()) return `${label(i)}: batch no. is required`;
-        if (track && !b.expiryDate) return `${label(i)}: expiry date is required`;
-        if (b.expiryDate && b.expiryDate <= today()) return `${label(i)}: expiry must be a future date`;
-        if (b.mfgDate && b.mfgDate > today()) return `${label(i)}: manufacturing date can't be in the future`;
-        if (b.mfgDate && b.expiryDate && b.expiryDate < b.mfgDate) return `${label(i)}: expiry is before the manufacturing date`;
-        return null;
-      })
-      .find(Boolean);
-    if (extraTotal >= passed - 0.0005) errors.extra = { msg: `Batches add up to ${qty(extraTotal)} — keep part of the ${qty(passed)} passed for batch 1, or raise Passed` };
-    else if (bad) errors.extra = { msg: bad, required: true };
-  }
+  const errors: Partial<Record<OutKey | "total" | "batches" | "serials", { msg: string; required?: boolean }>> = {};
+  for (const f of OUT_FIELDS) if (num(l[f.key]) < 0) errors[f.key] = { msg: "Can't be negative" };
+  if (total > pending + 0.0005) errors.total = { msg: `${qty(total)} entered — only ${qty(pending)} pending` };
+
+  // Each batch row: the quantity, and when the product tracks batches its number and a future expiry
+  const rowErrors = l.batches.map((b, i): { msg: string; required?: boolean } | null => {
+    const q = num(b.qty);
+    const used = q > 0 || (i === 0 && expired > 0);
+    if (q < 0) return { msg: "Quantity can't be negative" };
+    if (!used) return b.batchNo.trim() || b.mfgDate || b.expiryDate ? { msg: "Enter its quantity", required: true } : null;
+    if (track && !b.batchNo.trim()) return { msg: "Batch no. is required", required: true };
+    if (q > 0 && track && !b.expiryDate) return { msg: "Expiry date is required", required: true };
+    if (q > 0 && b.expiryDate && b.expiryDate <= today())
+      return { msg: track ? "Expiry must be a future date — count expired goods under Expired" : "Already expired — count these under Expired" };
+    if (b.mfgDate && b.mfgDate > today()) return { msg: "Mfg date can't be in the future" };
+    if (b.mfgDate && b.expiryDate && b.expiryDate < b.mfgDate) return { msg: "Expiry is before the Mfg date" };
+    return null;
+  });
+  const numbers = l.batches.map((b) => b.batchNo.trim().toLowerCase()).filter(Boolean);
+  const firstRow = rowErrors.findIndex(Boolean);
+  if (new Set(numbers).size !== numbers.length) errors.batches = { msg: "The same batch number is entered twice — put its whole quantity on one row" };
+  else if (firstRow >= 0) errors.batches = { msg: `Batch ${firstRow + 1}: ${rowErrors[firstRow]!.msg}`, required: rowErrors[firstRow]!.required };
+
   const serials = serialsOf(l);
-  if (serials.length > passed + 0.0005) errors.serials = { msg: `${serials.length} chassis / serial numbers entered for ${qty(passed)} passed units` };
+  if (serials.length > passed + 0.0005) errors.serials = { msg: `${serials.length} chassis / serial numbers entered for ${qty(passed)} received units` };
   else if (new Set(serials).size !== serials.length) errors.serials = { msg: "The same chassis / serial number is entered twice" };
-  return { pending, total, errors, extraTotal };
+  return { pending, passed, total, errors, rowErrors };
 }
 
 export default function NewGrnPage() {
@@ -174,30 +166,28 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const [vehicleNo, setVehicleNo] = useState("");
   const [supplierInvoiceNo, setSupplierInvoiceNo] = useState("");
   const [receivedAt, setReceivedAt] = useState(today());
+  // Every open line starts as fully received in one batch; the batch popup splits it
   const [lines, setLines] = useState<Record<string, Line>>(() =>
-    Object.fromEntries(
-      items.map((i) => [
-        i.id,
-        { passed: String(pendingOf(i)), rejected: "", damaged: "", expired: "", batchNo: "", mfgDate: "", expiryDate: "", location: "", serials: [], extra: [] } as Line,
-      ]),
-    ),
+    Object.fromEntries(items.map((i) => [i.id, { batches: [blankBatch(String(pendingOf(i)))], rejected: "", damaged: "", expired: "", location: "", serials: [] } as Line])),
   );
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [scanned, setScanned] = useState<string | null>(null);
-  // Rows whose details (QC split, dates, location, more batches, serials) are open
+  // Rows whose details (rejected / damaged / expired, location, serials) are open
   const [openRows, setOpenRows] = useState<Record<string, boolean>>({});
+  // Line whose batch popup is open
+  const [batchFor, setBatchFor] = useState<string | null>(null);
   const { currentId, branches, locked, setBranch } = useBranch();
 
-  // A barcode scan jumps to that PO line, marks the pending quantity as passed and focuses the batch box
+  // A barcode scan jumps to that PO line and opens its batch popup
   useScanner((code) => {
     const q = code.toLowerCase();
     const hit = items.find((i) => pendingOf(i) > 0 && (i.product.barcode?.toLowerCase() === q || i.product.sku.toLowerCase() === q));
     if (!hit) return toast.error(`No open line on ${po.poNo} matches barcode ${code}`);
     setScanned(hit.id);
-    setLines((ls) => (num(ls[hit.id].passed) > 0 ? ls : { ...ls, [hit.id]: { ...ls[hit.id], passed: String(pendingOf(hit)) } }));
+    setLines((ls) => (receivedOf(ls[hit.id]) > 0 ? ls : { ...ls, [hit.id]: { ...ls[hit.id], batches: [blankBatch(String(pendingOf(hit)))] } }));
     document.getElementById(`grn-line-${hit.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-    setTimeout(() => document.getElementById(`grn-batch-${hit.id}`)?.focus(), 250);
+    setBatchFor(hit.id);
   }, true, (t) => !!t?.closest("[data-scan-input]")); // a batch or chassis number scanned into its box stays there
   // Goods are received into the branch the PO delivers to; with another branch selected the API refuses
   const poBranchId = po.branchId ?? po.branch?.id ?? null;
@@ -205,8 +195,6 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const canSwitch = !locked && branches.some((b) => b.id === poBranchId);
 
   const update = (id: string, patch: Partial<Line>) => setLines((ls) => ({ ...ls, [id]: { ...ls[id], ...patch } }));
-  const updateBatch = (id: string, key: number, patch: Partial<ExtraBatch>) =>
-    setLines((ls) => ({ ...ls, [id]: { ...ls[id], extra: ls[id].extra.map((b) => (b.key === key ? { ...b, ...patch } : b)) } }));
   const setSerial = (id: string, idx: number, value: string) =>
     setLines((ls) => ({ ...ls, [id]: { ...ls[id], serials: ls[id].serials.map((x, j) => (j === idx ? value : x)) } }));
   // Several numbers pasted at once (from a sheet or a list) become one box each
@@ -223,9 +211,14 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const open = items.filter((i) => pendingOf(i) > 0);
   const checks = new Map(open.map((i) => [i.id, check(i, lines[i.id])]));
 
-  const sum = (k: QtyKey) => r3(open.reduce((s, i) => s + num(lines[i.id][k]), 0));
-  const totals = { passed: sum("passed"), rejected: sum("rejected"), damaged: sum("damaged"), expired: sum("expired") };
-  const passedValue = round2(open.reduce((s, i) => s + num(lines[i.id].passed) * n(i.rate), 0));
+  const sumOut = (k: OutKey) => r3(open.reduce((s, i) => s + num(lines[i.id][k]), 0));
+  const totals = {
+    passed: r3(open.reduce((s, i) => s + receivedOf(lines[i.id]), 0)),
+    rejected: sumOut("rejected"),
+    damaged: sumOut("damaged"),
+    expired: sumOut("expired"),
+  };
+  const passedValue = round2(open.reduce((s, i) => s + receivedOf(lines[i.id]) * n(i.rate), 0));
   const shortfall = r3(open.reduce((s, i) => s + Math.max(0, pendingOf(i) - (checks.get(i.id)?.total ?? 0)), 0));
   const anyQty = open.some((i) => (checks.get(i.id)?.total ?? 0) > 0);
   const shortLines = open.filter((i) => {
@@ -262,36 +255,25 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
         vehicleNo: vehicleNo.trim() || undefined,
         supplierInvoiceNo: supplierInvoiceNo.trim() || undefined,
         receivedAt,
-        // Each further batch is sent as its own row for the same PO line; the first row keeps the rest of the passed qty
+        // One row per batch with a quantity; the first carries the rejected / damaged / expired counts and the serial numbers
         items: open.flatMap((i) => {
           const l = lines[i.id];
+          const filled = l.batches.filter((b) => num(b.qty) > 0);
+          const rows = filled.length ? filled : [l.batches[0]];
           const serials = serialsOf(l);
           const location = l.location.trim() || undefined;
-          return [
-            {
-              poItemId: i.id,
-              passedQty: r3(num(l.passed) - extraQty(l)),
-              rejectedQty: num(l.rejected),
-              damagedQty: num(l.damaged),
-              expiredQty: num(l.expired),
-              batchNo: l.batchNo.trim() || undefined,
-              location,
-              serialNos: serials.length ? serials : undefined,
-              mfgDate: l.mfgDate || undefined,
-              expiryDate: l.expiryDate || undefined,
-            },
-            ...l.extra.map((b) => ({
-              poItemId: i.id,
-              passedQty: num(b.qty),
-              rejectedQty: 0,
-              damagedQty: 0,
-              expiredQty: 0,
-              batchNo: b.batchNo.trim() || undefined,
-              location,
-              mfgDate: b.mfgDate || undefined,
-              expiryDate: b.expiryDate || undefined,
-            })),
-          ];
+          return rows.map((b, k) => ({
+            poItemId: i.id,
+            passedQty: num(b.qty),
+            rejectedQty: k === 0 ? num(l.rejected) : 0,
+            damagedQty: k === 0 ? num(l.damaged) : 0,
+            expiredQty: k === 0 ? num(l.expired) : 0,
+            batchNo: b.batchNo.trim() || undefined,
+            location,
+            serialNos: k === 0 && serials.length ? serials : undefined,
+            mfgDate: b.mfgDate || undefined,
+            expiryDate: b.expiryDate || undefined,
+          }));
         }),
       });
       // The purchase invoice is booked automatically when anything passed inspection
@@ -306,6 +288,8 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
       setSaving(false);
     }
   }
+
+  const batchItem = batchFor ? items.find((i) => i.id === batchFor) : null;
 
   return (
     <>
@@ -380,9 +364,10 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
       <div className="mb-4 flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 sm:px-4 text-sm text-sky-800">
         <InfoIcon className="mt-0.5 size-4 shrink-0" />
         <p>
-          Enter the <b>Received Qty</b> that passed QC for each line and pick its batch. Open <b>▸</b> on a line for goods that were{" "}
-          <b>rejected</b> (debit note to the vendor), <b>damaged</b> (written off) or <b>expired</b> (kept out of stock), the Mfg date, location,
-          more batches and chassis / serial numbers. Anything not counted stays open on the PO for a later delivery.
+          Click <b>Batch No.</b> on a line to enter each batch received — its quantity, batch number, Mfg and expiry date; <b>Received Qty</b> is
+          their total. Open <b>▸</b> on a line for goods that were <b>rejected</b> (debit note to the vendor), <b>damaged</b> (written off) or{" "}
+          <b>expired</b> (kept out of stock), the location and chassis / serial numbers. Anything not counted stays open on the PO for a later
+          delivery.
           <span className="mt-1 flex items-center gap-1 text-xs text-sky-700">
             <ScanLine className="size-3.5" /> Scan a pack&apos;s barcode to jump to its line and fill the batch details.
           </span>
@@ -431,17 +416,19 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
               }
               const l = lines[item.id];
               const c = checks.get(item.id)!;
-              const show = (k: keyof Line) => {
+              const show = (k: keyof typeof c.errors) => {
                 const e = c.errors[k];
                 return e && (!e.required || submitted) ? e.msg : null;
               };
               const over = !!c.errors.total;
               const short = r3(Math.max(0, pending - c.total));
               const outOfStock = r3(num(l.rejected) + num(l.damaged) + num(l.expired));
-              const amount = round2(num(l.passed) * n(item.rate));
+              const amount = round2(c.passed * n(item.rate));
+              const batchProblem = show("batches");
+              const named = l.batches.filter((b) => b.batchNo.trim());
               // Details open by themselves when they hold something or have a problem to fix
-              const detailError = !!(show("rejected") || show("damaged") || show("expired") || show("mfgDate") || show("extra") || show("serials"));
-              const expanded = openRows[item.id] ?? (!!p.trackSerial || l.extra.length > 0 || outOfStock > 0 || detailError);
+              const detailError = !!(show("rejected") || show("damaged") || show("expired") || show("serials"));
+              const expanded = openRows[item.id] ?? (!!p.trackSerial || outOfStock > 0 || detailError);
               const toggle = () => setOpenRows((o) => ({ ...o, [item.id]: !expanded }));
               return (
                 <Fragment key={item.id}>
@@ -466,53 +453,56 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                       )}
                     </Td>
                     <Td className="pt-2">
-                      {l.extra.length > 0 && (
-                        <p className="mb-0.5 text-[11px] font-medium text-slate-500">
-                          Batch 1 · {qty(Math.max(0, r3(num(l.passed) - c.extraTotal)))} {p.unit}
-                        </p>
-                      )}
-                      <BatchSelect
+                      {/* Opens the batch popup: quantity, batch no., Mfg and expiry date per batch */}
+                      <button
+                        type="button"
                         id={`grn-batch-${item.id}`}
-                        productId={item.productId}
-                        unit={p.unit}
-                        value={l.batchNo}
-                        invalid={!!show("batchNo")}
-                        placeholder={p.trackBatch ? "Select or add batch" : "Optional"}
-                        onChange={(b: BatchPick) =>
-                          update(item.id, b.existing ? { batchNo: b.batchNo, mfgDate: b.mfgDate ?? "", expiryDate: b.expiryDate ?? "" } : { batchNo: b.batchNo })
-                        }
-                      />
-                      <FieldError msg={show("batchNo")} />
-                      {(p.trackBatch || l.expiryDate) && (
-                        <div className="mt-1.5 flex items-center gap-2">
-                          <span className="shrink-0 text-[11px] font-medium text-slate-500">Expiry{p.trackBatch && num(l.passed) > 0 ? " *" : ""}</span>
-                          <DateInput
-                            className={cx("h-8 text-xs", show("expiryDate") && "border-red-400")}
-                            value={l.expiryDate}
-                            min={l.mfgDate || undefined}
-                            onChange={(e) => update(item.id, { expiryDate: e.target.value })}
-                            aria-label={`Expiry date of ${p.name}`}
-                          />
-                        </div>
-                      )}
-                      <FieldError msg={show("expiryDate")} />
+                        onClick={() => setBatchFor(item.id)}
+                        className={cx(
+                          "flex w-full items-start justify-between gap-2 rounded-lg border bg-white px-3 py-2 text-left text-sm hover:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30",
+                          batchProblem ? "border-red-400" : "border-slate-300",
+                        )}
+                      >
+                        {named.length ? (
+                          <span className="min-w-0 space-y-0.5">
+                            {named.slice(0, 2).map((b) => (
+                              <span key={b.key} className="block truncate">
+                                <span className="font-mono font-medium text-slate-900">{b.batchNo}</span>
+                                <span className="text-xs text-slate-500">
+                                  {" "}
+                                  · {qty(num(b.qty))} {p.unit}
+                                  {b.expiryDate ? ` · Exp ${date(b.expiryDate)}` : ""}
+                                </span>
+                              </span>
+                            ))}
+                            {named.length > 2 && <span className="block text-xs text-brand-700">+ {named.length - 2} more batches</span>}
+                          </span>
+                        ) : (
+                          <span className={cx("truncate", p.trackBatch ? "text-slate-500" : "text-slate-400")}>
+                            {p.trackBatch ? "Add batch details" : "Optional — add batches"}
+                          </span>
+                        )}
+                        <Layers className="mt-0.5 size-4 shrink-0 text-slate-400" />
+                      </button>
+                      <FieldError msg={batchProblem} />
                     </Td>
                     <Td right className="whitespace-nowrap pt-3">
                       <span className="num">{inr(item.rate)}</span>
                       <p className="text-[11px] text-slate-500">per {p.unit}</p>
                     </Td>
                     <Td right className="pt-2">
-                      <Input
-                        type="number"
-                        step="any"
-                        min="0"
-                        inputMode="decimal"
-                        className={cx("num ml-auto h-9 w-28 text-right font-semibold text-brand-700", (over || show("passed")) && "border-red-400")}
-                        value={l.passed}
-                        placeholder="0"
-                        onChange={(e) => update(item.id, { passed: e.target.value })}
+                      <button
+                        type="button"
+                        onClick={() => setBatchFor(item.id)}
+                        title="Change in the batch popup"
                         aria-label={`Received quantity of ${p.name}`}
-                      />
+                        className={cx(
+                          "num ml-auto block h-9 w-28 rounded-lg border bg-slate-50 px-3 text-right font-semibold text-brand-700 hover:border-brand-500",
+                          over ? "border-red-400" : "border-slate-200",
+                        )}
+                      >
+                        {qty(c.passed)}
+                      </button>
                       {over ? (
                         <p className="mt-1 text-[11px] font-medium text-red-600">{c.errors.total!.msg}</p>
                       ) : short > 0 ? (
@@ -520,7 +510,9 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                           Short {qty(short)} {p.unit} · stays open
                         </p>
                       ) : (
-                        <p className="mt-1 text-[11px] text-slate-500">QC passed</p>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {l.batches.length > 1 ? `${l.batches.length} batches · ` : ""}QC passed
+                        </p>
                       )}
                       {outOfStock > 0 && <p className="text-[11px] text-slate-500">+ {qty(outOfStock)} not taken into stock</p>}
                     </Td>
@@ -534,7 +526,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                         onClick={toggle}
                         aria-expanded={expanded}
                         aria-label={`${expanded ? "Hide" : "Show"} details for ${p.name}`}
-                        title="Rejected / damaged / expired, Mfg date, location, more batches, serial numbers"
+                        title="Rejected / damaged / expired, location, chassis / serial numbers"
                         className={cx("rounded-md p-1.5 hover:bg-slate-100", detailError ? "text-red-600" : "text-slate-500")}
                       >
                         <ChevronDown className={cx("size-4 transition-transform", expanded && "rotate-180")} />
@@ -545,15 +537,30 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                     <tr className="bg-slate-50/70">
                       <td colSpan={8} className="border-b border-slate-100 px-3 pb-4 pt-2 sm:px-4">
                         <div className="flex flex-wrap items-center gap-2 pb-2">
-                          <Button size="sm" variant="ghost" onClick={() => update(item.id, { passed: String(pending), rejected: "", damaged: "", expired: "" })}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              update(item.id, {
+                                batches: l.batches.length > 1 ? l.batches : [{ ...l.batches[0], qty: String(pending) }],
+                                rejected: "",
+                                damaged: "",
+                                expired: "",
+                              })
+                            }
+                          >
                             All Passed
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => update(item.id, { passed: "", rejected: "", damaged: "", expired: "" })}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => update(item.id, { batches: l.batches.map((b) => ({ ...b, qty: "" })), rejected: "", damaged: "", expired: "" })}
+                          >
                             Not Arrived
                           </Button>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                          {QTY_FIELDS.filter((f) => f.key !== "passed").map((f) => (
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          {OUT_FIELDS.map((f) => (
                             <Field key={f.key} label={f.label} hint={f.hint}>
                               <Input
                                 type="number"
@@ -567,74 +574,17 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                               />
                             </Field>
                           ))}
-                          <Field label="Mfg Date">
-                            <DateInput
-                              max={today()}
-                              className={cx(show("mfgDate") && "border-red-400")}
-                              value={l.mfgDate}
-                              onChange={(e) => update(item.id, { mfgDate: e.target.value })}
-                            />
-                            <FieldError msg={show("mfgDate")} />
-                          </Field>
                           <Field label="Location" hint={p.location ? `Usually ${p.location}` : "Rack / bin (optional)"}>
                             <Input value={l.location} onChange={(e) => update(item.id, { location: e.target.value })} placeholder={p.location ?? ""} />
                           </Field>
                         </div>
 
-                        {/* Further batches of this line: the + adds a row; batch 1 above keeps the rest of the received qty */}
-                        {l.extra.length > 0 && (
-                          <div className="mt-3 space-y-2">
-                            {l.extra.map((b, bi) => (
-                              <div key={b.key} className="grid grid-cols-2 items-end gap-2 rounded-lg border border-slate-200 bg-white p-2 sm:grid-cols-[1.4fr_0.8fr_1fr_1fr_auto]">
-                                <Field label={`Batch ${bi + 2} No.`} required={p.trackBatch}>
-                                  <BatchSelect
-                                    productId={item.productId}
-                                    unit={p.unit}
-                                    value={b.batchNo}
-                                    placeholder={p.trackBatch ? "Select or add batch" : "Optional"}
-                                    onChange={(pick: BatchPick) =>
-                                      updateBatch(item.id, b.key, pick.existing ? { batchNo: pick.batchNo, mfgDate: pick.mfgDate ?? "", expiryDate: pick.expiryDate ?? "" } : { batchNo: pick.batchNo })
-                                    }
-                                  />
-                                </Field>
-                                <Field label={`Qty (${p.unit})`} required>
-                                  <Input type="number" step="any" min="0" inputMode="decimal" className="num text-right" value={b.qty} placeholder="0" onChange={(e) => updateBatch(item.id, b.key, { qty: e.target.value })} />
-                                </Field>
-                                <Field label="Mfg Date">
-                                  <DateInput max={today()} value={b.mfgDate} onChange={(e) => updateBatch(item.id, b.key, { mfgDate: e.target.value })} />
-                                </Field>
-                                <Field label="Expiry Date" required={p.trackBatch}>
-                                  <DateInput value={b.expiryDate} min={b.mfgDate || undefined} onChange={(e) => updateBatch(item.id, b.key, { expiryDate: e.target.value })} />
-                                </Field>
-                                <button
-                                  type="button"
-                                  onClick={() => update(item.id, { extra: l.extra.filter((x) => x.key !== b.key) })}
-                                  className="mb-1 justify-self-end rounded-md p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                                  aria-label={`Remove batch ${bi + 2}`}
-                                >
-                                  <X className="size-4" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        <FieldError msg={show("extra")} />
-                        {num(l.passed) > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => update(item.id, { extra: [...l.extra, blankBatch()] })}
-                            className="mt-2 inline-flex items-center gap-1 rounded-md border border-dashed border-brand-300 bg-white px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
-                          >
-                            <Plus className="size-3.5" /> Add another batch
-                          </button>
-                        )}
-
-                        {p.trackSerial && num(l.passed) > 0 && (
+                        {p.trackSerial && c.passed > 0 && (
                           <div className="mt-3 border-t border-slate-200 pt-3">
                             <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
                               <span className="text-xs font-medium text-slate-600">Chassis / Serial Numbers of the Received Units</span>
-                              <span className={cx("num text-xs", serialsOf(l).length === num(l.passed) ? "text-brand-700" : "text-slate-500")}>
-                                {serialsOf(l).length} of {qty(num(l.passed))} entered
+                              <span className={cx("num text-xs", serialsOf(l).length === c.passed ? "text-brand-700" : "text-slate-500")}>
+                                {serialsOf(l).length} of {qty(c.passed)} entered
                               </span>
                             </div>
                             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -651,7 +601,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                                       // A scanner ends each code with Enter: open the next box for the next unit
                                       if (e.key !== "Enter") return;
                                       e.preventDefault();
-                                      if (sn.trim() && si === l.serials.length - 1 && l.serials.length < num(l.passed)) update(item.id, { serials: [...l.serials, ""] });
+                                      if (sn.trim() && si === l.serials.length - 1 && l.serials.length < c.passed) update(item.id, { serials: [...l.serials, ""] });
                                     }}
                                     className="font-mono"
                                     placeholder="Chassis / serial no."
@@ -670,7 +620,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                               ))}
                             </div>
                             <FieldError msg={show("serials")} />
-                            {serialsOf(l).length < num(l.passed) && (
+                            {serialsOf(l).length < c.passed && (
                               <button
                                 type="button"
                                 onClick={() => update(item.id, { serials: [...l.serials, ""] })}
@@ -730,7 +680,174 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
           </p>
         )}
       </Card>
+
+      {batchItem && (
+        <BatchesModal
+          item={batchItem}
+          line={lines[batchItem.id]}
+          rowErrors={checks.get(batchItem.id)?.rowErrors ?? []}
+          submitted={submitted}
+          onChange={(batches) => update(batchItem.id, { batches })}
+          onClose={() => setBatchFor(null)}
+        />
+      )}
     </>
+  );
+}
+
+/**
+ * Batch popup for one PO line: a table of Qty · Batch No. · Mfg Date · Expiry Date, one row per batch,
+ * with an add button below. The rows' quantities add up to the line's Received Qty.
+ */
+function BatchesModal({
+  item,
+  line,
+  rowErrors,
+  submitted,
+  onChange,
+  onClose,
+}: {
+  item: PoItem;
+  line: Line;
+  rowErrors: ({ msg: string; required?: boolean } | null)[];
+  submitted: boolean;
+  onChange: (batches: BatchRow[]) => void;
+  onClose: () => void;
+}) {
+  const p = item.product;
+  const pending = pendingOf(item);
+  const rows = line.batches;
+  const received = receivedOf(line);
+  const outOfStock = r3(num(line.rejected) + num(line.damaged) + num(line.expired));
+  const left = r3(pending - received - outOfStock);
+  const set = (key: number, patch: Partial<BatchRow>) => onChange(rows.map((b) => (b.key === key ? { ...b, ...patch } : b)));
+  // Removing the only row clears it instead
+  const remove = (key: number) => onChange(rows.length > 1 ? rows.filter((b) => b.key !== key) : [blankBatch()]);
+  // A new row starts with whatever is still due
+  const add = () => onChange([...rows, blankBatch(left > 0 ? String(left) : "")]);
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="xl"
+      title={
+        <span className="inline-flex flex-wrap items-center gap-x-2">
+          Batches · {p.name}
+          <span className="text-sm font-normal text-slate-500">
+            PO qty {qty(item.quantity)} {p.unit}
+            {pending < n(item.quantity) ? ` · ${qty(pending)} due` : ""}
+          </span>
+        </span>
+      }
+      footer={
+        <>
+          <div className="mr-auto text-sm">
+            <span className="text-slate-500">Received Qty </span>
+            <b className="num text-brand-700">
+              {qty(received)} {p.unit}
+            </b>
+            {left > 0 && <span className="ml-2 text-amber-700">· {qty(left)} short (stays open on the PO)</span>}
+            {left < 0 && <span className="ml-2 font-medium text-red-600">· {qty(-left)} more than due</span>}
+          </div>
+          <Button onClick={onClose}>Done</Button>
+        </>
+      }
+    >
+      <div className="overflow-x-auto rounded-lg border border-slate-200">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
+              <th className="w-8 px-3 py-2 font-medium">#</th>
+              <th className="w-32 px-3 py-2 text-right font-medium">Qty ({p.unit})</th>
+              <th className="min-w-52 px-3 py-2 font-medium">Batch No.{p.trackBatch ? " *" : ""}</th>
+              <th className="px-3 py-2 font-medium">Mfg Date</th>
+              <th className="px-3 py-2 font-medium">Expiry Date{p.trackBatch ? " *" : ""}</th>
+              <th className="w-10 px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((b, i) => {
+              const err = rowErrors[i];
+              const msg = err && (!err.required || submitted) ? err.msg : null;
+              return (
+                <Fragment key={b.key}>
+                  <tr className="border-t border-slate-100 align-top">
+                    <td className="px-3 py-2 pt-4 text-slate-400">{i + 1}</td>
+                    <td className="px-3 py-2">
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        inputMode="decimal"
+                        value={b.qty}
+                        placeholder="0"
+                        onChange={(e) => set(b.key, { qty: e.target.value })}
+                        className="num text-right font-semibold"
+                        aria-label={`Batch ${i + 1} quantity`}
+                        autoFocus={i === rows.length - 1 && rows.length > 1}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <BatchSelect
+                        productId={item.productId}
+                        unit={p.unit}
+                        value={b.batchNo}
+                        invalid={!!msg && /batch no/i.test(msg)}
+                        placeholder={p.trackBatch ? "Select or add batch" : "Optional"}
+                        onChange={(pick: BatchPick) =>
+                          set(b.key, pick.existing ? { batchNo: pick.batchNo, mfgDate: pick.mfgDate ?? "", expiryDate: pick.expiryDate ?? "" } : { batchNo: pick.batchNo })
+                        }
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <DateInput max={today()} value={b.mfgDate} onChange={(e) => set(b.key, { mfgDate: e.target.value })} aria-label={`Batch ${i + 1} Mfg date`} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <DateInput
+                        value={b.expiryDate}
+                        min={b.mfgDate || undefined}
+                        onChange={(e) => set(b.key, { expiryDate: e.target.value })}
+                        className={cx(msg && /expir/i.test(msg) && "border-red-400")}
+                        aria-label={`Batch ${i + 1} expiry date`}
+                      />
+                    </td>
+                    <td className="px-3 py-2 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => remove(b.key)}
+                        className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        aria-label={`Remove batch ${i + 1}`}
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </td>
+                  </tr>
+                  {msg && (
+                    <tr>
+                      <td />
+                      <td colSpan={5} className="px-3 pb-2 text-xs text-red-600">
+                        {msg}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <button
+        type="button"
+        onClick={add}
+        className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-dashed border-brand-300 px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50"
+      >
+        <Plus className="size-4" /> Add batch
+      </button>
+      <p className="mt-2 text-xs text-slate-500">
+        Enter what passed QC, batch by batch. Rejected, damaged or expired goods go in the line&apos;s details (▸), not here.
+      </p>
+    </Modal>
   );
 }
 

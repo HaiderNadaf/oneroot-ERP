@@ -142,7 +142,7 @@ export function ProductPicker({
           <div className="min-w-0">
             <p className="truncate font-medium text-slate-800">{p.name}</p>
             <p className="truncate text-xs text-slate-500">
-              {p.sku}
+              <span className="mr-1 rounded bg-slate-100 px-1 font-mono text-[11px] font-medium text-slate-800">{p.sku}</span>
               {p.brand ? ` · ${p.brand}` : ""}
               {p.packSize ? ` · ${p.packSize}` : ""}
             </p>

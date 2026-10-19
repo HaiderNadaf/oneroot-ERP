@@ -251,6 +251,7 @@ export default function PurchaseOrderDetailPage() {
               <tr>
                 <Th>#</Th>
                 <Th>Product</Th>
+                <Th>SKU Code</Th>
                 <Th right>Ordered</Th>
                 <Th right>Rate</Th>
                 <Th right>Disc.</Th>
@@ -270,10 +271,11 @@ export default function PurchaseOrderDetailPage() {
                   <Td className="min-w-40 sm:min-w-48">
                     <p className="font-medium text-slate-900">{it.product.name}</p>
                     <p className="text-xs text-slate-500">
-                      {it.product.sku}
-                      {it.product.hsnCode && ` · HSN ${it.product.hsnCode}`}
-                      {it.product.packSize && ` · ${it.product.packSize}`}
+                      {[it.product.hsnCode && `HSN ${it.product.hsnCode}`, it.product.packSize].filter(Boolean).join(" · ")}
                     </p>
+                  </Td>
+                  <Td className="whitespace-nowrap">
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-medium text-slate-800 print:bg-transparent print:px-0">{it.product.sku}</span>
                   </Td>
                   <Td right className="whitespace-nowrap">
                     {qty(it.quantity)} <span className="text-xs text-slate-500">{it.product.unit}</span>
@@ -299,7 +301,7 @@ export default function PurchaseOrderDetailPage() {
             {items.length > 1 && (
               <tfoot>
                 <tr className="bg-slate-50 font-semibold">
-                  <Td colSpan={2} className="text-right text-slate-600">
+                  <Td colSpan={3} className="text-right text-slate-600">
                     Total
                   </Td>
                   <Td right>{qty(sum("quantity"))}</Td>

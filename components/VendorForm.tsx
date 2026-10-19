@@ -48,6 +48,9 @@ export function VendorForm(props: VendorFormProps) {
   return <VendorFormBody key={props.vendor?.id ?? "new"} {...props} />;
 }
 
+/** Saved in capitals; State stays as chosen (GST compares it with the store's state) */
+const UPPER_FIELDS = ["name", "contactPerson", "address", "city", "bankName"] as const;
+
 function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
   const toast = useToast();
   const [f, setF] = useState<FormState>(() => toForm(vendor));
@@ -55,6 +58,8 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
   const editing = !!vendor;
 
   const set = (k: string, v: string | boolean) => setF((s) => ({ ...s, [k]: v }));
+  // Shown in capitals while typing (CSS) and saved in capitals, so the cursor never jumps
+  const caps = (k: string) => ({ value: str(k), onChange: (e: React.ChangeEvent<HTMLInputElement>) => set(k, e.target.value), className: "uppercase" });
   const str = (k: string) => String(f[k] ?? "");
 
   async function save(e: React.FormEvent) {
@@ -76,6 +81,8 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
       body[k] = v || (editing && k !== "email" ? "" : undefined);
     }
     body.name = str("name").trim();
+    // Names and addresses are stored in capitals ("abc tractors" → "ABC TRACTORS"); the server does the same
+    for (const k of UPPER_FIELDS) if (typeof body[k] === "string") body[k] = (body[k] as string).replace(/\s+/g, " ").toUpperCase();
     body.gstin = str("gstin").trim().toUpperCase();
     body.ifsc = str("ifsc").trim().toUpperCase() || (editing ? "" : undefined);
     body.paymentTermsDays = str("paymentTermsDays") === "" ? 0 : Math.max(0, Math.round(Number(str("paymentTermsDays"))));
@@ -113,10 +120,10 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
     >
       <form id="vendor-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Field label="Vendor / Firm Name" required className="sm:col-span-2">
-          <Input value={str("name")} onChange={(e) => set("name", e.target.value)} required autoFocus placeholder="e.g. Sri Lakshmi Agro Distributors" />
+          <Input {...caps("name")} required autoFocus placeholder="E.G. SRI LAKSHMI AGRO DISTRIBUTORS" />
         </Field>
         <Field label="Contact Person">
-          <Input value={str("contactPerson")} onChange={(e) => set("contactPerson", e.target.value)} />
+          <Input {...caps("contactPerson")} />
         </Field>
         <Field label="Phone">
           <Input type="tel" value={str("phone")} onChange={(e) => set("phone", e.target.value)} />
@@ -132,10 +139,10 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
           hint="Place of supply and IGST / CGST + SGST are worked out from this"
         />
         <Field label="Address" className="sm:col-span-3">
-          <Input value={str("address")} onChange={(e) => set("address", e.target.value)} />
+          <Input {...caps("address")} />
         </Field>
         <Field label="City">
-          <Input value={str("city")} onChange={(e) => set("city", e.target.value)} />
+          <Input {...caps("city")} />
         </Field>
         <StateSelect value={str("state")} onChange={(st) => set("state", st)} gstin={str("gstin")} />
         <Field label="Pincode">
@@ -146,7 +153,7 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
           <legend className="px-1 text-xs font-medium text-slate-600">Bank details (for payments)</legend>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label="Bank Name">
-              <Input value={str("bankName")} onChange={(e) => set("bankName", e.target.value)} />
+              <Input {...caps("bankName")} />
             </Field>
             <Field label="Account Number">
               <Input value={str("bankAccount")} onChange={(e) => set("bankAccount", e.target.value)} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, CheckCircle2, Info as InfoIcon, PackageCheck, ScanLine, Store } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Info as InfoIcon, PackageCheck, Plus, ScanLine, Store, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -17,7 +17,6 @@ import {
   Input,
   PageHeader,
   Spinner,
-  Textarea,
   cx,
   errMsg,
   useConfirm,
@@ -31,6 +30,15 @@ import { useApi } from "@/lib/hooks";
 import { useScanner } from "@/lib/scanner";
 import type { Grn, PoItem, PurchaseOrder } from "@/lib/types";
 
+/** A further batch of the same line (the first batch is the line's own batch fields and takes the rest of the passed qty) */
+interface ExtraBatch {
+  key: number;
+  qty: string;
+  batchNo: string;
+  mfgDate: string;
+  expiryDate: string;
+}
+
 interface Line {
   passed: string;
   rejected: string;
@@ -40,8 +48,16 @@ interface Line {
   mfgDate: string;
   expiryDate: string;
   location: string;
-  serialNos: string;
+  /** Chassis / serial numbers of the passed units, one per box */
+  serials: string[];
+  extra: ExtraBatch[];
 }
+
+type QtyKey = "passed" | "rejected" | "damaged" | "expired";
+let batchSeq = 0;
+const blankBatch = (): ExtraBatch => ({ key: ++batchSeq, qty: "", batchNo: "", mfgDate: "", expiryDate: "" });
+const serialsOf = (l: Line) => l.serials.map((x) => x.trim()).filter(Boolean);
+const extraQty = (l: Line) => r3(l.extra.reduce((s, b) => s + num(b.qty), 0));
 
 const QTY_FIELDS = [
   { key: "passed", label: "Passed", hint: "Into sellable stock", tone: "text-brand-700" },
@@ -62,6 +78,7 @@ function check(item: PoItem, l: Line) {
   const expired = num(l.expired);
   const total = r3(passed + num(l.rejected) + num(l.damaged) + expired);
   const errors: Partial<Record<keyof Line | "total", { msg: string; required?: boolean }>> = {};
+  const extraTotal = extraQty(l);
   for (const f of QTY_FIELDS) if (num(l[f.key]) < 0) errors[f.key] = { msg: "Can't be negative" };
   if (total > pending + 0.0005) errors.total = { msg: `${qty(total)} entered — only ${qty(pending)} pending` };
   const track = item.product.trackBatch;
@@ -73,7 +90,27 @@ function check(item: PoItem, l: Line) {
       : { msg: "Already expired — count these under Expired" };
   if (l.mfgDate && l.mfgDate > today()) errors.mfgDate = { msg: "Can't be in the future" };
   else if (l.mfgDate && l.expiryDate && l.expiryDate < l.mfgDate) errors.expiryDate = { msg: "Before the manufacturing date" };
-  return { pending, total, errors };
+  // Further batches: each needs a quantity (and batch no. / expiry when tracked); the first batch keeps the rest of the passed qty
+  if (l.extra.length) {
+    const label = (i: number) => `Batch ${i + 2}`;
+    const bad = l.extra
+      .map((b, i) => {
+        if (!(num(b.qty) > 0)) return `${label(i)}: enter its quantity`;
+        if (track && !b.batchNo.trim()) return `${label(i)}: batch no. is required`;
+        if (track && !b.expiryDate) return `${label(i)}: expiry date is required`;
+        if (b.expiryDate && b.expiryDate <= today()) return `${label(i)}: expiry must be a future date`;
+        if (b.mfgDate && b.mfgDate > today()) return `${label(i)}: manufacturing date can't be in the future`;
+        if (b.mfgDate && b.expiryDate && b.expiryDate < b.mfgDate) return `${label(i)}: expiry is before the manufacturing date`;
+        return null;
+      })
+      .find(Boolean);
+    if (extraTotal >= passed - 0.0005) errors.extra = { msg: `Batches add up to ${qty(extraTotal)} — keep part of the ${qty(passed)} passed for batch 1, or raise Passed` };
+    else if (bad) errors.extra = { msg: bad, required: true };
+  }
+  const serials = serialsOf(l);
+  if (serials.length > passed + 0.0005) errors.serials = { msg: `${serials.length} chassis / serial numbers entered for ${qty(passed)} passed units` };
+  else if (new Set(serials).size !== serials.length) errors.serials = { msg: "The same chassis / serial number is entered twice" };
+  return { pending, total, errors, extraTotal };
 }
 
 export default function NewGrnPage() {
@@ -137,7 +174,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
     Object.fromEntries(
       items.map((i) => [
         i.id,
-        { passed: String(pendingOf(i)), rejected: "", damaged: "", expired: "", batchNo: "", mfgDate: "", expiryDate: "", location: "", serialNos: "" },
+        { passed: String(pendingOf(i)), rejected: "", damaged: "", expired: "", batchNo: "", mfgDate: "", expiryDate: "", location: "", serials: [], extra: [] } as Line,
       ]),
     ),
   );
@@ -162,10 +199,25 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const canSwitch = !locked && branches.some((b) => b.id === poBranchId);
 
   const update = (id: string, patch: Partial<Line>) => setLines((ls) => ({ ...ls, [id]: { ...ls[id], ...patch } }));
+  const updateBatch = (id: string, key: number, patch: Partial<ExtraBatch>) =>
+    setLines((ls) => ({ ...ls, [id]: { ...ls[id], extra: ls[id].extra.map((b) => (b.key === key ? { ...b, ...patch } : b)) } }));
+  const setSerial = (id: string, idx: number, value: string) =>
+    setLines((ls) => ({ ...ls, [id]: { ...ls[id], serials: ls[id].serials.map((x, j) => (j === idx ? value : x)) } }));
+  // Several numbers pasted at once (from a sheet or a list) become one box each
+  const pasteSerials = (id: string, idx: number, text: string) => {
+    const parts = text.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+    if (parts.length < 2) return false;
+    setLines((ls) => {
+      const next = [...ls[id].serials];
+      next.splice(idx, 1, ...parts);
+      return { ...ls, [id]: { ...ls[id], serials: next } };
+    });
+    return true;
+  };
   const open = items.filter((i) => pendingOf(i) > 0);
   const checks = new Map(open.map((i) => [i.id, check(i, lines[i.id])]));
 
-  const sum = (k: keyof Line) => r3(open.reduce((s, i) => s + num(lines[i.id][k]), 0));
+  const sum = (k: QtyKey) => r3(open.reduce((s, i) => s + num(lines[i.id][k]), 0));
   const totals = { passed: sum("passed"), rejected: sum("rejected"), damaged: sum("damaged"), expired: sum("expired") };
   const passedValue = round2(open.reduce((s, i) => s + num(lines[i.id].passed) * n(i.rate), 0));
   const anyQty = open.some((i) => (checks.get(i.id)?.total ?? 0) > 0);
@@ -203,20 +255,36 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
         vehicleNo: vehicleNo.trim() || undefined,
         supplierInvoiceNo: supplierInvoiceNo.trim() || undefined,
         receivedAt,
-        items: open.map((i) => {
+        // Each further batch is sent as its own row for the same PO line; the first row keeps the rest of the passed qty
+        items: open.flatMap((i) => {
           const l = lines[i.id];
-          return {
-            poItemId: i.id,
-            passedQty: num(l.passed),
-            rejectedQty: num(l.rejected),
-            damagedQty: num(l.damaged),
-            expiredQty: num(l.expired),
-            batchNo: l.batchNo.trim() || undefined,
-            location: l.location.trim() || undefined,
-            serialNos: l.serialNos.trim() ? l.serialNos.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean) : undefined,
-            mfgDate: l.mfgDate || undefined,
-            expiryDate: l.expiryDate || undefined,
-          };
+          const serials = serialsOf(l);
+          const location = l.location.trim() || undefined;
+          return [
+            {
+              poItemId: i.id,
+              passedQty: r3(num(l.passed) - extraQty(l)),
+              rejectedQty: num(l.rejected),
+              damagedQty: num(l.damaged),
+              expiredQty: num(l.expired),
+              batchNo: l.batchNo.trim() || undefined,
+              location,
+              serialNos: serials.length ? serials : undefined,
+              mfgDate: l.mfgDate || undefined,
+              expiryDate: l.expiryDate || undefined,
+            },
+            ...l.extra.map((b) => ({
+              poItemId: i.id,
+              passedQty: num(b.qty),
+              rejectedQty: 0,
+              damagedQty: 0,
+              expiredQty: 0,
+              batchNo: b.batchNo.trim() || undefined,
+              location,
+              mfgDate: b.mfgDate || undefined,
+              expiryDate: b.expiryDate || undefined,
+            })),
+          ];
         }),
       });
       // The purchase invoice is booked automatically when anything passed inspection
@@ -396,7 +464,10 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
               )}
 
               <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-3">
-                <Field label="Batch No." required={p.trackBatch && (num(l.passed) > 0 || num(l.expired) > 0)}>
+                <Field
+                  label={l.extra.length ? `Batch 1 · ${qty(Math.max(0, r3(num(l.passed) - c.extraTotal)))} ${p.unit}` : "Batch No."}
+                  required={p.trackBatch && (num(l.passed) > 0 || num(l.expired) > 0)}
+                >
                   <Input
                     id={`grn-batch-${item.id}`}
                     className={cx(show("batchNo") && "border-red-400")}
@@ -427,12 +498,99 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                 <Field label="Location" hint={p.location ? `Usually ${p.location}` : "Rack / bin (optional)"}>
                   <Input value={l.location} onChange={(e) => update(item.id, { location: e.target.value })} placeholder={p.location ?? ""} />
                 </Field>
-                {p.trackSerial && (
-                  <Field label="Serial Numbers of the Passed Units" className="sm:col-span-2" hint="One per line, scan them one after another">
-                    <Textarea rows={2} value={l.serialNos} onChange={(e) => update(item.id, { serialNos: e.target.value })} className="font-mono" />
-                  </Field>
-                )}
               </div>
+
+              {/* Further batches of this line: the + adds a row; batch 1 above keeps the rest of the passed qty */}
+              {l.extra.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {l.extra.map((b, idx) => (
+                    <div key={b.key} className="grid grid-cols-2 items-end gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2 sm:grid-cols-[1.4fr_0.8fr_1fr_1fr_auto]">
+                      <Field label={`Batch ${idx + 2} No.`} required={p.trackBatch}>
+                        <Input value={b.batchNo} onChange={(e) => updateBatch(item.id, b.key, { batchNo: e.target.value })} placeholder={p.trackBatch ? "As printed on the pack" : "Optional"} />
+                      </Field>
+                      <Field label={`Qty (${p.unit})`} required>
+                        <Input type="number" step="any" min="0" inputMode="decimal" className="num text-right" value={b.qty} placeholder="0" onChange={(e) => updateBatch(item.id, b.key, { qty: e.target.value })} />
+                      </Field>
+                      <Field label="Mfg Date">
+                        <DateInput max={today()} value={b.mfgDate} onChange={(e) => updateBatch(item.id, b.key, { mfgDate: e.target.value })} />
+                      </Field>
+                      <Field label="Expiry Date" required={p.trackBatch}>
+                        <DateInput value={b.expiryDate} min={b.mfgDate || undefined} onChange={(e) => updateBatch(item.id, b.key, { expiryDate: e.target.value })} />
+                      </Field>
+                      <button
+                        type="button"
+                        onClick={() => update(item.id, { extra: l.extra.filter((x) => x.key !== b.key) })}
+                        className="mb-1 justify-self-end rounded-md p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        aria-label={`Remove batch ${idx + 2}`}
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <FieldError msg={show("extra")} />
+              {num(l.passed) > 0 && (
+                <button
+                  type="button"
+                  onClick={() => update(item.id, { extra: [...l.extra, blankBatch()] })}
+                  className="mt-2 inline-flex items-center gap-1 rounded-md border border-dashed border-brand-300 px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                >
+                  <Plus className="size-3.5" /> Add another batch
+                </button>
+              )}
+
+              {p.trackSerial && num(l.passed) > 0 && (
+                <div className="mt-3 border-t border-slate-100 pt-3">
+                  <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-xs font-medium text-slate-600">Chassis / Serial Numbers of the Passed Units</span>
+                    <span className={cx("num text-xs", serialsOf(l).length === num(l.passed) ? "text-brand-700" : "text-slate-500")}>
+                      {serialsOf(l).length} of {qty(num(l.passed))} entered
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {l.serials.map((sn, idx) => (
+                      <div key={idx} className="flex items-center gap-1">
+                        <span className="num w-6 shrink-0 text-right text-xs text-slate-400">{idx + 1}.</span>
+                        <Input
+                          value={sn}
+                          onChange={(e) => setSerial(item.id, idx, e.target.value)}
+                          onPaste={(e) => {
+                            if (pasteSerials(item.id, idx, e.clipboardData.getData("text"))) e.preventDefault();
+                          }}
+                          onKeyDown={(e) => {
+                            // A scanner ends each code with Enter: open the next box for the next unit
+                            if (e.key !== "Enter") return;
+                            e.preventDefault();
+                            if (sn.trim() && idx === l.serials.length - 1 && l.serials.length < num(l.passed)) update(item.id, { serials: [...l.serials, ""] });
+                          }}
+                          className="font-mono"
+                          placeholder="Chassis / serial no."
+                          autoFocus={idx === l.serials.length - 1 && !sn}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => update(item.id, { serials: l.serials.filter((_, j) => j !== idx) })}
+                          className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                          aria-label={`Remove serial ${idx + 1}`}
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <FieldError msg={show("serials")} />
+                  {serialsOf(l).length < num(l.passed) && (
+                    <button
+                      type="button"
+                      onClick={() => update(item.id, { serials: [...l.serials, ""] })}
+                      className="mt-2 inline-flex items-center gap-1 rounded-md border border-dashed border-brand-300 px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                    >
+                      <Plus className="size-3.5" /> Add chassis / serial no.
+                    </button>
+                  )}
+                </div>
+              )}
             </Card>
             </div>
           );

@@ -16,6 +16,7 @@ import { useApi } from "@/lib/hooks";
 import { GST_RATES } from "@/lib/types";
 import type { ApprovalConfig, Product, PurchaseOrder, StoreSettings, Vendor } from "@/lib/types";
 import { LazyPoTermsModal } from "@/components/lazy";
+import { PoPriceHistory } from "@/components/PoPriceHistory";
 
 interface LowStockRow {
   id: string;
@@ -378,6 +379,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
           <thead>
             <tr>
               <Th>Product</Th>
+              <Th>SKU Code</Th>
               <Th right>In Stock</Th>
               <Th right>Qty</Th>
               <Th>UOM</Th>
@@ -391,7 +393,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
           <tbody>
             {!lines.length ? (
               <tr>
-                <td colSpan={9} className="px-3 py-12 text-center text-sm text-slate-400">
+                <td colSpan={10} className="px-3 py-12 text-center text-sm text-slate-400">
                   <PackagePlus className="mx-auto mb-2 size-7 text-slate-300" />
                   Search above to add products, or add everything that&apos;s below its reorder level
                 </td>
@@ -401,7 +403,9 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
                 <tr key={l.key}>
                   <Td className="min-w-44 sm:min-w-56">
                     <p className="font-medium text-slate-900">{l.name}</p>
-                    <p className="text-xs text-slate-500">{l.sku}</p>
+                  </Td>
+                  <Td className="whitespace-nowrap">
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-medium text-slate-800">{l.sku}</span>
                   </Td>
                   <Td right className={cx("whitespace-nowrap text-slate-500", l.stock !== undefined && l.stock <= 0 && "text-red-600")}>
                     {l.stock === undefined ? "—" : qty(l.stock)}
@@ -467,6 +471,13 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
           </tbody>
         </Table>
       </Card>
+
+      <PoPriceHistory
+        lines={lines}
+        vendorId={vendor?.id}
+        excludePoId={po?.id}
+        onUseRate={(productId, rate) => setLines((ls) => ls.map((x) => (x.productId === productId ? { ...x, rate: String(rate) } : x)))}
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">

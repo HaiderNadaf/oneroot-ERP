@@ -43,7 +43,7 @@ import { isNetworkError, newOfflineId, queueAdd, queueList, queueRemove, syncQue
 import { priceLines, type PricedLine } from "@/lib/pricing";
 import { defaultPrintMode, printReceipt, receiptWidth } from "@/lib/print";
 import { useScanner } from "@/lib/scanner";
-import { MONEY_MODES, modeLabel, type Batch, type Category, type Customer, type HeldBill, type Paged, type PaymentMode, type Product, type RoleLimit, type Sale, type Scheme, type Shift, type StoreSettings, type VanTripDetail } from "@/lib/types";
+import { MONEY_MODES, modeLabel, type Batch, type Category, type Customer, type CustomerType, type HeldBill, type Paged, type PaymentMode, type Product, type RoleLimit, type Sale, type Scheme, type Shift, type StoreSettings, type VanTripDetail } from "@/lib/types";
 import { LazyCameraScanner, LazyCustomerForm } from "@/components/lazy";
 
 /** Product list row with the POS extras from `withExpiry=true` */
@@ -148,6 +148,9 @@ export default function PosPage() {
   const shift = shiftQ.data ?? null;
   // Running company schemes and this role's authority limits (both kept on the device for offline billing)
   const { data: schemes } = useApi<Scheme[]>(needBranch.blocked ? null : "/schemes/active");
+  // A bill with no customer gets the "Walk-in Customer" discount, like the server
+  const { data: customerTypes } = useApi<CustomerType[]>("/customer-types");
+  const walkInType = customerTypes?.find((t) => t.name.toLowerCase() === "walk-in customer") ?? null;
   const { data: limits } = useApi<RoleLimit>("/roles/mine");
   const { data: agents } = useApi<AgentOption[]>("/agents/options");
   const agentOptions: DropdownOption[] = (agents ?? []).map((a) => ({
@@ -375,12 +378,12 @@ export default function PosPage() {
     const r = priceLines(
       lines.map((l) => ({ productId: l.product.id, quantity: n(l.quantity), rate: n(l.rate), manualPct: Math.min(100, Math.max(0, n(l.discountPct))), isSubsidised: !!l.product.isSubsidised })),
       schemes ?? [],
-      (credit ?? customer)?.customerType,
+      credit ?? customer ? (credit ?? customer)?.customerType : walkInType,
     );
     const byKey = new Map<number, PricedLine>();
     lines.forEach((l, i) => byKey.set(l.key, r.lines[i]));
     return { ...r, byKey };
-  }, [lines, schemes, customer, credit]);
+  }, [lines, schemes, customer, credit, walkInType]);
 
   // ── Bill math (mirrors the server: GST-inclusive rates, bill discount spread pro-rata) ──
   const summary = useMemo(() => {

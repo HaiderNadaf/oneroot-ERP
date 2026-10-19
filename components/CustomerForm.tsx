@@ -11,6 +11,10 @@ import { Button, Checkbox, Field, Input, Modal, Select, Textarea, errMsg, useToa
 
 type FormState = Record<string, string | boolean>;
 
+/** Full name shown for the short type codes */
+const TYPE_LABEL: Record<string, string> = { FPO: "FPO (Farmer Producer Organisation)" };
+const typeLabel = (name: string) => TYPE_LABEL[name] ?? name;
+
 const TEXT_FIELDS = ["name", "phone", "email", "gstin", "village", "address", "city", "state", "pincode", "crops", "notes"] as const;
 
 function toForm(c?: Customer | null): FormState {
@@ -57,7 +61,10 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
   const [f, setF] = useState<FormState>(() => ({ ...toForm(customer), ...(!customer && initialName ? { name: initialName } : {}) }));
   const [saving, setSaving] = useState(false);
   const editing = !!customer;
-  const { data: types } = useApi<CustomerType[]>(quick ? null : "/customer-types");
+  const { data: types } = useApi<CustomerType[]>("/customer-types");
+  // A new customer starts as a Farmer (the usual case at the counter) until another type is picked
+  const farmerId = types?.find((t) => t.name.toLowerCase() === "farmer")?.id ?? "";
+  const typeId = String(f.customerTypeId ?? "") || (editing ? "" : farmerId);
 
   const set = (k: string, v: string | boolean) => setF((s) => ({ ...s, [k]: v }));
   const str = (k: string) => String(f[k] ?? "");
@@ -72,6 +79,10 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
     const gst = parseGstin(str("gstin"));
     if (!gst.empty && !gst.valid) {
       toast.error(`GSTIN: ${gst.error}`);
+      return;
+    }
+    if (!typeId) {
+      toast.error("Choose the customer type");
       return;
     }
     setSaving(true);
@@ -89,7 +100,7 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
     body.creditLimit = str("creditLimit") === "" ? (editing ? 0 : undefined) : Number(str("creditLimit"));
     body.creditDays = str("creditDays") === "" ? (editing ? 0 : undefined) : Math.round(Number(str("creditDays")));
     if (!quick) body.creditHold = !!f.creditHold;
-    if (!quick) body.customerTypeId = str("customerTypeId") || (editing ? null : undefined);
+    body.customerTypeId = typeId;
     body.openingBalance = str("openingBalance") === "" ? (editing ? 0 : undefined) : Number(str("openingBalance"));
     if (editing) body.isActive = f.isActive;
     try {
@@ -139,6 +150,19 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
         <Field label="Village">
           <Input value={str("village")} onChange={(e) => set("village", e.target.value)} />
         </Field>
+        <Field label="Customer Type" required hint="Decides the automatic discount at the counter">
+          <Select value={typeId} onChange={(e) => set("customerTypeId", e.target.value)} required aria-label="Customer type">
+            <option value="" disabled>
+              {types ? "Choose type" : "Loading…"}
+            </option>
+            {(types ?? []).map((t) => (
+              <option key={t.id} value={t.id}>
+                {typeLabel(t.name)}
+                {n(t.discountPct) > 0 ? ` · ${n(t.discountPct)}% off${n(t.minBill) > 0 ? ` above ₹${n(t.minBill)}` : ""}` : ""}
+              </option>
+            ))}
+          </Select>
+        </Field>
         {!quick && (
           <>
             <Field label="Email">
@@ -170,16 +194,6 @@ function CustomerFormBody({ open, customer, onClose, onSaved, quick, initialName
             </Field>
             <Field label="Crops" className="sm:col-span-2" hint="e.g. Cotton, Soybean, Tur">
               <Input value={str("crops")} onChange={(e) => set("crops", e.target.value)} />
-            </Field>
-            <Field label="Customer Type" hint="Automatic discount at the counter">
-              <Select value={str("customerTypeId")} onChange={(e) => set("customerTypeId", e.target.value)}>
-                <option value="">Retail (No Type)</option>
-                {(types ?? []).map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} · {n(t.discountPct)}% off{n(t.minBill) > 0 ? ` above ₹${n(t.minBill)}` : ""}
-                  </option>
-                ))}
-              </Select>
             </Field>
             <Field label="Credit Limit (₹)" hint="0 = no limit">
               <Input type="number" step="0.01" min="0" value={str("creditLimit")} onChange={(e) => set("creditLimit", e.target.value)} />

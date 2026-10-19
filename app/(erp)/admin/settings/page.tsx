@@ -3,6 +3,8 @@
 import { Save } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { RequirePerm } from "@/components/AppShell";
+import { CustomerTypeDiscounts } from "@/components/CustomerTypeDiscounts";
+import { useAuth } from "@/lib/auth";
 import { Button, Card, Checkbox, ErrorBox, Field, Input, PageHeader, Select, Spinner, Textarea, errMsg, useToast } from "@/components/ui";
 import { GstinField, StateSelect } from "@/components/GstinField";
 import { api } from "@/lib/api";
@@ -66,11 +68,18 @@ export default function SettingsPage() {
 }
 
 function Settings() {
+  const { can } = useAuth();
   const { data, error, loading, reload, setData } = useApi<StoreSettings>("/settings");
   if (loading && !data) return <Spinner page />;
   if (error) return <ErrorBox message={error} onRetry={reload} />;
   if (!data) return null;
-  return <SettingsForm key={data.id} initial={data} onSaved={setData} />;
+  return (
+    <>
+      <SettingsForm key={data.id} initial={data} onSaved={setData} />
+      {/* Saved per row, so it sits outside the settings form */}
+      {can("admin.schemes") && <CustomerTypeDiscounts />}
+    </>
+  );
 }
 
 function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (s: StoreSettings) => void }) {

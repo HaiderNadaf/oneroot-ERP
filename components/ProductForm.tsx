@@ -106,8 +106,12 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
 
   const vendorOptions = useMemo<DropdownOption[]>(() => {
     const names = [...new Set((vendors?.items ?? []).map((v) => v.name.trim()).filter(Boolean))];
+    // Keep a saved brand / manufacturer selectable even if no vendor carries that exact name any more
+    for (const saved of [f.brand, f.manufacturer].map((x) => String(x ?? "").trim())) {
+      if (saved && !names.some((n) => n.toLowerCase() === saved.toLowerCase())) names.push(saved);
+    }
     return names.map((name) => ({ value: name, label: name }));
-  }, [vendors]);
+  }, [vendors, f.brand, f.manufacturer]);
 
   function changeCategory(categoryId: string) {
     const type = categories?.find((c) => c.id === categoryId)?.type;
@@ -126,6 +130,9 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
     if (openingBlocked) return toast.error("Pick a branch in the top bar to record the opening stock in");
     if (!f.category) return toast.error("Choose the category");
     if (!f.subCategoryId) return toast.error("Choose the sub-category — the SKU is generated from it");
+    if (!str("brand").trim()) return toast.error("Brand is required");
+    if (!str("manufacturer").trim()) return toast.error("Manufacturer is required");
+    if (!str("technicalName").trim()) return toast.error("Technical name is required");
     const attrProblem = validateAttributes(chosenSubCategory?.fields, attrs)[0];
     if (attrProblem) return toast.error(attrProblem);
     const openSerials = str("openSerials").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
@@ -139,9 +146,9 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
       barcode: str("barcode").trim(),
       categoryId: str("category"),
       subCategoryId: str("subCategoryId"),
-      brand: str("brand") || undefined,
-      manufacturer: str("manufacturer") || undefined,
-      technicalName: str("technicalName") || undefined,
+      brand: str("brand").trim(),
+      manufacturer: str("manufacturer").trim(),
+      technicalName: str("technicalName").trim(),
       hsnCode: str("hsnCode") || undefined,
       gstRate: Number(str("gstRate")),
       unit: f.unit,
@@ -222,7 +229,7 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
             aria-label="Sub-Category"
           />
         </Field>
-        <Field label="Brand">
+        <Field label="Brand" required>
           {canVendors ? (
             <Dropdown
               options={vendorOptions}
@@ -236,10 +243,10 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
               aria-label="Brand"
             />
           ) : (
-            <Input value={str("brand")} onChange={(e) => set("brand", e.target.value)} />
+            <Input value={str("brand")} onChange={(e) => set("brand", e.target.value)} required />
           )}
         </Field>
-        <Field label="Manufacturer">
+        <Field label="Manufacturer" required>
           {canVendors ? (
             <Dropdown
               options={vendorOptions}
@@ -253,11 +260,11 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
               aria-label="Manufacturer"
             />
           ) : (
-            <Input value={str("manufacturer")} onChange={(e) => set("manufacturer", e.target.value)} />
+            <Input value={str("manufacturer")} onChange={(e) => set("manufacturer", e.target.value)} required />
           )}
         </Field>
-        <Field label="Technical name / composition / serial no. / chassis no." className="sm:col-span-2" hint="e.g. Imidacloprid 17.8% SL, NPK 19:19:19">
-          <Input value={str("technicalName")} onChange={(e) => set("technicalName", e.target.value)} />
+        <Field label="Technical name / composition / serial no. / chassis no." required className="sm:col-span-2" hint="e.g. Imidacloprid 17.8% SL, NPK 19:19:19">
+          <Input value={str("technicalName")} onChange={(e) => set("technicalName", e.target.value)} required />
         </Field>
         <Field label="Pack Size" hint="e.g. 50 kg bag, 250 ml">
           <Input value={str("packSize")} onChange={(e) => set("packSize", e.target.value)} />

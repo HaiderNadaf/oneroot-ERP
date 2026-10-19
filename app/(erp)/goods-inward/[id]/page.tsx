@@ -256,7 +256,7 @@ function GrnView() {
             </ul>
           ) : (
             <p className={cx("text-sm", totals.rejected ? "text-amber-700" : "text-slate-500")}>
-              {totals.rejected ? "No debit note linked." : "No goods were rejected on this GRN."}
+              {totals.rejected ? "No debit note linked." : "No returns raised on this GRN."}
             </p>
           )}
         </Card>
@@ -271,6 +271,8 @@ function GrnView() {
         error={notesQ.error}
         onRetry={notesQ.reload}
         focusId={notesOpen?.focus}
+        grn={g}
+        canManage={canInvoice}
       />
 
       <LazyLabelPrintModal

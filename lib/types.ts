@@ -841,6 +841,8 @@ export interface Grn {
   po: { id: string; poNo: string; vendorId?: string };
   vendor: Vendor | { id: string; name: string };
   receivedAt: string;
+  /** Earliest expiry of the stock accepted on this GRN (list only) */
+  earliestExpiry?: string | null;
   receivedBy?: { name: string } | null;
   /** Branch the goods were received into */
   branchId?: string | null;

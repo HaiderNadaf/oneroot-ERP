@@ -1,16 +1,18 @@
 "use client";
 
-import { ArrowLeft, FileText, Printer, Tag } from "lucide-react";
+import { ArrowLeft, FileText, Printer, ReceiptText, Tag } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
-import { Badge, Button, Card, ErrorBox, PageHeader, Spinner, StatusBadge, Table, Td, Th, cx } from "@/components/ui";
+import { Badge, Button, Card, ErrorBox, PageHeader, Spinner, Table, Td, Th, cx } from "@/components/ui";
 import { date, dateTime, inr, n, qty, round2 } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
-import type { Grn, GrnItem, StoreSettings, Vendor } from "@/lib/types";
+import type { DebitNote, Grn, GrnItem, Paged, StoreSettings, Vendor } from "@/lib/types";
 import { LazyLabelPrintModal } from "@/components/lazy";
+import { GrnNotesModal } from "@/components/GrnNotesModal";
+import { NoteStatusBadge, NoteTypeBadge } from "@/components/NoteForm";
 
 type GrnDetail = Grn & { vendor: Vendor; items: GrnItem[] };
 
@@ -30,6 +32,10 @@ function GrnView() {
   const { data: g, error, loading, reload } = useApi<GrnDetail>(`/grns/${id}`);
   const { data: store } = useApi<StoreSettings>("/settings");
   const [labelsOpen, setLabelsOpen] = useState(false);
+  // Debit & credit notes on this GRN or on the invoice booked from it, shown in a popup
+  const notesQ = useApi<Paged<DebitNote>>(`/debit-notes`, { grnId: id, pageSize: 50 });
+  const notes = notesQ.data?.items ?? [];
+  const [notesOpen, setNotesOpen] = useState<{ focus: string | null } | null>(null);
 
   if (error) return <ErrorBox message={error} onRetry={reload} />;
   if (loading && !g) return <Spinner page />;
@@ -62,6 +68,9 @@ function GrnView() {
         subtitle={`${v.name} · received ${date(g.receivedAt)}${g.receivedBy ? ` by ${g.receivedBy.name}` : ""}`}
         actions={
           <>
+            <Button variant="secondary" icon={<ReceiptText className="size-4" />} onClick={() => setNotesOpen({ focus: null })}>
+              Debit &amp; Credit Notes{notes.length ? ` (${notes.length})` : ""}
+            </Button>
             <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => window.print()}>
               Print
             </Button>
@@ -221,15 +230,27 @@ function GrnView() {
             <p className="text-sm text-slate-500">Nothing passed inspection on this GRN, so there is nothing to invoice.</p>
           )}
         </Card>
-        <Card title="Debit Notes">
-          {g.debitNotes?.length ? (
+        <Card
+          title="Debit & Credit Notes"
+          actions={
+            notes.length > 0 && (
+              <Button size="sm" variant="ghost" onClick={() => setNotesOpen({ focus: null })}>
+                View all
+              </Button>
+            )
+          }
+        >
+          {notes.length ? (
             <ul className="space-y-2 text-sm">
-              {g.debitNotes.map((d) => (
-                <li key={d.id} className="flex items-center justify-between gap-2">
-                  <Link href="/debit-notes" className="font-medium text-brand-700 hover:underline">
-                    {d.dnNo}
-                  </Link>
-                  <StatusBadge status={d.status} />
+              {notes.map((d) => (
+                <li key={d.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <button type="button" onClick={() => setNotesOpen({ focus: d.id })} className="inline-flex items-center gap-1.5 font-medium text-brand-700 hover:underline">
+                    {d.dnNo} <NoteTypeBadge type={d.noteType} />
+                  </button>
+                  <span className="flex items-center gap-2">
+                    <span className="num text-slate-700">{inr(d.totalAmount)}</span>
+                    <NoteStatusBadge status={d.status} type={d.noteType} />
+                  </span>
                 </li>
               ))}
             </ul>
@@ -240,6 +261,17 @@ function GrnView() {
           )}
         </Card>
       </div>
+
+      <GrnNotesModal
+        open={!!notesOpen}
+        onClose={() => setNotesOpen(null)}
+        grnNo={g.grnNo}
+        notes={notes}
+        loading={notesQ.loading}
+        error={notesQ.error}
+        onRetry={notesQ.reload}
+        focusId={notesOpen?.focus}
+      />
 
       <LazyLabelPrintModal
         open={labelsOpen}

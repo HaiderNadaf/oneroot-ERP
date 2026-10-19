@@ -489,6 +489,11 @@ function NoteDoc({ dn, store, onShipTo }: { dn: DebitNote; store: StoreSettings 
             <p className="text-xs text-slate-600">{[dn.vendor.address, dn.vendor.city, dn.vendor.state].filter(Boolean).join(", ")}</p>
           )}
           <p className="mt-1 text-xs text-slate-600">
+            {dn.vendor.code && (
+              <>
+                Vendor code <span className="font-mono">{dn.vendor.code}</span> ·{" "}
+              </>
+            )}
             GSTIN <span className="font-mono">{dn.vendor.gstin || "—"}</span>
           </p>
           <p className="text-xs text-slate-600">Place of supply: {pos.label}</p>

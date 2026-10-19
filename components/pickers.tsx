@@ -223,7 +223,7 @@ export function VendorPicker({
   value,
   onChange,
   autoFocus,
-  placeholder = "Search vendor by name, phone, GSTIN…",
+  placeholder = "Search vendor by code, name, phone, GSTIN…",
 }: {
   value: Vendor | null;
   onChange: (v: Vendor | null) => void;
@@ -245,7 +245,7 @@ export function VendorPicker({
           <div className="flex justify-between gap-3">
             <div className="min-w-0">
               <p className="truncate font-medium text-slate-800">{v.name}</p>
-              <p className="truncate text-xs text-slate-500">{[v.phone, v.gstin].filter(Boolean).join(" · ") || "—"}</p>
+              <p className="truncate text-xs text-slate-500">{[v.code, v.phone, v.gstin].filter(Boolean).join(" · ") || "—"}</p>
             </div>
             {n(v.balance) > 0 && <span className="num shrink-0 text-xs text-amber-700">payable {inr(v.balance)}</span>}
           </div>

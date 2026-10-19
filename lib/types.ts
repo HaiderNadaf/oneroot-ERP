@@ -523,6 +523,8 @@ export interface OverdueRow {
 
 export interface Vendor {
   id: string;
+  /** VEN-0001…, given by the server */
+  code?: string;
   name: string;
   contactPerson?: string | null;
   phone?: string | null;
@@ -915,7 +917,7 @@ export interface DebitNote {
   noteType: NoteType;
   reasonType: NoteReason;
   vendorId: string;
-  vendor: { id: string; name: string; gstin?: string | null; state?: string | null; address?: string | null; city?: string | null };
+  vendor: { id: string; code?: string; name: string; gstin?: string | null; state?: string | null; address?: string | null; city?: string | null };
   grn?: { id: string; grnNo: string } | null;
   purchaseId?: string | null;
   purchase?: { id: string; purchaseNo: string; vendorInvoiceNo?: string | null } | null;

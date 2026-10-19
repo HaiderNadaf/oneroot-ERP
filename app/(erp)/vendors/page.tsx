@@ -60,8 +60,9 @@ export default function VendorsPage() {
       const all = await api.get<Paged<Vendor>>("/vendors", { ...filters, pageSize: 500 });
       downloadCsv(
         "vendors.csv",
-        ["Name", "Contact Person", "Phone", "Email", "GSTIN", "Address", "City", "State", "Pincode", "Bank", "Account No", "IFSC", "Payment Terms (Days)", "Opening Balance", "Payable Balance", "Active"],
+        ["Code", "Name", "Contact Person", "Phone", "Email", "GSTIN", "Address", "City", "State", "Pincode", "Bank", "Account No", "IFSC", "Payment Terms (Days)", "Opening Balance", "Payable Balance", "Active"],
         all.items.map((v) => [
+          v.code,
           v.name,
           v.contactPerson,
           v.phone,
@@ -116,7 +117,7 @@ export default function VendorsPage() {
               setSearch(v);
               setPage(1);
             }}
-            placeholder="Search name, phone, GSTIN…"
+            placeholder="Search code, name, phone, GSTIN…"
             className="min-w-full flex-1 sm:min-w-60"
           />
           <Select value={status} onChange={(e) => (setStatus(e.target.value), setPage(1))} className="w-32">
@@ -137,6 +138,7 @@ export default function VendorsPage() {
           <Table>
             <thead>
               <tr>
+                <Th>Code</Th>
                 <Th>Vendor</Th>
                 <Th>Contact</Th>
                 <Th>Phone</Th>
@@ -149,9 +151,9 @@ export default function VendorsPage() {
             </thead>
             <tbody>
               {loading && !data ? (
-                <LoadingRow colSpan={8} />
+                <LoadingRow colSpan={9} />
               ) : !data?.items.length ? (
-                <EmptyRow colSpan={8}>
+                <EmptyRow colSpan={9}>
                   {search || withDues ? "No vendors match these filters." : "No vendors yet."}{" "}
                   {canEdit && !search && !withDues && (
                     <button className="font-medium text-brand-700 underline" onClick={openNew}>
@@ -164,6 +166,7 @@ export default function VendorsPage() {
                   const bal = n(v.balance);
                   return (
                     <tr key={v.id} className="hover:bg-slate-50">
+                      <Td className="whitespace-nowrap font-mono text-xs text-slate-600">{v.code ?? "—"}</Td>
                       <Td className="min-w-40">
                         <Link href={`/vendors/${v.id}`} className="font-medium text-slate-900 hover:text-brand-700">
                           {v.name}

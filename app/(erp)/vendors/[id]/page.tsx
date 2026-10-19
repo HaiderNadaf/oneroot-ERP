@@ -90,6 +90,7 @@ export default function VendorDetailPage() {
         title={
           <span className="flex flex-wrap items-center gap-2">
             {v.name}
+            {v.code && <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-medium text-slate-600">{v.code}</span>}
             {!v.isActive && <Badge>Inactive</Badge>}
           </span>
         }

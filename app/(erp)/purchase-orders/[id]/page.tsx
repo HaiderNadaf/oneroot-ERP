@@ -214,6 +214,8 @@ export default function PurchaseOrderDetailPage() {
                 </dd>
                 <dt className="text-slate-500">Expiry</dt>
                 <dd>{po.expiryDays ? `${po.expiryDays} days` : "—"}</dd>
+                <dt className="text-slate-500">Vendor code</dt>
+                <dd className="font-mono text-xs">{v?.code || "—"}</dd>
                 <dt className="text-slate-500">Vendor GSTIN</dt>
                 <dd className="break-all font-mono text-xs">{v?.gstin || "—"}</dd>
                 <dt className="text-slate-500">Place of supply</dt>
@@ -826,6 +828,7 @@ function PoPrint({ po, store, notApproved }: { po: PurchaseOrder; store: StoreSe
     ["Expected Delivery", date(po.expectedDate)],
     ["Valid Till", validUntil ? `${date(validUntil)} · ${po.expiryDays} days` : "—"],
     ["Place of Supply", placeOfSupply(v, store).label],
+    ["Vendor Code", v?.code || "—"],
     ["Vendor GSTIN", v?.gstin || "—"],
     ["Raised By", po.createdBy?.name ?? "—"],
     ["Status", po.status.charAt(0) + po.status.slice(1).toLowerCase().replace(/_/g, " ")],

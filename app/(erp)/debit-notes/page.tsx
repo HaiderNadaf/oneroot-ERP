@@ -12,6 +12,7 @@ import {
   ActionsTh,
   Button,
   Card,
+  Dropdown,
   EmptyRow,
   ErrorBox,
   LoadingRow,
@@ -34,7 +35,7 @@ import { useAuth } from "@/lib/auth";
 import { amountInWords, date, inr, n, qty } from "@/lib/format";
 import { placeOfSupply } from "@/lib/gst";
 import { useApi } from "@/lib/hooks";
-import { NOTE_REASON_LABEL, type DebitNote, type DebitNoteStatus, type NoteType, type Paged, type StoreSettings, type Vendor } from "@/lib/types";
+import { NOTE_REASON_LABEL, type Branch, type DebitNote, type DebitNoteStatus, type NoteType, type Paged, type StoreSettings, type Vendor } from "@/lib/types";
 
 type Filter = "" | DebitNoteStatus;
 type TypeTab = "debit" | "credit";
@@ -386,6 +387,19 @@ function ShipTo({ dn, onSave }: { dn: DebitNote; onSave?: (text: string) => Prom
   const toast = useToast();
   const [text, setText] = useState(dn.shipTo ?? "");
   const [saving, setSaving] = useState(false);
+  // Choices: each active branch's address, or "" meaning a typed address
+  const [pick, setPick] = useState("");
+  const { data: branches } = useApi<Branch[]>(onSave ? "/branches" : null);
+  const addressOf = (b: Branch) => [b.name, b.address, [b.city, b.state].filter(Boolean).join(", ")].filter(Boolean).join("\n");
+  const options = [
+    { value: "", label: "Type a different address" },
+    ...(branches ?? []).filter((b) => b.isActive && b.address).map((b) => ({ value: b.id, label: `${b.name} (${b.code})` })),
+  ];
+  const choose = (id: string) => {
+    setPick(id);
+    const b = (branches ?? []).find((x) => x.id === id);
+    if (b) setText(addressOf(b));
+  };
   const changed = text.trim() !== (dn.shipTo ?? "").trim();
   if (!onSave) {
     if (!dn.shipTo) return null;
@@ -410,13 +424,21 @@ function ShipTo({ dn, onSave }: { dn: DebitNote; onSave?: (text: string) => Prom
   return (
     <div className="mt-3">
       <p className="text-xs uppercase tracking-wide text-slate-500">Ship To</p>
+      <Dropdown
+        options={options}
+        value={pick}
+        onChange={choose}
+        placeholder="Choose a branch address or type one"
+        className="mt-1 w-full text-xs"
+        aria-label="Ship to from"
+      />
       <Textarea
         rows={3}
         maxLength={500}
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Type the shipping address for the returned goods"
-        className="mt-1 text-xs"
+        className="mt-1.5 text-xs"
         aria-label="Ship to address"
       />
       {changed && (

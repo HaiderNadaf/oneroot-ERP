@@ -22,6 +22,7 @@ import {
   Table,
   Tabs,
   Td,
+  Textarea,
   Th,
   cx,
   errMsg,
@@ -323,7 +324,19 @@ function Notes() {
               </>
             }
           >
-            <NoteDoc dn={viewing} store={store} />
+            <NoteDoc
+              dn={viewing}
+              store={store}
+              onShipTo={
+                canManage && viewing.status !== "CANCELLED"
+                  ? async (text) => {
+                      const r = await api.patch<{ shipTo: string | null }>(`/debit-notes/${viewing.id}/ship-to`, { shipTo: text });
+                      setViewing((v) => (v ? { ...v, shipTo: r.shipTo } : v));
+                      void reload();
+                    }
+                  : undefined
+              }
+            />
           </Modal>
           {/* The modal is hidden when printing; this copy is what prints */}
           <div className="print-area hidden print:block">
@@ -368,7 +381,59 @@ function Against({ dn }: { dn: DebitNote }) {
   );
 }
 
-function NoteDoc({ dn, store }: { dn: DebitNote; store: StoreSettings | null }) {
+/** Shipping address below "To": a text box while it can be changed, plain text on paper */
+function ShipTo({ dn, onSave }: { dn: DebitNote; onSave?: (text: string) => Promise<void> }) {
+  const toast = useToast();
+  const [text, setText] = useState(dn.shipTo ?? "");
+  const [saving, setSaving] = useState(false);
+  const changed = text.trim() !== (dn.shipTo ?? "").trim();
+  if (!onSave) {
+    if (!dn.shipTo) return null;
+    return (
+      <div className="mt-3">
+        <p className="text-xs uppercase tracking-wide text-slate-500">Ship To</p>
+        <p className="whitespace-pre-line text-xs text-slate-700">{dn.shipTo}</p>
+      </div>
+    );
+  }
+  async function save() {
+    setSaving(true);
+    try {
+      await onSave!(text);
+      toast.success("Shipping address saved");
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <div className="mt-3">
+      <p className="text-xs uppercase tracking-wide text-slate-500">Ship To</p>
+      <Textarea
+        rows={3}
+        maxLength={500}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Type the shipping address for the returned goods"
+        className="mt-1 text-xs"
+        aria-label="Ship to address"
+      />
+      {changed && (
+        <div className="mt-1.5 flex gap-2">
+          <Button size="sm" onClick={save} loading={saving}>
+            Save Address
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setText(dn.shipTo ?? "")} disabled={saving}>
+            Undo
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NoteDoc({ dn, store, onShipTo }: { dn: DebitNote; store: StoreSettings | null; onShipTo?: (text: string) => Promise<void> }) {
   const isDebit = dn.noteType === "DEBIT";
   const pos = placeOfSupply(dn.vendor, store);
   const hasBatches = dn.items.some((i) => i.batchNo);
@@ -405,6 +470,8 @@ function NoteDoc({ dn, store }: { dn: DebitNote; store: StoreSettings | null }) 
             GSTIN <span className="font-mono">{dn.vendor.gstin || "—"}</span>
           </p>
           <p className="text-xs text-slate-600">Place of supply: {pos.label}</p>
+          {/* Keyed so the box resets when another note opens or the saved text changes */}
+          <ShipTo key={`${dn.id}:${dn.shipTo ?? ""}`} dn={dn} onSave={onShipTo} />
         </div>
         <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
           <dt className="text-slate-500">Note no.</dt>

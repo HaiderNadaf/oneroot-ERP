@@ -925,6 +925,8 @@ export interface DebitNote {
   vendorRef?: string | null;
   noteDate: string;
   reason: string;
+  /** Shipping address typed on the note */
+  shipTo?: string | null;
   status: DebitNoteStatus;
   /** Goods return: stock leaves when posted */
   affectsStock: boolean;

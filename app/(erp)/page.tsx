@@ -809,6 +809,9 @@ export default function DashboardPage() {
         </Panel>
         )}
 
+        {/* Goods received: POs received in part or in full */}
+        {seePurchasing && <GrnProgressPanel />}
+
         {/* Recent sales */}
         {seeSales && (
         <Panel
@@ -1013,6 +1016,159 @@ export default function DashboardPage() {
 }
 
 /** A name that links to its page only when the user may open it */
+/** One PO's receipt progress (from /grns/progress) */
+interface ReceiptRow {
+  id: string;
+  poNo: string;
+  status: string;
+  orderDate: string;
+  vendor: { id: string; name: string };
+  branch: { code: string; name: string } | null;
+  /** Set when every line uses the same unit; otherwise the totals mix units */
+  unit: string | null;
+  lines: number;
+  linesComplete: number;
+  orderedQty: number;
+  receivedQty: number;
+  acceptedQty: number;
+  shortfallQty: number;
+  receivedPct: number;
+  grnCount: number;
+  lastGrn: { id: string; grnNo: string; receivedAt: string } | null;
+}
+
+/** Partly and fully received purchase orders, in a table with a tab for each */
+function GrnProgressPanel() {
+  const { currentId } = useBranch();
+  const showBranch = currentId === "all";
+  const [tab, setTab] = useState<"partial" | "full">("partial");
+  const { data, error, loading, reload } = useApi<{ partial: ReceiptRow[]; full: ReceiptRow[]; counts: { partial: number; full: number } }>(
+    "/grns/progress",
+    { limit: 10 },
+  );
+  const rows = data?.[tab] ?? [];
+  const q = (x: number, r: ReceiptRow) => `${qty(x)}${r.unit ? ` ${r.unit}` : ""}`;
+  const tabs = [
+    { key: "partial" as const, label: "Partially Received", n: data?.counts.partial ?? 0, on: "bg-ochre-100 text-ochre-600" },
+    { key: "full" as const, label: "Fully Received", n: data?.counts.full ?? 0, on: "bg-brand-50 text-brand-700" },
+  ];
+
+  return (
+    <Panel
+      title="Goods Received (GRN)"
+      sub="Purchase orders received in part or in full"
+      className="lg:col-span-12"
+      action={
+        <div className="flex gap-1 rounded-lg bg-paper-2 p-1" role="tablist">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.key}
+              onClick={() => setTab(t.key)}
+              className={cx(
+                "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
+                tab === t.key ? cx("shadow-sm", t.on) : "text-muted hover:text-ink",
+              )}
+            >
+              {t.label} <span className="num">({t.n})</span>
+            </button>
+          ))}
+        </div>
+      }
+      footer={{
+        text: tab === "partial" ? "Balance quantities stay open on the PO for a later delivery" : "Every line received; book the purchase invoice if not done",
+        href: "/goods-inward",
+        link: "Goods Inward",
+      }}
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr>
+              <th className={th}>PO / vendor</th>
+              <th className={th}>Last GRN</th>
+              <th className={cx(th, "text-right")}>Ordered</th>
+              <th className={cx(th, "text-right")}>Received</th>
+              <th className={cx(th, "text-right")}>Accepted (QC)</th>
+              <th className={cx(th, "text-right")}>Shortfall</th>
+              <th className={th}>Progress</th>
+            </tr>
+          </thead>
+          <tbody>
+            {error && !data ? (
+              <tr>
+                <td colSpan={7} className="p-4">
+                  <ErrorBox message={error} onRetry={reload} />
+                </td>
+              </tr>
+            ) : loading && !data ? (
+              <tr>
+                <td colSpan={7} className="py-8">
+                  <Spinner />
+                </td>
+              </tr>
+            ) : !rows.length ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
+                  {tab === "partial" ? "No purchase order is partly received" : "No purchase order is fully received yet"}
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => (
+                <tr key={r.id} className="hover:bg-paper-2">
+                  <td className={td}>
+                    <Link href={`/purchase-orders/${r.id}`} className="font-semibold text-ink hover:text-brand-700">
+                      {r.poNo}
+                    </Link>
+                    <p className="text-xs text-muted">
+                      {r.vendor.name}
+                      {showBranch && r.branch && <span> · {r.branch.code}</span>}
+                    </p>
+                  </td>
+                  <td className={td}>
+                    {r.lastGrn ? (
+                      <>
+                        <Link href={`/goods-inward/${r.lastGrn.id}`} className="font-medium text-brand-700 hover:underline">
+                          {r.lastGrn.grnNo}
+                        </Link>
+                        <p className="text-xs text-muted">
+                          {date(r.lastGrn.receivedAt)}
+                          {r.grnCount > 1 && ` · ${r.grnCount} GRNs`}
+                        </p>
+                      </>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </td>
+                  <td className={cx(td, "num whitespace-nowrap text-right")}>{q(r.orderedQty, r)}</td>
+                  <td className={cx(td, "num whitespace-nowrap text-right")}>{q(r.receivedQty, r)}</td>
+                  <td className={cx(td, "num whitespace-nowrap text-right font-medium text-brand-700")}>{q(r.acceptedQty, r)}</td>
+                  <td className={cx(td, "num whitespace-nowrap text-right", r.shortfallQty > 0 ? "font-semibold text-ochre-600" : "text-muted")}>
+                    {r.shortfallQty > 0 ? q(r.shortfallQty, r) : "—"}
+                  </td>
+                  <td className={cx(td, "min-w-36")}>
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-paper-3">
+                        <div className={cx("h-full rounded-full", r.receivedPct >= 100 ? "bg-brand-600" : "bg-ochre-600")} style={{ width: `${r.receivedPct}%` }} />
+                      </div>
+                      <span className="num w-9 text-right text-xs font-semibold text-ink">{r.receivedPct}%</span>
+                    </div>
+                    <p className="text-[11px] text-muted">
+                      {r.linesComplete} of {r.lines} line{r.lines === 1 ? "" : "s"} complete
+                    </p>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+}
+
 function MaybeLink({ href, children }: { href?: string; children: ReactNode }) {
   if (!href) return <span className="font-semibold text-ink">{children}</span>;
   return (

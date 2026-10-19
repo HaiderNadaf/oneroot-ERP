@@ -51,14 +51,11 @@ interface Line {
   damaged: string;
   expired: string;
   location: string;
-  /** Chassis / serial numbers of the received units, one per box */
-  serials: string[];
 }
 
 type OutKey = "rejected" | "damaged" | "expired";
 let batchSeq = 0;
 const blankBatch = (qtyValue = ""): BatchRow => ({ key: ++batchSeq, qty: qtyValue, batchNo: "", mfgDate: "", expiryDate: "" });
-const serialsOf = (l: Line) => l.serials.map((x) => x.trim()).filter(Boolean);
 
 
 const OUT_FIELDS = [
@@ -81,7 +78,7 @@ function check(item: PoItem, l: Line) {
   const expired = num(l.expired);
   const total = r3(passed + num(l.rejected) + num(l.damaged) + expired);
   const track = item.product.trackBatch;
-  const errors: Partial<Record<OutKey | "total" | "batches" | "serials", { msg: string; required?: boolean }>> = {};
+  const errors: Partial<Record<OutKey | "total" | "batches", { msg: string; required?: boolean }>> = {};
   for (const f of OUT_FIELDS) if (num(l[f.key]) < 0) errors[f.key] = { msg: "Can't be negative" };
   if (total > pending + 0.0005) errors.total = { msg: `${qty(total)} entered — only ${qty(pending)} pending` };
 
@@ -104,9 +101,6 @@ function check(item: PoItem, l: Line) {
   if (new Set(numbers).size !== numbers.length) errors.batches = { msg: "The same batch number is entered twice — put its whole quantity on one row" };
   else if (firstRow >= 0) errors.batches = { msg: `Batch ${firstRow + 1}: ${rowErrors[firstRow]!.msg}`, required: rowErrors[firstRow]!.required };
 
-  const serials = serialsOf(l);
-  if (serials.length > passed + 0.0005) errors.serials = { msg: `${serials.length} chassis / serial numbers entered for ${qty(passed)} received units` };
-  else if (new Set(serials).size !== serials.length) errors.serials = { msg: "The same chassis / serial number is entered twice" };
   return { pending, passed, total, errors, rowErrors };
 }
 
@@ -169,12 +163,12 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const [receivedAt, setReceivedAt] = useState(today());
   // Every open line starts as fully received in one batch; the batch popup splits it
   const [lines, setLines] = useState<Record<string, Line>>(() =>
-    Object.fromEntries(items.map((i) => [i.id, { batches: [blankBatch(String(pendingOf(i)))], rejected: "", damaged: "", expired: "", location: "", serials: [] } as Line])),
+    Object.fromEntries(items.map((i) => [i.id, { batches: [blankBatch(String(pendingOf(i)))], rejected: "", damaged: "", expired: "", location: "" } as Line])),
   );
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [scanned, setScanned] = useState<string | null>(null);
-  // Rows whose details (rejected / damaged / expired, location, serials) are open
+  // Rows whose details (rejected / damaged / expired, location) are open
   const [openRows, setOpenRows] = useState<Record<string, boolean>>({});
   // Line whose batch popup is open
   const [batchFor, setBatchFor] = useState<string | null>(null);
@@ -196,19 +190,6 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const canSwitch = !locked && branches.some((b) => b.id === poBranchId);
 
   const update = (id: string, patch: Partial<Line>) => setLines((ls) => ({ ...ls, [id]: { ...ls[id], ...patch } }));
-  const setSerial = (id: string, idx: number, value: string) =>
-    setLines((ls) => ({ ...ls, [id]: { ...ls[id], serials: ls[id].serials.map((x, j) => (j === idx ? value : x)) } }));
-  // Several numbers pasted at once (from a sheet or a list) become one box each
-  const pasteSerials = (id: string, idx: number, text: string) => {
-    const parts = text.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
-    if (parts.length < 2) return false;
-    setLines((ls) => {
-      const next = [...ls[id].serials];
-      next.splice(idx, 1, ...parts);
-      return { ...ls, [id]: { ...ls[id], serials: next } };
-    });
-    return true;
-  };
   const open = items.filter((i) => pendingOf(i) > 0);
   const checks = new Map(open.map((i) => [i.id, check(i, lines[i.id])]));
 
@@ -256,12 +237,11 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
         vehicleNo: vehicleNo.trim() || undefined,
         supplierInvoiceNo: supplierInvoiceNo.trim() || undefined,
         receivedAt,
-        // One row per batch with a quantity; the first carries the rejected / damaged / expired counts and the serial numbers
+        // One row per batch with a quantity; the first carries the rejected / damaged / expired counts
         items: open.flatMap((i) => {
           const l = lines[i.id];
           const filled = l.batches.filter((b) => num(b.qty) > 0);
           const rows = filled.length ? filled : [l.batches[0]];
-          const serials = serialsOf(l);
           const location = l.location.trim() || undefined;
           return rows.map((b, k) => ({
             poItemId: i.id,
@@ -271,7 +251,6 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
             expiredQty: k === 0 ? num(l.expired) : 0,
             batchNo: b.batchNo.trim() || undefined,
             location,
-            serialNos: k === 0 && serials.length ? serials : undefined,
             mfgDate: b.mfgDate || undefined,
             expiryDate: b.expiryDate || undefined,
           }));
@@ -367,7 +346,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
         <p>
           Click <b>Batch No.</b> on a line to enter each batch received — its quantity, batch number, Mfg and expiry date; <b>Received Qty</b> is
           their total. Open <b>▸</b> on a line for goods that were <b>rejected</b> (debit note to the vendor), <b>damaged</b> (written off) or{" "}
-          <b>expired</b> (kept out of stock), the location and chassis / serial numbers. Anything not counted stays open on the PO for a later
+          <b>expired</b> (kept out of stock), and the location. Anything not counted stays open on the PO for a later
           delivery.
           <span className="mt-1 flex items-center gap-1 text-xs text-sky-700">
             <ScanLine className="size-3.5" /> Scan a pack&apos;s barcode to jump to its line and fill the batch details.
@@ -428,8 +407,8 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
               const batchProblem = show("batches");
               const named = l.batches.filter((b) => b.batchNo.trim());
               // Details open by themselves when they hold something or have a problem to fix
-              const detailError = !!(show("rejected") || show("damaged") || show("expired") || show("serials"));
-              const expanded = openRows[item.id] ?? (!!p.trackSerial || outOfStock > 0 || detailError);
+              const detailError = !!(show("rejected") || show("damaged") || show("expired"));
+              const expanded = openRows[item.id] ?? (outOfStock > 0 || detailError);
               const toggle = () => setOpenRows((o) => ({ ...o, [item.id]: !expanded }));
               return (
                 <Fragment key={item.id}>
@@ -527,7 +506,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                         onClick={toggle}
                         aria-expanded={expanded}
                         aria-label={`${expanded ? "Hide" : "Show"} details for ${p.name}`}
-                        title="Rejected / damaged / expired, location, chassis / serial numbers"
+                        title="Rejected / damaged / expired, location"
                         className={cx("rounded-md p-1.5 hover:bg-slate-100", detailError ? "text-red-600" : "text-slate-500")}
                       >
                         <ChevronDown className={cx("size-4 transition-transform", expanded && "rotate-180")} />
@@ -580,58 +559,6 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                           </Field>
                         </div>
 
-                        {p.trackSerial && c.passed > 0 && (
-                          <div className="mt-3 border-t border-slate-200 pt-3">
-                            <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
-                              <span className="text-xs font-medium text-slate-600">Chassis / Serial Numbers of the Received Units</span>
-                              <span className={cx("num text-xs", serialsOf(l).length === c.passed ? "text-brand-700" : "text-slate-500")}>
-                                {serialsOf(l).length} of {qty(c.passed)} entered
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                              {l.serials.map((sn, si) => (
-                                <div key={si} className="flex items-center gap-1">
-                                  <span className="num w-6 shrink-0 text-right text-xs text-slate-400">{si + 1}.</span>
-                                  <Input
-                                    value={sn}
-                                    onChange={(e) => setSerial(item.id, si, e.target.value)}
-                                    onPaste={(e) => {
-                                      if (pasteSerials(item.id, si, e.clipboardData.getData("text"))) e.preventDefault();
-                                    }}
-                                    onKeyDown={(e) => {
-                                      // A scanner ends each code with Enter: open the next box for the next unit
-                                      if (e.key !== "Enter") return;
-                                      e.preventDefault();
-                                      if (sn.trim() && si === l.serials.length - 1 && l.serials.length < c.passed) update(item.id, { serials: [...l.serials, ""] });
-                                    }}
-                                    className="font-mono"
-                                    placeholder="Chassis / serial no."
-                                    data-scan-input
-                                    autoFocus={si === l.serials.length - 1 && !sn}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => update(item.id, { serials: l.serials.filter((_, j) => j !== si) })}
-                                    className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                                    aria-label={`Remove serial ${si + 1}`}
-                                  >
-                                    <X className="size-4" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                            <FieldError msg={show("serials")} />
-                            {serialsOf(l).length < c.passed && (
-                              <button
-                                type="button"
-                                onClick={() => update(item.id, { serials: [...l.serials, ""] })}
-                                className="mt-2 inline-flex items-center gap-1 rounded-md border border-dashed border-brand-300 bg-white px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
-                              >
-                                <Plus className="size-3.5" /> Add chassis / serial no.
-                              </button>
-                            )}
-                          </div>
-                        )}
                       </td>
                     </tr>
                   )}

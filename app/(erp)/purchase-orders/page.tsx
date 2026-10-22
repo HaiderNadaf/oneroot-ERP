@@ -4,32 +4,34 @@ import { ClipboardCheck, PackageCheck, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ApprovalChain } from "@/components/ApprovalChain";
 import { RequirePerm } from "@/components/AppShell";
 import { BranchCode } from "@/components/BranchNotice";
+import { ListFilters, hasListFilters, noListFilters } from "@/components/ListFilters";
 import { ActionsTd, ActionsTh, Badge, Button, Card, EmptyRow, ErrorBox, LoadingRow, PageHeader, Pagination, RowAction, StatusBadge, Table, Tabs, Td, Th, cx } from "@/components/ui";
 import { date, inr, n } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
 import { useApi } from "@/lib/hooks";
-import type { PoStatus, PurchaseOrder, Paged } from "@/lib/types";
+import type { PoDisplayStatus, PurchaseOrder, Paged } from "@/lib/types";
 
-type Filter = "" | PoStatus;
+type Filter = "" | PoDisplayStatus;
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "", label: "All" },
   { value: "PENDING_APPROVAL", label: "Pending Approval" },
+  { value: "PARTIALLY_APPROVED", label: "Partially Approved" },
   { value: "SENT_BACK", label: "Sent Back" },
   { value: "APPROVED", label: "Approved" },
   { value: "PARTIALLY_RECEIVED", label: "Partially Received" },
   { value: "RECEIVED", label: "Received" },
+  { value: "PARTIALLY_REJECTED", label: "Partially Rejected" },
   { value: "REJECTED", label: "Rejected" },
   { value: "DRAFT", label: "Draft" },
   { value: "CANCELLED", label: "Cancelled" },
 ];
 
 interface PoList extends Paged<PurchaseOrder> {
-  counts: Partial<Record<PoStatus, number>>;
+  counts: Partial<Record<PoDisplayStatus, number>>;
   totalValue: string | number;
 }
 
@@ -44,11 +46,12 @@ export default function PurchaseOrdersPage() {
 function PurchaseOrders() {
   const router = useRouter();
   const { can } = useAuth();
-  const canManage = can("purchases.manage");
+  const canCreate = can("po.create");
   const { currentId } = useBranch();
   const [status, setStatus] = useState<Filter>("");
   const [page, setPage] = useState(1);
-  const { data, error, loading, reload } = useApi<PoList>("/purchase-orders", { status, page, pageSize: 25 });
+  const [filters, setFilters] = useState(noListFilters);
+  const { data, error, loading, reload } = useApi<PoList>("/purchase-orders", { ...filters, status, page, pageSize: 25 });
 
   const counts = data?.counts ?? {};
   const all = Object.values(counts).reduce((s, c) => s + (c ?? 0), 0);
@@ -63,7 +66,7 @@ function PurchaseOrders() {
             <span
               className={cx(
                 "num rounded-full px-1.5 text-[11px] font-semibold",
-                f.value === "PENDING_APPROVAL" || f.value === "SENT_BACK" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600",
+                f.value === "PENDING_APPROVAL" || f.value === "PARTIALLY_APPROVED" || f.value === "SENT_BACK" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600",
               )}
             >
               {c}
@@ -87,7 +90,7 @@ function PurchaseOrders() {
             <Button variant="secondary" icon={<ClipboardCheck className="size-4" />} onClick={() => router.push("/purchase-orders/approvals")}>
               Approvals
             </Button>
-            {canManage && (
+            {canCreate && (
               <Button icon={<Plus className="size-4" />} onClick={() => router.push("/purchase-orders/new")}>
                 New PO
               </Button>
@@ -106,6 +109,16 @@ function PurchaseOrders() {
       />
 
       <Card bodyClassName="p-0">
+        <div className="border-b border-slate-100 p-3">
+          <ListFilters
+            value={filters}
+            optionsPath="/purchase-orders/filters"
+            onChange={(f) => {
+              setFilters(f);
+              setPage(1);
+            }}
+          />
+        </div>
         {data && (
           <div className="border-b border-slate-100 px-3 py-2.5 text-sm text-slate-600 sm:px-4">
             <span className="font-medium text-slate-900">{data.total}</span> purchase order{data.total === 1 ? "" : "s"} · total value{" "}
@@ -122,21 +135,19 @@ function PurchaseOrders() {
               <tr>
                 <Th>PO</Th>
                 <Th>Vendor</Th>
-                <Th right>Value</Th>
-                <Th className="hidden md:table-cell">Approval</Th>
+                <Th right>Value (incl. GST)</Th>
                 <Th>Status</Th>
-                <Th right className="hidden md:table-cell">Received</Th>
-                <ActionsTh />
+                <ActionsTh right />
               </tr>
             </thead>
             <tbody>
               {loading && !data ? (
-                <LoadingRow colSpan={7} />
+                <LoadingRow colSpan={5} />
               ) : !items.length ? (
-                <EmptyRow colSpan={7}>
-                  {status ? (
-                    "No purchase orders with this status"
-                  ) : !canManage ? (
+                <EmptyRow colSpan={5}>
+                  {status || hasListFilters(filters) ? (
+                    "No purchase orders match these filters"
+                  ) : !canCreate ? (
                     "No purchase orders yet."
                   ) : (
                     <>
@@ -150,7 +161,6 @@ function PurchaseOrders() {
               ) : (
                 items.map((po) => {
                   const receivable = po.status === "APPROVED" || po.status === "PARTIALLY_RECEIVED";
-                  const showReceived = receivable || po.status === "RECEIVED";
                   return (
                     <tr key={po.id} className="hover:bg-slate-50">
                       <Td>
@@ -168,37 +178,29 @@ function PurchaseOrders() {
                       </Td>
                       <Td className="min-w-40">
                         <p className="break-words font-medium text-slate-800">{po.vendor?.name ?? "—"}</p>
-                        {po.itemCount !== undefined && (
-                          <p className="text-xs text-slate-500">
-                            {po.itemCount} item{po.itemCount === 1 ? "" : "s"}
-                          </p>
-                        )}
+                        <p className="text-xs text-slate-500">
+                          {po.vendor?.code && <span className="font-mono">{po.vendor.code}</span>}
+                          {po.vendor?.code && po.itemCount !== undefined && " · "}
+                          {po.itemCount !== undefined && `${po.itemCount} Product${po.itemCount === 1 ? "" : "s"}`}
+                        </p>
                       </Td>
                       <Td right className="whitespace-nowrap font-medium text-slate-900">
                         {inr(po.totalAmount)}
                       </Td>
-                      <Td className="hidden md:table-cell">
-                        <ApprovalChain chain={po.chain} />
-                      </Td>
                       <Td>
-                        <StatusBadge status={po.status} />
-                      </Td>
-                      <Td right className="hidden md:table-cell">
-                        {showReceived ? (
-                          <div className="ml-auto w-24">
-                            <p className="num text-xs font-medium text-slate-700">{po.receivedPct}%</p>
-                            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                              <div
-                                className={cx("h-full rounded-full", po.receivedPct >= 100 ? "bg-brand-500" : "bg-violet-500")}
-                                style={{ width: `${po.receivedPct}%` }}
-                              />
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-slate-300">—</span>
+                        <StatusBadge status={po.displayStatus ?? po.status} />
+                        {po.displayStatus === "PARTIALLY_APPROVED" && (
+                          <p className="num mt-0.5 text-xs text-slate-500">
+                            {po.level} of {po.levelsNeeded} levels approved
+                          </p>
+                        )}
+                        {po.displayStatus === "PARTIALLY_REJECTED" && (
+                          <p className="num mt-0.5 text-xs text-slate-500">
+                            Rejected at level {po.level + 1} of {po.levelsNeeded}
+                          </p>
                         )}
                       </Td>
-                      <ActionsTd>
+                      <ActionsTd right>
                           {receivable && can("purchases.receive") && (
                             <Button
                               size="sm"
@@ -209,8 +211,8 @@ function PurchaseOrders() {
                               Receive
                             </Button>
                           )}
-                          <RowAction kind="view" href={`/purchase-orders/${po.id}`} title={`View ${po.poNo}`} />
-                          {po.canEdit && canManage && <RowAction kind="edit" href={`/purchase-orders/${po.id}/edit`} title={`Edit ${po.poNo}`} />}
+                          <RowAction kind="view" label="Open" href={`/purchase-orders/${po.id}`} title={`Open ${po.poNo}`} />
+                          {po.canEdit && can("po.edit") && <RowAction kind="edit" href={`/purchase-orders/${po.id}/edit`} title={`Edit ${po.poNo}`} />}
                       </ActionsTd>
                     </tr>
                   );

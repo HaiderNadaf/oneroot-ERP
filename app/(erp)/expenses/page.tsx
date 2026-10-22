@@ -28,6 +28,7 @@ import {
   useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { date, downloadCsv, inr, inr0, monthStart, n, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { PAYMENT_MODES, modeLabel, type Expense, type ExpenseCategory, type Paged, type PaymentMode } from "@/lib/types";
@@ -38,13 +39,16 @@ const SERIES_1 = "#2a78d6";
 
 export default function ExpensesPage() {
   return (
-    <RequirePerm perms={["expenses"]}>
+    <RequirePerm perms={["expenses.view"]}>
       <Expenses />
     </RequirePerm>
   );
 }
 
 function Expenses() {
+  const { can } = useAuth();
+  const canCreate = can("expenses.create");
+  const canDelete = can("expenses.delete");
   const toast = useToast();
   const confirm = useConfirm();
   const [from, setFrom] = useState(monthStart());
@@ -109,9 +113,11 @@ function Expenses() {
             <Button variant="secondary" icon={<Tags className="size-4" />} onClick={() => setCatsOpen(true)}>
               Categories
             </Button>
-            <Button icon={<Plus className="size-4" />} onClick={() => setAddOpen(true)}>
-              Add Expense
-            </Button>
+            {canCreate && (
+              <Button icon={<Plus className="size-4" />} onClick={() => setAddOpen(true)}>
+                Add Expense
+              </Button>
+            )}
           </>
         }
       />
@@ -161,9 +167,11 @@ function Expenses() {
                 ) : !data?.items.length ? (
                   <EmptyRow colSpan={6}>
                     No expenses in this period.{" "}
-                    <button className="font-medium text-brand-700 underline" onClick={() => setAddOpen(true)}>
-                      Record One
-                    </button>
+                    {canCreate && (
+                      <button className="font-medium text-brand-700 underline" onClick={() => setAddOpen(true)}>
+                        Record One
+                      </button>
+                    )}
                   </EmptyRow>
                 ) : (
                   data.items.map((e) => (
@@ -184,7 +192,7 @@ function Expenses() {
                         {inr(e.amount)}
                       </Td>
                       <Td right>
-                        <RowAction kind="delete" title="Delete expense" onClick={() => remove(e)} />
+                        {canDelete && <RowAction kind="delete" title="Delete expense" onClick={() => remove(e)} />}
                       </Td>
                     </tr>
                   ))

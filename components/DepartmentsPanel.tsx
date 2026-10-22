@@ -14,13 +14,18 @@ import { Button, Card, Field, Input, Modal, RowAction, Spinner, errMsg, useConfi
  */
 export function DepartmentsPanel({
   templates,
-  canManage,
+  canCreate,
+  canEdit,
+  canDelete,
   onNewRole,
   onEditRole,
   onChanged,
 }: {
   templates: RoleTemplate[];
-  canManage: boolean;
+  /** roles.create / roles.edit / roles.delete: departments and the roles inside them */
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
   onNewRole: (departmentId: string | null) => void;
   onEditRole: (t: RoleTemplate) => void;
   onChanged: () => void;
@@ -60,7 +65,7 @@ export function DepartmentsPanel({
         className="mt-4"
         bodyClassName="p-0"
         actions={
-          canManage && (
+          canCreate && (
             <Button size="sm" icon={<Plus className="size-4" />} onClick={() => setForm({ department: null })}>
               New Department
             </Button>
@@ -81,20 +86,22 @@ export function DepartmentsPanel({
                 <Section
                   key={d.id}
                   title={d.name}
+                  code={d.code}
                   description={d.description}
                   roles={roles}
-                  canManage={canManage}
+                  canCreate={canCreate}
+                  canEdit={canEdit}
                   onEditRole={onEditRole}
                   onAddRole={() => onNewRole(d.id)}
-                  onEdit={() => setForm({ department: d })}
-                  onDelete={() => remove(d)}
+                  onEdit={canEdit ? () => setForm({ department: d }) : undefined}
+                  onDelete={canDelete ? () => remove(d) : undefined}
                   deleteDisabled={d.roleCount > 0 || busy === d.id}
                   deleteHint={d.roleCount > 0 ? "Move or delete its roles first" : "Delete department"}
                 />
               );
             })}
             {loose.length > 0 && (
-              <Section title="No Department" roles={loose} canManage={canManage} onEditRole={onEditRole} onAddRole={() => onNewRole(null)} />
+              <Section title="No Department" roles={loose} canCreate={canCreate} canEdit={canEdit} onEditRole={onEditRole} onAddRole={() => onNewRole(null)} />
             )}
           </div>
         )}
@@ -115,9 +122,11 @@ export function DepartmentsPanel({
 
 function Section({
   title,
+  code,
   description,
   roles,
-  canManage,
+  canCreate,
+  canEdit,
   onEditRole,
   onAddRole,
   onEdit,
@@ -126,9 +135,11 @@ function Section({
   deleteHint,
 }: {
   title: string;
+  code?: string;
   description?: string | null;
   roles: RoleTemplate[];
-  canManage: boolean;
+  canCreate: boolean;
+  canEdit: boolean;
   onEditRole: (t: RoleTemplate) => void;
   onAddRole: () => void;
   onEdit?: () => void;
@@ -141,14 +152,19 @@ function Section({
     <div className="px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold text-slate-900">{title}</p>
+          <p className="text-sm font-semibold text-slate-900">
+            {title}
+            {code && <span className="ml-2 font-mono text-xs font-normal text-slate-500">{code}</span>}
+          </p>
           {description && <p className="text-xs text-slate-500">{description}</p>}
         </div>
-        {canManage && (
+        {(canCreate || onEdit || onDelete) && (
           <div className="flex items-center gap-1">
-            <Button variant="secondary" size="sm" icon={<Plus className="size-4" />} onClick={onAddRole}>
-              Role
-            </Button>
+            {canCreate && (
+              <Button variant="secondary" size="sm" icon={<Plus className="size-4" />} onClick={onAddRole}>
+                Role
+              </Button>
+            )}
             {onEdit && <RowAction kind="edit" title="Edit department" onClick={onEdit} />}
             {onDelete && <RowAction kind="delete" title={deleteHint ?? "Delete department"} disabled={deleteDisabled} onClick={onDelete} />}
           </div>
@@ -159,7 +175,7 @@ function Section({
           <li key={t.id}>
             <button
               type="button"
-              disabled={!canManage || !canGrantAll(t.permissions)}
+              disabled={!canEdit || !canGrantAll(t.permissions)}
               onClick={() => onEditRole(t)}
               className="flex w-full flex-wrap items-baseline gap-x-2 rounded-md px-2 py-1.5 text-left hover:bg-slate-50 disabled:cursor-default disabled:hover:bg-transparent"
             >
@@ -176,7 +192,8 @@ function Section({
   );
 }
 
-function DepartmentForm({ department, onClose, onSaved }: { department: Department | null; onClose: () => void; onSaved: () => void }) {
+/** Create or edit a department; its DEPT-0001 code is given by the server and never changes */
+export function DepartmentForm({ department, onClose, onSaved }: { department: Department | null; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const [name, setName] = useState(department?.name ?? "");
   const [description, setDescription] = useState(department?.description ?? "");
@@ -187,9 +204,13 @@ function DepartmentForm({ department, onClose, onSaved }: { department: Departme
     setSaving(true);
     try {
       const body = { name: name.trim(), description: description.trim() || undefined };
-      if (department) await api.put(`/departments/${department.id}`, body);
-      else await api.post("/departments", body);
-      toast.success(department ? "Department updated" : `"${name.trim()}" created`);
+      if (department) {
+        await api.put(`/departments/${department.id}`, body);
+        toast.success("Department updated");
+      } else {
+        const created = await api.post<Department>("/departments", body);
+        toast.success(`"${created.name}" created as ${created.code}`);
+      }
       onSaved();
     } catch (err) {
       toast.error(errMsg(err));
@@ -215,6 +236,9 @@ function DepartmentForm({ department, onClose, onSaved }: { department: Departme
       }
     >
       <form id="department-form" onSubmit={save} className="grid gap-3">
+        <Field label="Department ID" hint={department ? undefined : "Given automatically when the department is created"}>
+          <Input value={department?.code ?? "Auto-generated"} disabled className="font-mono" />
+        </Field>
         <Field label="Department Name" required hint="e.g. Procurement, Sales, Warehouse, Accounts, IT">
           <Input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} autoFocus />
         </Field>

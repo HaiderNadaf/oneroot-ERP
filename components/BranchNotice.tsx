@@ -114,7 +114,7 @@ export function BranchCode({ code, title }: { code?: string | null; title?: stri
 export function useBranchOptions(): { branches: BranchLite[]; loading: boolean } {
   const { can } = useAuth();
   const { branches: mine } = useBranch();
-  const full = can("inventory.transfer", "purchases.view", "reports.view", "admin.users", "admin.branches");
+  const full = can("inventory.transfer", "purchases.view", "grn.view", "invoices.view", "reports.view", "admin.users", "admin.branches");
   const { data, error, loading } = useApi<Branch[]>(full ? "/branches" : null);
   if (!full || error) return { branches: mine, loading: false };
   return {

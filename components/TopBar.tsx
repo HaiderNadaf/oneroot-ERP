@@ -64,9 +64,9 @@ const KINDS = [
   { key: "batches", label: "Batches", icon: <Layers />, perms: ["inventory.view", "products.view"], hint: "batch no" },
   { key: "customers", label: "Customers", icon: <Users />, perms: ["customers.view"], hint: "phone, village" },
   { key: "vendors", label: "Vendors", icon: <Boxes />, perms: ["vendors.view"], hint: "GSTIN" },
-  { key: "sales", label: "Sales", icon: <Receipt />, perms: ["sales.bill"], hint: "bill number" },
+  { key: "sales", label: "Sales", icon: <Receipt />, perms: ["sales.view"], hint: "bill number" },
   { key: "purchaseOrders", label: "Purchase Orders", icon: <ClipboardList />, perms: ["purchases.view"], hint: "PO number" },
-  { key: "purchases", label: "Purchase Invoices", icon: <Truck />, perms: ["purchases.view"], hint: "vendor bill number" },
+  { key: "purchases", label: "Purchase Invoices", icon: <Truck />, perms: ["invoices.view"], hint: "vendor bill number" },
 ] as const satisfies readonly { key: string; label: string; icon: ReactNode; perms: readonly Permission[]; hint: string }[];
 type Kind = (typeof KINDS)[number]["key"];
 

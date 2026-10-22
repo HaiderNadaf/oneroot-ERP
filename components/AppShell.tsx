@@ -31,6 +31,7 @@ import {
   Users,
   Wallet,
   X,
+  Building2,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -69,12 +70,13 @@ const SIDEBAR_SCROLLBAR = {
   "--scrollbar-track": "transparent",
 } as CSSProperties;
 
+
 export const NAV: NavGroup[] = [
   {
     section: "",
     items: [{ href: "/", label: "Dashboard", icon: <LayoutDashboard /> }],
   },
-   {
+  {
     section: "",
     items: [
       {
@@ -86,15 +88,25 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    section: "Point of Sale",
+    items: [
+      {
+        href: "/sales/new",
+        label: "New Sale (POS)",
+        icon: <ShoppingCart />,
+        perms: ["sales.bill"],
+      },
+    ],
+  },
+  {
     section: "Sales",
     items: [
-      { href: "/sales/new", label: "New Sale (POS)", icon: <ShoppingCart />, perms: ["sales.bill"] },
-      { href: "/sales", label: "Invoices", icon: <Receipt />, perms: ["sales.bill"] },
-      { href: "/sales/returns", label: "Sales Returns", icon: <Undo2 />, perms: ["sales.returns"] },
+      { href: "/sales", label: "Invoices", icon: <Receipt />, perms: ["sales.view"] },
+      { href: "/sales/returns", label: "Sales Returns", icon: <Undo2 />, perms: ["returns.view", "sales.returns"] },
       { href: "/customers", label: "Customers", icon: <Users />, perms: ["customers.view"] },
       { href: "/customers/reminders", label: "Due Reminders", icon: <BellRing />, perms: ["customers.view"] },
       { href: "/approvals", label: "Approvals", icon: <BadgeCheck />, perms: ["sales.bill", "approvals.decide"] },
-      { href: "/van", label: "Van Trips", icon: <Truck />, perms: ["sales.van"] },
+      { href: "/van", label: "Van Trips", icon: <Truck />, perms: ["van.view", "sales.van"] },
       { href: "/agents", label: "Agents", icon: <UserRoundPlus />, perms: ["sales.bill", "vendors.view"] },
     ],
   },
@@ -102,30 +114,10 @@ export const NAV: NavGroup[] = [
     section: "Purchases",
     items: [
       { href: "/vendors", label: "Vendors", icon: <Boxes />, perms: ["vendors.view"] },
-      {
-        href: "/purchase-orders",
-        label: "Purchase Orders",
-        icon: <ClipboardList />,
-        perms: ["purchases.view"],
-      },
-      {
-        href: "/goods-inward",
-        label: "Goods Inward (GRN)",
-        icon: <PackageCheck />,
-        perms: ["purchases.view", "purchases.receive"],
-      },
-      {
-        href: "/purchases",
-        label: "Purchase Invoices",
-        icon: <Truck />,
-        perms: ["purchases.view"],
-      },
-      {
-        href: "/debit-notes",
-        label: "Debit & Credit Notes",
-        icon: <FileMinus />,
-        perms: ["purchases.view"],
-      },
+      { href: "/purchase-orders", label: "Purchase Orders", icon: <ClipboardList />, perms: ["purchases.view"] },
+      { href: "/goods-inward", label: "Goods Inward (GRN)", icon: <PackageCheck />, perms: ["grn.view", "purchases.receive"] },
+      { href: "/purchases", label: "Purchase Invoices", icon: <Truck />, perms: ["invoices.view"] },
+      { href: "/debit-notes", label: "Debit & Credit Notes", icon: <FileMinus />, perms: ["notes.view"] },
     ],
   },
   {
@@ -133,12 +125,7 @@ export const NAV: NavGroup[] = [
     items: [
       { href: "/products", label: "Products", icon: <Package />, perms: ["products.view"] },
       { href: "/inventory", label: "Stock & Batches", icon: <RotateCcw />, perms: ["inventory.view"] },
-      {
-        href: "/inventory/govt-match",
-        label: "Govt Fertiliser Match",
-        icon: <ShieldCheck />,
-        perms: ["inventory.govt"],
-      },
+      { href: "/inventory/govt-match", label: "Govt Fertiliser Match", icon: <ShieldCheck />, perms: ["inventory.govt"] },
     ],
   },
   {
@@ -146,34 +133,25 @@ export const NAV: NavGroup[] = [
     items: [
       { href: "/shifts", label: "Shifts & Cash", icon: <Landmark />, perms: ["cash.shifts"] },
       { href: "/payments", label: "Payments", icon: <IndianRupee />, perms: ["payments.view"] },
-      {
-        href: "/expenses",
-        label: "Expenses",
-        icon: <Wallet />,
-        perms: ["expenses"],
-      },
-      {
-        href: "/accounts",
-        label: "Accounts",
-        icon: <BookOpen />,
-        perms: ["accounts.view"],
-      },
-      {
-        href: "/reports",
-        label: "Reports",
-        icon: <BarChart3 />,
-        perms: ["reports.view"],
-      },
+      { href: "/expenses", label: "Expenses", icon: <Wallet />, perms: ["expenses.view"] },
+      { href: "/accounts", label: "Accounts", icon: <BookOpen />, perms: ["accounts.view"] },
+      { href: "/reports", label: "Reports", icon: <BarChart3 />, perms: ["reports.view"] },
     ],
   },
   {
-    section: "Admin",
+    section: "Management",
     items: [
       {
         href: "/admin/users",
         label: "Users",
         icon: <UserCog />,
         perms: ["admin.users"],
+      },
+      {
+        href: "/admin/departments",
+        label: "Departments",
+        icon: <Building2 />,
+        perms: ["admin.roles", "admin.users"],
       },
       {
         href: "/admin/roles",

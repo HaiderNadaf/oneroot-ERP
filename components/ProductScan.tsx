@@ -32,7 +32,7 @@ export function ProductScan() {
   const camera = cameraScanSupported();
 
   // Same people the API lets look a product up: Inventory, or the selling / buying screens (PRODUCT_READ in the API)
-  const allowed = can("products.view", "sales.bill", "sales.returns", "sales.van", "purchases.view", "inventory.view", "inventory.adjust", "inventory.transfer") && !OWN_SCAN_PAGES.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  const allowed = can("products.view", "sales.bill", "sales.returns", "sales.van", "purchases.view", "grn.view", "invoices.view", "notes.view", "inventory.view", "inventory.adjust", "inventory.transfer") && !OWN_SCAN_PAGES.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
   const lookup = useCallback(
     async (code: string) => {

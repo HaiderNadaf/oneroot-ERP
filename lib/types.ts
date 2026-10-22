@@ -16,6 +16,8 @@ export type PoStatus =
   | "RECEIVED"
   | "REJECTED"
   | "CANCELLED";
+/** What a PO shows: its status, with approval split by level (some levels approved, or rejected after some approved) */
+export type PoDisplayStatus = PoStatus | "PARTIALLY_APPROVED" | "PARTIALLY_REJECTED";
 export type DebitNoteStatus = "DRAFT" | "SENT" | "CANCELLED";
 export type NotificationType = "INFO" | "SUCCESS" | "WARNING" | "DANGER";
 export type MovementType =
@@ -105,7 +107,7 @@ export interface User {
   revokedPermissions?: string[];
   /** Custom role (named set of ticks) the user was given, if any */
   roleTemplateId?: string | null;
-  roleTemplate?: { id: string; name: string; department?: { id: string; name: string } | null } | null;
+  roleTemplate?: { id: string; name: string; baseRole?: Role; department?: { id: string; code?: string; name: string } | null } | null;
   isActive: boolean;
   lastLoginAt?: string | null;
   createdAt: string;
@@ -142,9 +144,13 @@ export interface BuiltInRole {
 /** A department groups the custom roles of one function (Procurement, Sales, Warehouse...) */
 export interface Department {
   id: string;
+  /** DEPT-0001…, given by the server on create */
+  code: string;
   name: string;
   description?: string | null;
   roleCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ───────────────────────── Authority limits & approvals ─────────────────────────
@@ -779,6 +785,7 @@ export interface PurchaseOrder {
   /** Brings totalAmount to whole rupees (.49 down, .50 up) */
   roundOff?: Dec;
   status: PoStatus;
+  displayStatus?: PoDisplayStatus;
   subtotal: Dec;
   taxAmount: Dec;
   totalAmount: Dec;
@@ -800,7 +807,13 @@ export interface PurchaseOrder {
   history?: PoHistory[];
   waitingFor?: ChainStep | null;
   canAct?: boolean;
-  grns?: { id: string; grnNo: string; receivedAt: string; receivedBy?: { name: string } | null }[];
+  grns?: {
+    id: string;
+    grnNo: string;
+    receivedAt: string;
+    receivedBy?: { name: string } | null;
+    items?: { poItemId: string; passedQty: Dec; batchNo?: string | null; expiryDate?: string | null }[];
+  }[];
   purchases?: { id: string; purchaseNo: string; status: DocStatus }[];
   debitNotes?: NoteSummary[];
 }
@@ -833,6 +846,8 @@ export interface PendingInwardPo {
   status: PoStatus;
   totalAmount: Dec;
   products: string[];
+  /** Total quantity ordered on the PO */
+  poQty: number;
   receivedPct: number;
   late: boolean;
   branchId?: string | null;
@@ -873,6 +888,8 @@ export interface Grn {
   notes?: string | null;
   purchase?: { id: string; purchaseNo: string; status?: DocStatus } | null;
   // list only: totals per GRN
+  /** Total quantity ordered on the PO (GRN list) */
+  poQty?: number;
   /** Everything that arrived: passed + rejected + damaged + expired */
   received?: number;
   passed?: number;
@@ -923,6 +940,8 @@ export interface DebitNote {
   purchase?: { id: string; purchaseNo: string; vendorInvoiceNo?: string | null } | null;
   poId?: string | null;
   po?: { id: string; poNo: string } | null;
+  /** Who raised the note; only they can cancel it */
+  userId?: string | null;
   /** The vendor's own note number (credit notes) */
   vendorRef?: string | null;
   noteDate: string;
@@ -963,6 +982,8 @@ export interface NoteSummary {
   noteDate: string;
   vendorRef?: string | null;
   purchase?: { id: string; purchaseNo: string } | null;
+  affectsStock?: boolean;
+  affectsBalance?: boolean;
 }
 
 export interface AppNotification {

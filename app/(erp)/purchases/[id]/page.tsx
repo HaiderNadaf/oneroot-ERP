@@ -13,6 +13,8 @@ import {
   Card,
   ErrorBox,
   PageHeader,
+  PrintHeader,
+  SystemGeneratedNote,
   Spinner,
   StatusBadge,
   Table,
@@ -31,7 +33,7 @@ import type { Purchase, StoreSettings } from "@/lib/types";
 
 export default function PurchaseDetailPage() {
   return (
-    <RequirePerm perms={["purchases.view"]}>
+    <RequirePerm perms={["invoices.view"]}>
       <PurchaseDetail />
     </RequirePerm>
   );
@@ -165,15 +167,8 @@ function PurchaseDetail() {
       )}
 
       <Card className="print-area mb-4" bodyClassName="p-0">
-        <div className="hidden border-b border-slate-200 px-4 py-3 text-center print:block">
-          <p className="text-lg font-semibold">{store?.storeName ?? "Purchase bill"}</p>
-          {store && (
-            <p className="text-xs text-slate-600">
-              {[store.address, store.city, store.state, store.pincode].filter(Boolean).join(", ")}
-              {store.gstin && ` · GSTIN ${store.gstin}`}
-            </p>
-          )}
-          <p className="mt-1 text-sm font-medium uppercase tracking-wide">Purchase bill / Goods receipt{cancelled && " — CANCELLED"}</p>
+        <div className="hidden px-4 pt-3 print:block">
+          <PrintHeader store={store} title="Purchase Bill" number={p.purchaseNo} status={cancelled ? { label: "Cancelled", tone: "red" } : null} />
         </div>
 
         {/* Vendor, billing and delivery addresses */}
@@ -343,6 +338,7 @@ function PurchaseDetail() {
             )}
           </dl>
         </div>
+        <SystemGeneratedNote className="hidden px-4 pb-4 pt-2 print:block" />
       </Card>
 
       <Card title="Payments Against This Bill" bodyClassName="p-0" className="no-print">

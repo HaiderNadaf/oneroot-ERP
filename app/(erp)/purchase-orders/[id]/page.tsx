@@ -91,7 +91,7 @@ export default function PurchaseOrderDetailPage() {
   const history = po.history ?? [];
   const pending = po.status === "PENDING_APPROVAL";
   const receivable = po.status === "APPROVED" || po.status === "PARTIALLY_RECEIVED";
-  const isBuyer = can("purchases.manage");
+  const isBuyer = can("po.edit");
   // Named approvers can open this page without the purchases section
   const canBrowse = can("purchases.view");
   const igst = isInterState(v, store);
@@ -126,7 +126,7 @@ export default function PurchaseOrderDetailPage() {
         title={
           <span className="flex flex-wrap items-center gap-2">
             {po.poNo}
-            <StatusBadge status={po.status} />
+            <StatusBadge status={po.displayStatus ?? po.status} />
             {po.round > 1 && <Badge tone="violet">Round {po.round}</Badge>}
           </span>
         }

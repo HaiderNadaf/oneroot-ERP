@@ -7,6 +7,7 @@ import { RequirePerm } from "@/components/AppShell";
 import { RoleTemplateForm } from "@/components/RoleTemplateForm";
 import { ActionsTd, ActionsTh, Badge, Button, Card, Checkbox, EmptyRow, ErrorBox, Input, Modal, PageHeader, RowAction, Spinner, StatusBadge, Table, Td, Th, errMsg, useConfirm, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { clearApiCache, useApi } from "@/lib/hooks";
 import { PERMISSIONS, normalizePermissions, type Permission } from "@/lib/permissions";
 import type { BuiltInRole, Role, RoleLimit, RoleTemplate } from "@/lib/types";
@@ -31,6 +32,7 @@ export default function RolesPage() {
 }
 
 function Roles() {
+  const { can } = useAuth();
   const toast = useToast();
   const { data, error, loading, reload } = useApi<RoleLimit[]>("/roles/limits");
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -94,7 +96,7 @@ function Roles() {
                   <Td right>{admin ? "Any" : <Input type="number" min="0" step="100" value={d.adjustmentLimit} placeholder="No limit" onChange={(e) => set(l, { adjustmentLimit: e.target.value })} className="num h-8 w-28 text-right sm:w-32" />}</Td>
                   <Td>{admin ? "Yes" : <Checkbox label="" checked={d.seeCostPrice} onChange={(v) => set(l, { seeCostPrice: v })} />}</Td>
                   <Td right>
-                    {!admin && (
+                    {!admin && can("roles.edit") && (
                       <Button size="sm" icon={<Save className="size-4" />} disabled={!dirty(l)} loading={saving === l.role} onClick={() => save(l)}>
                         Save
                       </Button>
@@ -135,6 +137,7 @@ function PermissionSummary({ keys }: { keys: string[] }) {
 
 /** What Manager / Accountant / Cashier may open: everyone on the role follows it, plus their own extras / removals */
 function BuiltInRoles() {
+  const { can } = useAuth();
   const canGrantAll = useCanGrantAll();
   const { data, error, loading, reload } = useApi<BuiltInRole[]>("/roles/built-in");
   const [editing, setEditing] = useState<BuiltInRole | null>(null);
@@ -188,7 +191,7 @@ function BuiltInRoles() {
                     </Td>
                     <Td right>{r.userCount ? <Badge tone="blue">{r.userCount}</Badge> : <span className="text-xs text-slate-400">none</span>}</Td>
                     <ActionsTd>
-                      {canGrantAll(r.permissions) && (
+                      {canGrantAll(r.permissions) && can("roles.edit") && (
                         <RowAction kind="edit" title={`Edit ${roleName(r.role)} permissions`} onClick={() => setEditing(r)} />
                       )}
                     </ActionsTd>
@@ -275,6 +278,7 @@ function BuiltInRoleForm({ role, onClose, onSaved }: { role: BuiltInRole; onClos
 
 /** The store's own roles: a named set of permission ticks, reusable across users */
 function CustomRoles() {
+  const { can } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
   const canGrantAll = useCanGrantAll();
@@ -303,9 +307,11 @@ function CustomRoles() {
       className="mt-4"
       bodyClassName="p-0"
       actions={
-        <Button size="sm" icon={<Plus className="size-4" />} onClick={() => setForm({ open: true, template: null })}>
-          New Role
-        </Button>
+        can("roles.create") && (
+          <Button size="sm" icon={<Plus className="size-4" />} onClick={() => setForm({ open: true, template: null })}>
+            New Role
+          </Button>
+        )
       }
     >
       {error ? (
@@ -349,8 +355,10 @@ function CustomRoles() {
                   </Td>
                   <Td right>{t.userCount ? <Badge tone="blue">{t.userCount}</Badge> : <span className="text-xs text-slate-400">none</span>}</Td>
                   <ActionsTd>
-                    {canGrantAll(t.permissions) && <RowAction kind="edit" title={`Edit ${t.name}`} onClick={() => setForm({ open: true, template: t })} />}
-                    <RowAction kind="delete" title={t.userCount > 0 ? `${t.name} is still assigned to users` : `Delete ${t.name}`} loading={removing === t.id} disabled={t.userCount > 0} onClick={() => remove(t)} />
+                    {canGrantAll(t.permissions) && can("roles.edit") && <RowAction kind="edit" title={`Edit ${t.name}`} onClick={() => setForm({ open: true, template: t })} />}
+                    {can("roles.delete") && (
+                      <RowAction kind="delete" title={t.userCount > 0 ? `${t.name} is still assigned to users` : `Delete ${t.name}`} loading={removing === t.id} disabled={t.userCount > 0} onClick={() => remove(t)} />
+                    )}
                   </ActionsTd>
                 </tr>
               ))

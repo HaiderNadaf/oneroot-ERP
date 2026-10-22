@@ -46,7 +46,7 @@ const DEFAULT_ACTIONS: Action[] = [
     perms: ["purchases.view"],
   },
   { href: "/inventory", label: "Inventory", icon: <Package />, perms: ["inventory.view"] },
-  { href: "/sales", label: "Sales", icon: <Receipt />, perms: ["sales.bill"] },
+  { href: "/sales", label: "Sales", icon: <Receipt />, perms: ["sales.view"] },
   { href: "/payments", label: "Receive Payment", icon: <IndianRupee />, perms: ["payments.view"] },
   {
     href: "/inventory?status=expiring",
@@ -111,6 +111,9 @@ const EDGE = 12; // gap between the dock and the window edges
 const VISIBLE_PINS = 6;
 const PINS_MAX_HEIGHT = VISIBLE_PINS * 36 + (VISIBLE_PINS - 1) * 4;
 
+/** Movement (px) before a press on the dock becomes a drag */
+const DRAG_SLOP = 6;
+
 const clamp01 = (n: number) => Math.min(Math.max(n, 0), 1);
 
 function loadPosition(): DockPosition {
@@ -142,6 +145,19 @@ function savePosition(p: DockPosition) {
   }
 }
 
+/** Below Tailwind's sm breakpoint */
+function useIsMobile() {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639.98px)");
+    const update = () => setMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return mobile;
+}
+
 // ───────────────────────── Floating dock ─────────────────────────
 
 /**
@@ -168,7 +184,10 @@ export function QuickDock() {
   } | null>(null);
   const dock = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const grab = useRef<{ dx: number; dy: number; moved: boolean } | null>(null);
+  const grab = useRef<{ dx: number; dy: number; x: number; y: number; moved: boolean } | null>(null);
+  // Phones: the dock is just the ⚡ bubble, dragged by itself; a drag must not also count as a tap
+  const mobile = useIsMobile();
+  const dragged = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -180,9 +199,13 @@ export function QuickDock() {
     };
     window.addEventListener("keydown", esc);
     document.addEventListener("mousedown", close);
+    // The sheet scrolls, not the page behind it
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", esc);
       document.removeEventListener("mousedown", close);
+      document.body.style.overflow = overflow;
     };
   }, [open]);
 
@@ -219,7 +242,7 @@ export function QuickDock() {
     const ro = new ResizeObserver(() => setDockHeight(el.offsetHeight));
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [mobile]); // phone and desktop render different dock elements
 
   // ── Dragging by the grip (mouse, pen and touch) ──
   function onGripDown(e: ReactPointerEvent<HTMLButtonElement>) {
@@ -228,13 +251,18 @@ export function QuickDock() {
     grab.current = {
       dx: e.clientX - r.left,
       dy: e.clientY - r.top,
+      x: e.clientX,
+      y: e.clientY,
       moved: false,
     };
+    dragged.current = false;
     e.currentTarget.setPointerCapture(e.pointerId);
   }
   function onGripMove(e: ReactPointerEvent<HTMLButtonElement>) {
     const g = grab.current;
     if (!g || !dock.current) return;
+    // A few px of finger wobble is still a tap
+    if (!g.moved && Math.hypot(e.clientX - g.x, e.clientY - g.y) < DRAG_SLOP) return;
     const r = dock.current.getBoundingClientRect();
     const left = Math.min(
       Math.max(e.clientX - g.dx, EDGE),
@@ -254,6 +282,7 @@ export function QuickDock() {
     if (e.currentTarget.hasPointerCapture(e.pointerId))
       e.currentTarget.releasePointerCapture(e.pointerId);
     if (!g?.moved || !dock.current) return;
+    dragged.current = true;
     // Snap to whichever side the dock was dropped nearer to, at the height it was dropped
     const r = dock.current.getBoundingClientRect();
     place({
@@ -310,8 +339,53 @@ export function QuickDock() {
   });
 
   function togglePanel() {
+    // The click that ends a drag of the bubble
+    if (dragged.current) {
+      dragged.current = false;
+      return;
+    }
     setOpen((o) => !o);
   }
+
+  const dragHandlers = {
+    onPointerDown: onGripDown,
+    onPointerMove: onGripMove,
+    onPointerUp: onGripUp,
+    onPointerCancel: onGripUp,
+  };
+
+  // Phones: one round ⚡ bubble, like iOS AssistiveTouch — drag it anywhere, it snaps to the nearer edge; tap for all pages
+  if (mobile)
+    return (
+      <>
+        <div ref={dock} style={style} className="no-print fixed z-40">
+          <button
+            type="button"
+            {...dragHandlers}
+            onClick={togglePanel}
+            aria-label="Quick actions: show all pages (drag to move)"
+            aria-expanded={open}
+            className={cx(
+              "flex size-13 touch-none select-none items-center justify-center rounded-full border-4 border-leaf-100/70 bg-brand-600/90 text-white shadow-[0_8px_30px_rgba(20,40,25,.28)] backdrop-blur-md transition-[opacity,transform] [-webkit-tap-highlight-color:transparent] active:scale-95",
+              drag ? "scale-105 opacity-100" : open ? "opacity-100" : "opacity-80",
+            )}
+          >
+            <Zap className="size-6" />
+          </button>
+        </div>
+        {open && (
+          <AllPagesPanel
+            ref={panel}
+            pinned={pinned}
+            shortcuts={shown}
+            allowed={allowed}
+            onToggle={toggle}
+            onReset={reset}
+            onClose={() => setOpen(false)}
+          />
+        )}
+      </>
+    );
 
   return (
     <>
@@ -326,10 +400,7 @@ export function QuickDock() {
       >
         <button
           type="button"
-          onPointerDown={onGripDown}
-          onPointerMove={onGripMove}
-          onPointerUp={onGripUp}
-          onPointerCancel={onGripUp}
+          {...dragHandlers}
           onKeyDown={onGripKey}
           aria-label="Move quick actions (drag, or use the arrow keys)"
           title="Drag to Move"
@@ -436,6 +507,7 @@ function DockTooltip({
 function AllPagesPanel({
   ref,
   pinned,
+  shortcuts,
   allowed,
   onToggle,
   onReset,
@@ -443,6 +515,8 @@ function AllPagesPanel({
 }: {
   ref: React.Ref<HTMLDivElement>;
   pinned: string[];
+  /** Phones: the pinned pages, shown first since the bubble has no room for them */
+  shortcuts?: Action[];
   allowed: (a: Action) => boolean;
   onToggle: (href: string) => void;
   onReset: () => void;
@@ -487,17 +561,23 @@ function AllPagesPanel({
         role="dialog"
         aria-modal="true"
         aria-label="All pages"
-        className="no-print fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[min(64rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-line bg-surface shadow-xl"
+        className={cx(
+          "no-print fixed z-50 flex flex-col border border-line bg-surface shadow-xl",
+          // Phones: a bottom sheet; wider: a centred dialog
+          "inset-x-0 bottom-0 max-h-[85dvh] rounded-t-2xl pb-[env(safe-area-inset-bottom)]",
+          "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-h-[calc(100dvh-2rem)] sm:w-[min(64rem,calc(100vw-2rem))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:pb-0",
+        )}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-          <div>
+        <span aria-hidden className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line sm:hidden" />
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 py-3">
+          <div className="min-w-0">
             <p className="text-sm font-bold text-ink">All Pages</p>
             <p className="text-xs text-muted">
-              Click a page to open it · use the pin to add or remove it from
+              Tap a page to open it · use the pin to add or remove it from
               your shortcuts
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <button
               onClick={onReset}
               className="rounded-md border border-transparent p-1 text-xs font-medium text-muted transition-colors duration-200 hover:border-rust-900 hover:bg-rust-700 hover:text-white"
@@ -506,14 +586,34 @@ function AllPagesPanel({
             </button>
             <button
               onClick={onClose}
-              className="rounded-md p-1 text-slate-400 hover:bg-slate-100"
+              className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 sm:p-1"
               aria-label="Close"
             >
-              <X className="size-4" />
+              <X className="size-5 sm:size-4" />
             </button>
           </div>
         </div>
-        <div className="min-h-0 flex-1 divide-y divide-line overflow-y-auto">
+        <div className="min-h-0 flex-1 divide-y divide-line overflow-y-auto overscroll-contain">
+          {shortcuts && shortcuts.length > 0 && (
+            <div className="p-4">
+              <p className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-muted-2">
+                Pinned
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {shortcuts.map((a) => (
+                  <Link
+                    key={a.href}
+                    href={a.href}
+                    onClick={onClose}
+                    className="flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2 text-center text-[11px] font-medium leading-tight text-ink active:bg-paper [&>svg]:size-5 [&>svg]:text-leaf-600"
+                  >
+                    {a.icon}
+                    <span className="line-clamp-2 break-words">{a.label}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
           {rows.map((row, r) => (
             <div
               key={r}
@@ -535,7 +635,7 @@ function AllPagesPanel({
                           <Link
                             href={a.href}
                             onClick={onClose}
-                            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] text-ink hover:bg-paper [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-leaf-600"
+                            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-2.5 text-sm sm:py-1.5 sm:text-[13px] text-ink hover:bg-paper [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-leaf-600"
                           >
                             {a.icon}
                             <span className="truncate">{a.label}</span>
@@ -554,7 +654,7 @@ function AllPagesPanel({
                                 : "Add to Shortcuts"
                             }
                             className={cx(
-                              "rounded-md p-1.5 transition-colors",
+                              "rounded-md p-2.5 transition-colors sm:p-1.5",
                               isPinned
                                 ? "text-brand-600 hover:bg-red-50 hover:text-red-600"
                                 : "text-slate-300 hover:bg-leaf-100 hover:text-brand-600",

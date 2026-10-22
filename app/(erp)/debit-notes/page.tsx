@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { NoteForm, NoteStatusBadge, ReasonBadge, noteTypeName, postLabel, reducesPayable } from "@/components/NoteForm";
-import { VendorPicker } from "@/components/pickers";
+import { ListFilters, hasListFilters, noListFilters } from "@/components/ListFilters";
 import {
   ActionsTd,
   ActionsTh,
@@ -18,6 +18,8 @@ import {
   LoadingRow,
   Modal,
   PageHeader,
+  PrintHeader,
+  SystemGeneratedNote,
   Pagination,
   RowAction,
   Table,
@@ -35,14 +37,14 @@ import { useAuth } from "@/lib/auth";
 import { amountInWords, date, inr, n, qty } from "@/lib/format";
 import { placeOfSupply } from "@/lib/gst";
 import { useApi } from "@/lib/hooks";
-import { NOTE_REASON_LABEL, type Branch, type DebitNote, type DebitNoteStatus, type NoteType, type Paged, type StoreSettings, type Vendor } from "@/lib/types";
+import { NOTE_REASON_LABEL, type Branch, type DebitNote, type DebitNoteStatus, type NoteType, type Paged, type StoreSettings } from "@/lib/types";
 
 type Filter = "" | DebitNoteStatus;
 type TypeTab = "debit" | "credit";
 
 export default function DebitNotesPage() {
   return (
-    <RequirePerm perms={["purchases.view"]}>
+    <RequirePerm perms={["notes.view"]}>
       <Notes />
     </RequirePerm>
   );
@@ -51,8 +53,9 @@ export default function DebitNotesPage() {
 /** What posting a draft does, in words, for the confirm dialog */
 function postMessage(dn: DebitNote) {
   const amount = inr(dn.totalAmount);
-  if (!reducesPayable(dn.reasonType)) {
-    return `Send ${dn.dnNo} to ${dn.vendor.name}? This records that the vendor has been told about the goods rejected on ${dn.grn?.grnNo ?? "goods inward"} (${amount}). Rejected goods never entered stock and were never billed, so stock and the vendor balance don't change.`;
+  if (!reducesPayable(dn)) {
+    const what = dn.reasonType === "SHORT_SUPPLY" ? "the goods short-supplied" : "the goods rejected";
+    return `Send ${dn.dnNo} to ${dn.vendor.name}? This records that the vendor has been told about ${what} on ${dn.grn?.grnNo ?? "goods inward"} (${amount}). Those goods never entered stock and were never billed, so stock and the vendor balance don't change.`;
   }
   const settles = dn.purchase ? ` The balance due on invoice ${dn.purchase.purchaseNo} is settled from it first.` : "";
   if (dn.noteType === "CREDIT") {
@@ -68,8 +71,12 @@ function Notes() {
   const toast = useToast();
   const confirm = useConfirm();
   const router = useRouter();
-  const { can } = useAuth();
-  const canManage = can("purchases.manage");
+  const { can, user } = useAuth();
+  const canCreate = can("notes.create");
+  const canEdit = can("notes.edit");
+  const canDelete = can("notes.delete");
+  // Only whoever raised a note can cancel it
+  const canCancel = (dn: DebitNote) => !dn.userId || dn.userId === user?.id;
   const canVendors = can("vendors.view");
   const pathname = usePathname();
   const params = useSearchParams();
@@ -77,14 +84,14 @@ function Notes() {
   const noteType: NoteType = tab === "credit" ? "CREDIT" : "DEBIT";
   const isDebit = noteType === "DEBIT";
   const [status, setStatus] = useState<Filter>("");
-  const [vendor, setVendor] = useState<Vendor | null>(null);
+  const [filters, setFilters] = useState(noListFilters);
   const [formOpen, setFormOpen] = useState(false);
   const [viewing, setViewing] = useState<DebitNote | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const { data, error, loading, reload } = useApi<Paged<DebitNote> & { drafts: { count: number; value: string | number } }>(
     "/debit-notes",
-    { noteType, status, vendorId: vendor?.id, page, pageSize: 25 },
+    { ...filters, noteType, status, page, pageSize: 25 },
   );
   const { data: store } = useApi<StoreSettings>("/settings");
 
@@ -106,7 +113,7 @@ function Notes() {
       toast.success(
         dn.noteType === "CREDIT"
           ? `${dn.dnNo} applied · payable reduced by ${inr(dn.totalAmount)}`
-          : `${dn.dnNo} sent${dn.affectsStock ? " · stock removed" : ""}${reducesPayable(dn.reasonType) ? " · payable reduced" : ""}`,
+          : `${dn.dnNo} sent${dn.affectsStock ? " · stock removed" : ""}${reducesPayable(dn) ? " · payable reduced" : ""}`,
       );
       void reload();
       setViewing((v) => (v?.id === dn.id ? { ...v, status: "SENT" } : v));
@@ -134,9 +141,10 @@ function Notes() {
   }
 
   const actions = (dn: DebitNote, size: "sm" | "md" = "sm") =>
-    canManage &&
-    dn.status === "DRAFT" && (
+    dn.status === "DRAFT" &&
+    (canEdit || canDelete) && (
       <>
+        {canEdit && (
         <Button
           size={size}
           icon={dn.noteType === "DEBIT" ? <Send className="size-4" /> : <CheckCircle2 className="size-4" />}
@@ -145,9 +153,12 @@ function Notes() {
         >
           {postLabel(dn.noteType)}
         </Button>
-        <Button size={size} variant="ghost" icon={<Ban className="size-4" />} onClick={() => cancel(dn)} disabled={busy === dn.id}>
-          Cancel
-        </Button>
+        )}
+        {canDelete && canCancel(dn) && (
+          <Button size={size} variant="ghost" icon={<Ban className="size-4" />} onClick={() => cancel(dn)} disabled={busy === dn.id}>
+            Cancel
+          </Button>
+        )}
       </>
     );
 
@@ -162,7 +173,7 @@ function Notes() {
               : "Credit notes vendors give you, reducing what you owe — scheme incentives, price protection, cash discounts, accepted debit notes"
           }
           actions={
-            !canManage ? undefined : isDebit ? (
+            !canCreate ? undefined : isDebit ? (
               <Button icon={<FileMinus className="size-4" />} onClick={() => setFormOpen(true)}>
                 New Debit Note
               </Button>
@@ -219,19 +230,14 @@ function Notes() {
                 </button>
               ))}
             </div>
-            {canVendors && (
-              <div className="w-full sm:w-80">
-                <p className="mb-1 text-xs font-medium text-slate-600">Filter by vendor</p>
-                <VendorPicker
-                  value={vendor}
-                  placeholder="All vendors — search to filter…"
-                  onChange={(v) => {
-                    setVendor(v);
-                    setPage(1);
-                  }}
-                />
-              </div>
-            )}
+            <ListFilters
+              value={filters}
+              optionsPath="/debit-notes/filters"
+              onChange={(f) => {
+                setFilters(f);
+                setPage(1);
+              }}
+            />
           </div>
 
           {error ? (
@@ -257,7 +263,7 @@ function Notes() {
                   <LoadingRow colSpan={8} />
                 ) : !rows.length ? (
                   <EmptyRow colSpan={8}>
-                    No {noteTypeName(noteType)}s{status || vendor ? " for these filters" : " yet"}.
+                    No {noteTypeName(noteType)}s{status || hasListFilters(filters) ? " for these filters" : " yet"}.
                   </EmptyRow>
                 ) : (
                   rows.map((dn) => (
@@ -329,7 +335,7 @@ function Notes() {
               dn={viewing}
               store={store}
               onShipTo={
-                canManage && viewing.status !== "CANCELLED"
+                canEdit && viewing.status !== "CANCELLED"
                   ? async (text) => {
                       const r = await api.patch<{ shipTo: string | null }>(`/debit-notes/${viewing.id}/ship-to`, { shipTo: text });
                       setViewing((v) => (v ? { ...v, shipTo: r.shipTo } : v));
@@ -466,20 +472,15 @@ function NoteDoc({ dn, store, onShipTo }: { dn: DebitNote; store: StoreSettings 
   ].filter(Boolean);
   return (
     <div className="paper rounded-md bg-white p-1 text-sm text-slate-800">
-      <div className="mb-4 border-b border-slate-200 pb-3 text-center">
-        <p className="text-lg font-semibold">{store?.storeName ?? (isDebit ? "Debit note" : "Credit note")}</p>
-        {store && (
-          <p className="text-xs text-slate-600">
-            {[store.address, store.city, store.state, store.pincode].filter(Boolean).join(", ")}
-            {store.gstin && ` · GSTIN ${store.gstin}`}
-          </p>
-        )}
-        <p className="mt-1 font-medium uppercase tracking-wide">
-          {isDebit ? "Debit note" : "Credit note (received)"}
-          {dn.status === "CANCELLED" && " — CANCELLED"}
-          {dn.status === "DRAFT" && " — DRAFT"}
-        </p>
-      </div>
+      <PrintHeader
+        className="mb-4"
+        store={store}
+        title={isDebit ? "Debit Note" : "Credit Note"}
+        number={dn.dnNo}
+        status={
+          dn.status === "CANCELLED" ? { label: "Cancelled", tone: "red" } : dn.status === "DRAFT" ? { label: "Draft", tone: "amber" } : null
+        }
+      />
       {/* Stacks on phones in the modal; the print: classes keep the printed copy as it was */}
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 print:grid-cols-2">
         <div className="min-w-0">
@@ -574,10 +575,7 @@ function NoteDoc({ dn, store, onShipTo }: { dn: DebitNote; store: StoreSettings 
           </div>
         </dl>
       </div>
-      <div className="mt-12 grid grid-cols-2 gap-8 text-center text-xs text-slate-600">
-        <p className="border-t border-slate-400 pt-1">{isDebit ? "Received by (vendor)" : "Recorded by"}</p>
-        <p className="border-t border-slate-400 pt-1">Authorised signatory</p>
-      </div>
+      <SystemGeneratedNote doc={isDebit ? "debit note" : "credit note"} className="mt-8 border-t border-slate-200 pt-2.5" />
     </div>
   );
 }

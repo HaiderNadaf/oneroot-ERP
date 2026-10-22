@@ -90,6 +90,7 @@ function RulesEditor({
   onSaved: (c: ApprovalConfig) => void;
   onDiscard: () => void;
 }) {
+  const canSave = useAuth().can("approval_rules.edit");
   const toast = useToast();
   const [initial] = useState(() => toRows(config));
   const [steps, setSteps] = useState<StepRow[]>(initial.steps);
@@ -355,7 +356,7 @@ function RulesEditor({
         <Button variant="secondary" icon={<Undo2 className="size-4" />} onClick={onDiscard} disabled={!dirty || saving}>
           Discard
         </Button>
-        <Button icon={<Save className="size-4" />} onClick={save} loading={saving} disabled={!dirty}>
+        <Button icon={<Save className="size-4" />} onClick={save} loading={saving} disabled={!dirty || !canSave} title={canSave ? undefined : "You can view these rules but not change them"}>
           Save Rules
         </Button>
       </div>

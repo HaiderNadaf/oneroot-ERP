@@ -137,21 +137,21 @@ export default function ProductDetailPage() {
             <Button variant="secondary" icon={<Tag className="size-4" />} onClick={() => setLabelsOpen(true)}>
               Labels
             </Button>
-            {can("products.manage") && (
-            <>
-              {p.isActive ? (
-                <Button variant="secondary" icon={<Trash2 className="size-4" />} onClick={remove} loading={busy}>
-                  Delete
-                </Button>
-              ) : (
-                <Button variant="secondary" icon={<Power className="size-4" />} onClick={reactivate} loading={busy}>
-                  Reactivate
-                </Button>
-              )}
+            {p.isActive
+              ? can("products.delete") && (
+                  <Button variant="secondary" icon={<Trash2 className="size-4" />} onClick={remove} loading={busy}>
+                    Delete
+                  </Button>
+                )
+              : can("products.edit") && (
+                  <Button variant="secondary" icon={<Power className="size-4" />} onClick={reactivate} loading={busy}>
+                    Reactivate
+                  </Button>
+                )}
+            {can("products.edit") && (
               <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
                 Edit
               </Button>
-            </>
             )}
             {can("inventory.adjust") && (
               <Button icon={<SlidersHorizontal className="size-4" />} onClick={() => setAdjustOpen(true)}>

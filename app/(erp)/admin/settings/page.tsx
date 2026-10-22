@@ -83,6 +83,7 @@ function Settings() {
 }
 
 function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (s: StoreSettings) => void }) {
+  const canSave = useAuth().can("settings.edit");
   const toast = useToast();
   const [f, setF] = useState<Form>(() => toForm(initial));
   const [saved, setSaved] = useState<Form>(() => toForm(initial));
@@ -151,16 +152,18 @@ function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (
         title="Store Settings"
         subtitle="Store profile, GST registration, licences, printing, credit rules and reminders"
         actions={
-          <>
-            {dirty && (
-              <Button variant="ghost" onClick={() => setF(saved)}>
-                Discard Changes
+          canSave && (
+            <>
+              {dirty && (
+                <Button variant="ghost" onClick={() => setF(saved)}>
+                  Discard Changes
+                </Button>
+              )}
+              <Button type="submit" icon={<Save className="size-4" />} loading={saving} disabled={!dirty}>
+                Save Settings
               </Button>
-            )}
-            <Button type="submit" icon={<Save className="size-4" />} loading={saving} disabled={!dirty}>
-              Save Settings
-            </Button>
-          </>
+            </>
+          )
         }
       />
 

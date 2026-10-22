@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
-import { Badge, Button, Card, ErrorBox, PageHeader, Spinner, Table, Td, Th, cx } from "@/components/ui";
+import { Badge, Button, Card, ErrorBox, PageHeader, PrintHeader, Spinner, SystemGeneratedNote, Table, Td, Th, cx } from "@/components/ui";
 import { date, dateTime, inr, n, qty, round2 } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
@@ -18,7 +18,7 @@ type GrnDetail = Grn & { vendor: Vendor; items: GrnItem[] };
 
 export default function GrnDetailPage() {
   return (
-    <RequirePerm perms={["purchases.view"]}>
+    <RequirePerm perms={["grn.view", "purchases.receive"]}>
       <GrnView />
     </RequirePerm>
   );
@@ -28,7 +28,7 @@ function GrnView() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { can } = useAuth();
-  const canInvoice = can("purchases.manage");
+  const canInvoice = can("invoices.create");
   const { data: g, error, loading, reload } = useApi<GrnDetail>(`/grns/${id}`);
   const { data: store } = useApi<StoreSettings>("/settings");
   const [labelsOpen, setLabelsOpen] = useState(false);
@@ -46,6 +46,8 @@ function GrnView() {
   const totals = { passed: sum("passedQty"), rejected: sum("rejectedQty"), damaged: sum("damagedQty"), expired: sum("expiredQty") };
   // Everything that arrived, whatever the inspection outcome
   const received = totals.passed + totals.rejected + totals.damaged + totals.expired;
+  // A PO line received in several batches has several GRN rows; count its ordered qty once
+  const poQty = [...new Map(items.map((it) => [it.poItemId, n(it.poItem.quantity)])).values()].reduce((s, q) => s + q, 0);
   const receivedOf = (it: (typeof items)[number]) => n(it.passedQty) + n(it.rejectedQty) + n(it.damagedQty) + n(it.expiredQty);
   const passedValue = round2(items.reduce((s, i) => s + n(i.passedQty) * n(i.rate), 0));
   const invoiced = !!g.purchase && g.purchase.status !== "CANCELLED";
@@ -89,15 +91,8 @@ function GrnView() {
       />
 
       <Card className="print-area mb-4" bodyClassName="p-0">
-        <div className="hidden border-b border-slate-200 px-4 py-3 text-center print:block">
-          <p className="text-lg font-semibold">{store?.storeName ?? "Goods received note"}</p>
-          {store && (
-            <p className="text-xs text-slate-600">
-              {[store.address, store.city, store.state, store.pincode].filter(Boolean).join(", ")}
-              {store.gstin && ` · GSTIN ${store.gstin}`}
-            </p>
-          )}
-          <p className="mt-1 text-sm font-medium uppercase tracking-wide">Goods Received Note</p>
+        <div className="hidden px-4 pt-3 print:block">
+          <PrintHeader store={store} title="Goods Received Note" number={g.grnNo} />
         </div>
 
         <div className="grid grid-cols-1 gap-4 border-b border-slate-100 p-4 sm:grid-cols-2">
@@ -146,6 +141,7 @@ function GrnView() {
               <Th>Mfg</Th>
               <Th>Expiry</Th>
               <Th right>PO Rate</Th>
+              <Th right>PO Qty</Th>
               <Th right>Received</Th>
               <Th right>Passed</Th>
               <Th right>Rejected</Th>
@@ -162,13 +158,16 @@ function GrnView() {
                   <p className="font-medium text-slate-900">{it.product.name}</p>
                   <p className="text-xs text-slate-500">
                     {it.product.sku}
-                    {it.product.hsnCode && ` · HSN ${it.product.hsnCode}`} · ordered {qty(it.poItem.quantity)} {it.product.unit}
+                    {it.product.hsnCode && ` · HSN ${it.product.hsnCode}`}
                   </p>
                 </Td>
                 <Td className="font-mono text-xs">{it.batchNo || "—"}</Td>
                 <Td className="whitespace-nowrap text-xs">{date(it.mfgDate)}</Td>
                 <Td className="whitespace-nowrap text-xs">{date(it.expiryDate)}</Td>
                 <Td right>{inr(it.rate)}</Td>
+                <Td right className="whitespace-nowrap text-slate-700">
+                  {qty(it.poItem.quantity)} <span className="text-xs text-slate-500">{it.product.unit}</span>
+                </Td>
                 <Td right className="font-semibold text-slate-900">
                   {qty(receivedOf(it))} <span className="text-xs font-normal text-slate-500">{it.product.unit}</span>
                 </Td>
@@ -186,6 +185,9 @@ function GrnView() {
               <Td colSpan={6} className="text-right text-xs uppercase tracking-wide text-slate-500">
                 Total · passed value {inr(passedValue)} excl. GST
               </Td>
+              <Td right className="text-slate-700">
+                {qty(poQty)}
+              </Td>
               <Td right className="font-semibold text-slate-900">
                 {qty(received)}
               </Td>
@@ -199,14 +201,11 @@ function GrnView() {
           </tfoot>
         </Table>
 
-        <div className="hidden grid-cols-2 gap-8 px-4 pb-4 pt-12 text-center text-xs text-slate-600 print:grid">
-          <p className="border-t border-slate-400 pt-1">Received by</p>
-          <p className="border-t border-slate-400 pt-1">Checked by</p>
-        </div>
+        <SystemGeneratedNote doc="goods received note" className="hidden px-4 pb-4 pt-6 print:block" />
       </Card>
 
       <div className="no-print grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card title="Purchase Invoice">
+        {/* <Card title="Purchase Invoice">
           {invoiced && g.purchase ? (
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
               <span>
@@ -229,7 +228,7 @@ function GrnView() {
           ) : (
             <p className="text-sm text-slate-500">Nothing passed inspection on this GRN, so there is nothing to invoice.</p>
           )}
-        </Card>
+        </Card> */}
         <Card
           title="Debit & Credit Notes"
           actions={
@@ -272,7 +271,7 @@ function GrnView() {
         onRetry={notesQ.reload}
         focusId={notesOpen?.focus}
         grn={g}
-        canManage={canInvoice}
+        canManage={can("notes.create")}
       />
 
       <LazyLabelPrintModal

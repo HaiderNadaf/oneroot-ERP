@@ -22,6 +22,26 @@ function preferred(): Theme {
 
 const apply = (theme: Theme) => document.documentElement.classList.toggle("dark", theme === "dark");
 
+/** How long a switch between light and dark takes (keep in step with globals.css) */
+const FADE_MS = 500;
+
+/**
+ * Switch with a gradual cross-fade instead of an instant jump: the View Transitions API where the browser has it,
+ * otherwise a short colour transition on every element. Instant when the user asks for reduced motion.
+ */
+function applyGradually(theme: Theme) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return apply(theme);
+  const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+  if (doc.startViewTransition) {
+    doc.startViewTransition(() => apply(theme));
+    return;
+  }
+  const root = document.documentElement;
+  root.classList.add("theme-fading");
+  apply(theme);
+  window.setTimeout(() => root.classList.remove("theme-fading"), FADE_MS);
+}
+
 // The "dark" class on <html> is the source of truth; every toggle on the page follows it
 function subscribe(onChange: () => void) {
   const observer = new MutationObserver(onChange);
@@ -46,7 +66,7 @@ export function useTheme() {
     try {
       localStorage.setItem(STORAGE_KEY, next);
     } catch {}
-    apply(next);
+    applyGradually(next);
   }, []);
 
   return { theme, toggle };

@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/ui";
 
 export default function NewPurchaseOrderPage() {
   return (
-    <RequirePerm perms={["purchases.manage"]}>
+    <RequirePerm perms={["po.create"]}>
       <NewPurchaseOrder />
     </RequirePerm>
   );

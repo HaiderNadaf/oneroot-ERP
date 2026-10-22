@@ -43,7 +43,8 @@ export default function VendorsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const q = useDebounced(search);
-  const canEdit = can("vendors.manage");
+  const canCreate = can("vendors.create");
+  const canEdit = can("vendors.edit");
 
   const filters = { search: q, withDues: withDues ? "true" : undefined, status };
   const { data, error, loading, reload } = useApi<Paged<Vendor>>("/vendors", { ...filters, page, pageSize: 25 });
@@ -100,7 +101,7 @@ export default function VendorsPage() {
             <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv} loading={exporting}>
               Export
             </Button>
-            {canEdit && (
+            {canCreate && (
               <Button icon={<Plus className="size-4" />} onClick={openNew}>
                 New Vendor
               </Button>
@@ -155,7 +156,7 @@ export default function VendorsPage() {
               ) : !data?.items.length ? (
                 <EmptyRow colSpan={9}>
                   {search || withDues ? "No vendors match these filters." : "No vendors yet."}{" "}
-                  {canEdit && !search && !withDues && (
+                  {canCreate && !search && !withDues && (
                     <button className="font-medium text-brand-700 underline" onClick={openNew}>
                       Add Your First Vendor
                     </button>

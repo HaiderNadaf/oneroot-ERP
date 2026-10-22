@@ -58,7 +58,7 @@ function addDays(day: string, days: number) {
 
 export default function BookInvoicePage() {
   return (
-    <RequirePerm perms={["purchases.manage"]}>
+    <RequirePerm perms={["invoices.create"]}>
       <BookInvoice />
     </RequirePerm>
   );

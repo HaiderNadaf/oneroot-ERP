@@ -25,6 +25,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
 import { date } from "@/lib/format";
+import type { StoreSettings } from "@/lib/types";
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
 // ───────────────────────── Buttons ─────────────────────────
@@ -538,6 +539,77 @@ export function Logo({
   );
 }
 
+/** Company logo at the top of printed bills, invoices and notes (as on the PO) */
+export function PrintLogo({ className }: { className?: string }) {
+  // eslint-disable-next-line @next/next/no-img-element -- plain img prints reliably
+  return <img src="/full_logo.png" alt="OneRoot.farm" className={cx("mx-auto block h-11 w-auto", className)} />;
+}
+
+/**
+ * Top of a printed bill / invoice / note, laid out like the PO: logo | company name, address, GSTIN on the left;
+ * the document's title, number and status on the right.
+ */
+export function PrintHeader({
+  store,
+  title,
+  number,
+  status,
+  details,
+  className,
+}: {
+  store?: Partial<StoreSettings> | null;
+  title: ReactNode;
+  number?: ReactNode;
+  /** e.g. Cancelled (red) or Draft (amber) */
+  status?: { label: string; tone: "red" | "amber" } | null;
+  /** Extra company lines under the address (phone, licences…) */
+  details?: ReactNode;
+  className?: string;
+}) {
+  const address = [store?.address, store?.city, store?.state, store?.pincode].filter(Boolean).join(", ");
+  return (
+    <div className={cx("flex items-center justify-between gap-6 border-b-[3px] border-forest-700 pb-3 text-left", className)}>
+      <div className="flex min-w-0 items-center gap-3">
+        <PrintLogo className="mx-0 shrink-0" />
+        <div className="min-w-0 border-l border-slate-300 pl-3">
+          <p className="text-[15px] font-bold leading-tight text-slate-900">{store?.storeName ?? "OneRoot"}</p>
+          {address && <p className="text-[10.5px] text-slate-500">{address}</p>}
+          {store?.gstin && (
+            <p className="text-[10.5px] text-slate-500">
+              GSTIN: {store.gstin}
+              {store.stateCode ? ` · State code: ${store.stateCode}` : ""}
+            </p>
+          )}
+          {details}
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-[19px] font-extrabold uppercase leading-none tracking-[0.06em] text-brand-800">{title}</p>
+        {number && <p className="mt-1.5 font-mono text-[12px] font-semibold text-slate-700">{number}</p>}
+        {status && (
+          <p
+            className={cx(
+              "mt-1 inline-block rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-wide",
+              status.tone === "red" ? "bg-red-50 text-red-700 ring-1 ring-red-200" : "bg-amber-50 text-amber-800 ring-1 ring-amber-200",
+            )}
+          >
+            {status.label}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Foot of every printed bill / invoice / note, in place of signature lines (as on the PO) */
+export function SystemGeneratedNote({ doc = "bill", className }: { doc?: string; className?: string }) {
+  return (
+    <p className={cx("text-left text-[10px] italic text-slate-500", className)}>
+      <span className="font-semibold not-italic text-red-600">*</span> This is a system-generated {doc} and does not require a signature.
+    </p>
+  );
+}
+
 /** Text inside an <option>, e.g. {code} · {name} */
 function textOf(node: ReactNode): string {
   if (node === null || node === undefined || typeof node === "boolean") return "";
@@ -569,6 +641,8 @@ export interface DropdownOption {
   label: string;
   /** Muted text shown after the label (and searched too), e.g. a code or city */
   hint?: string;
+  /** Muted text on its own line under the label in the list (and searched too), e.g. a SKU */
+  detail?: string;
   /** Heading the option is listed under */
   group?: string;
 }
@@ -634,7 +708,11 @@ export function Dropdown({
   const q = query.trim().toLowerCase();
   const matches = q
     ? options.filter(
-        (o) => o.label.toLowerCase().includes(q) || o.hint?.toLowerCase().includes(q) || o.group?.toLowerCase().includes(q),
+        (o) =>
+          o.label.toLowerCase().includes(q) ||
+          o.hint?.toLowerCase().includes(q) ||
+          o.detail?.toLowerCase().includes(q) ||
+          o.group?.toLowerCase().includes(q),
       )
     : options;
   const rows: DropdownOption[] = allowClear && !q ? [{ value: "", label: "None" }, ...matches] : matches;
@@ -795,6 +873,7 @@ export function Dropdown({
                     <span className="min-w-0 flex-1 truncate">
                       {o.label}
                       {o.hint && <span className="ml-1.5 text-xs text-slate-400">{o.hint}</span>}
+                      {o.detail && <span className="block truncate font-mono text-xs text-slate-500">{o.detail}</span>}
                     </span>
                     {o.value === value && <Check className="size-4 shrink-0 text-brand-600" />}
                   </button>
@@ -1027,6 +1106,8 @@ const statusTones: Record<string, Tone> = {
   CANCELLED: "slate",
   DRAFT: "slate",
   PENDING_APPROVAL: "amber",
+  PARTIALLY_APPROVED: "blue",
+  PARTIALLY_REJECTED: "red",
   SENT_BACK: "amber",
   APPROVED: "blue",
   PARTIALLY_RECEIVED: "violet",
@@ -1095,19 +1176,19 @@ export function Td({
 }
 
 /** Header of a list's row-actions column: "Actions", centred */
-export function ActionsTh({ className }: { className?: string }) {
+export function ActionsTh({ className, right }: { className?: string; right?: boolean }) {
   return (
-    <Th center className={className}>
+    <Th center={!right} right={right} className={className}>
       Actions
     </Th>
   );
 }
 
-/** Row-actions cell of a list: its buttons centred under the Actions header */
-export function ActionsTd({ children, className }: { children?: ReactNode; className?: string }) {
+/** Row-actions cell of a list: its buttons centred under the Actions header, or at the right end with `right` */
+export function ActionsTd({ children, className, right }: { children?: ReactNode; className?: string; right?: boolean }) {
   return (
-    <Td center className={className}>
-      <div className="flex items-center justify-center gap-1.5">{children}</div>
+    <Td center={!right} right={right} className={className}>
+      <div className={cx("flex items-center gap-1.5", right ? "justify-end" : "justify-center")}>{children}</div>
     </Td>
   );
 }
@@ -1313,6 +1394,7 @@ export function Modal({
   children,
   footer,
   size = "md",
+  centered = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -1320,6 +1402,8 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
   size?: "sm" | "md" | "lg" | "xl";
+  /** Wider screens: sit in the middle of the screen instead of near the top */
+  centered?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -1332,7 +1416,12 @@ export function Modal({
   if (!open) return null;
   const widths = { sm: "max-w-md", md: "max-w-lg", lg: "max-w-3xl", xl: "max-w-5xl" };
   return (
-    <div className="no-print fixed inset-0 z-50 flex items-stretch justify-center bg-night-900/40 sm:items-start sm:overflow-y-auto sm:p-4 sm:pt-[8vh]">
+    <div
+      className={cx(
+        "no-print fixed inset-0 z-50 flex items-stretch justify-center bg-night-900/40 sm:items-start sm:overflow-y-auto sm:p-4",
+        !centered && "sm:pt-[8vh]",
+      )}
+    >
       <div className="fixed inset-0" onClick={onClose} />
       {/* Phones: the whole screen, header and footer pinned, the body scrolls; wider: a centred dialog */}
       <div
@@ -1340,6 +1429,8 @@ export function Modal({
         aria-modal="true"
         className={cx(
           "relative flex h-[100dvh] w-full flex-col bg-surface shadow-xl sm:h-auto sm:rounded-xl",
+          // my-auto centres it while it fits and still lets a taller one scroll from its top
+          centered && "sm:my-auto",
           widths[size],
           "max-sm:max-w-none",
         )}

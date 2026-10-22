@@ -57,7 +57,7 @@ export default function VendorDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { can } = useAuth();
-  const canBuy = can("purchases.manage");
+  const canBuy = can("po.create");
   const canSeePurchases = can("purchases.view");
   const canSeePayments = can("payments.view");
   const [tab, setTab] = useState<Tab>("ledger");
@@ -115,7 +115,7 @@ export default function VendorDetailPage() {
                 </Button>
               </>
             )}
-            {can("vendors.manage") && (
+            {can("vendors.edit") && (
               <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
                 Edit
               </Button>

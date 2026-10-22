@@ -71,7 +71,7 @@ let lineSeq = 0;
 
 export default function NewPurchasePage() {
   return (
-    <RequirePerm perms={["purchases.manage"]}>
+    <RequirePerm perms={["invoices.create"]}>
       <NewPurchase />
     </RequirePerm>
   );

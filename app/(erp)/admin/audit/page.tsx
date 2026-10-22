@@ -21,8 +21,8 @@ const ENTITY_LABEL: Record<string, string> = {
 
 /** Record pages, and the permission needed to open each */
 const ENTITY_HREF: Record<string, [string, Permission]> = {
-  Sale: ["/sales", "sales.bill"],
-  Purchase: ["/purchases", "purchases.view"],
+  Sale: ["/sales", "sales.view"],
+  Purchase: ["/purchases", "invoices.view"],
   PurchaseOrder: ["/purchase-orders", "purchases.view"],
   Product: ["/products", "products.view"],
   Customer: ["/customers", "customers.view"],

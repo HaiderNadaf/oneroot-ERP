@@ -34,7 +34,8 @@ import { LazyCustomerForm } from "@/components/lazy";
 export default function CustomersPage() {
   const toast = useToast();
   const { can } = useAuth();
-  const canManage = can("customers.manage");
+  const canCreate = can("customers.create");
+  const canEdit = can("customers.edit");
   const [search, setSearch] = useState("");
   const [withDues, setWithDues] = useState(false);
   const [status, setStatus] = useState("active");
@@ -94,7 +95,7 @@ export default function CustomersPage() {
             <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv} loading={exporting}>
               Export
             </Button>
-            {canManage && (
+            {canCreate && (
               <Button icon={<Plus className="size-4" />} onClick={openNew}>
                 New Customer
               </Button>
@@ -151,7 +152,7 @@ export default function CustomersPage() {
                   ) : (
                     <>
                       No customers found.{" "}
-                      {canManage && (
+                      {canCreate && (
                         <button className="font-medium text-brand-700 underline" onClick={openNew}>
                           Add a Customer
                         </button>
@@ -200,7 +201,7 @@ export default function CustomersPage() {
                       </Td>
                       <ActionsTd>
                         <RowAction kind="view" href={`/customers/${c.id}`} title={`View ${c.name}`} />
-                        {canManage && (
+                        {canEdit && (
                           <RowAction
                             kind="edit"
                             title={`Edit ${c.name}`}

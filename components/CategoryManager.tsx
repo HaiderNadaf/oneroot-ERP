@@ -1,7 +1,7 @@
 "use client";
 
-import { Check, ListPlus, Pencil, Receipt, X } from "lucide-react";
-import { useState } from "react";
+import { Check, ChevronRight, ListPlus, Pencil, Receipt, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
@@ -34,11 +34,15 @@ function ProductCategories() {
   const [pickedId, setPickedId] = useState<string | null>(null);
   const picked = categories?.find((c) => c.id === pickedId) ?? categories?.[0] ?? null;
   const { data: subs, reload: reloadSubs } = useApi<SubCategory[]>(picked ? `/categories/${picked.id}/sub-categories` : null);
+  // Keep the picked category in view — a new one lands at the end of the list
+  useEffect(() => {
+    if (picked) document.getElementById(`cat-${picked.id}`)?.scrollIntoView({ block: "nearest" });
+  }, [picked]);
 
   const { can } = useAuth();
-  const canManage = can("products.manage");
+  const canManage = can("products.create", "products.edit", "products.delete");
   const { data: taxTypes, reload: reloadTaxTypes } = useApi<TaxType[]>("/tax-types");
-  const TYPE_OPTIONS: DropdownOption[] = taxTypeOptions(taxTypes, canManage);
+  const TYPE_OPTIONS: DropdownOption[] = taxTypeOptions(taxTypes, can("products.create"));
   // A tax type is missing: add it, then put it on the new category or on this category
   const [newTaxFor, setNewTaxFor] = useState<{ categoryId: string | null } | null>(null);
   const [taxTypesOpen, setTaxTypesOpen] = useState(false);
@@ -133,6 +137,7 @@ function ProductCategories() {
               <Receipt className="size-3.5" /> Tax types
             </button>
           </div>
+          <p className="mb-2 text-xs text-slate-500">Select a category to see its sub-categories and add new ones to it.</p>
           <form onSubmit={addCategory} className="mb-2 flex gap-2">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New category" className="min-w-0 flex-1" />
             <Dropdown
@@ -151,7 +156,12 @@ function ProductCategories() {
             {categories?.map((c) => (
               <li
                 key={c.id}
-                className={cx("flex cursor-pointer items-center gap-2 px-2 py-1.5 text-sm", picked?.id === c.id ? "bg-brand-50" : "hover:bg-slate-50")}
+                id={`cat-${c.id}`}
+                aria-current={picked?.id === c.id || undefined}
+                className={cx(
+                  "flex cursor-pointer items-center gap-2 border-l-[3px] px-2 py-1.5 text-sm",
+                  picked?.id === c.id ? "border-brand-600 bg-brand-50" : "border-transparent hover:bg-slate-50",
+                )}
                 onClick={() => setPickedId(c.id)}
               >
                 <CodeEdit code={c.code} label={c.name} onSave={(code) => patch(`/categories/${c.id}`, { code }, () => void reload())} />
@@ -172,6 +182,7 @@ function ProductCategories() {
                 <span onClick={(e) => e.stopPropagation()} className="shrink-0">
                   <RowAction kind="delete" title={`Delete ${c.name}`} onClick={() => void removeCategory(c)} />
                 </span>
+                <ChevronRight className={cx("size-4 shrink-0", picked?.id === c.id ? "text-brand-600" : "text-slate-300")} />
               </li>
             ))}
             {categories && !categories.length && <li className="px-3 py-6 text-center text-sm text-slate-400">No categories yet</li>}
@@ -183,7 +194,17 @@ function ProductCategories() {
             Sub-categories{picked ? ` of ${picked.name}` : ""}
           </h4>
           {picked && (
-            <form onSubmit={addSub} className="mb-2 flex gap-2">
+            <form onSubmit={addSub} className="mb-2 flex flex-wrap gap-2">
+              {/* The category a new sub-category goes under: the one selected on the left, or pick it here */}
+              <Dropdown
+                options={(categories ?? []).map((c) => ({ value: c.id, label: c.name, hint: c.code ? `Code ${c.code}` : undefined }))}
+                value={picked.id}
+                onChange={setPickedId}
+                isSearch
+                searchPlaceholder="Search categories"
+                className="w-full"
+                aria-label="Category for the new sub-category"
+              />
               <Input value={subName} onChange={(e) => setSubName(e.target.value)} placeholder={`New sub-category in ${picked.name}`} className="min-w-0 flex-1" />
               <Button type="submit" loading={busy === "sub"}>
                 Add

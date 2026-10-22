@@ -61,9 +61,9 @@ export function MovementRef({ m }: { m: Pick<StockMovement, "refType" | "refId" 
   // Plain text when the user can't open the page it points to
   const href =
     m.refId && (m.refType === "SALE" || m.refType === "SALE_RETURN")
-      ? can("sales.bill") ? `/sales/${m.refId}` : null
+      ? can("sales.view") ? `/sales/${m.refId}` : null
       : m.refId && m.refType === "PURCHASE"
-        ? can("purchases.view") ? `/purchases/${m.refId}` : null
+        ? can("invoices.view") ? `/purchases/${m.refId}` : null
         : m.refType === "TRANSFER" && can("inventory.view")
           ? "/inventory?tab=transfers"
           : null;

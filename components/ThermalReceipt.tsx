@@ -3,6 +3,7 @@
 import { date, dateTime, inr, n, qty } from "@/lib/format";
 import type { Sale, StoreSettings } from "@/lib/types";
 import { modeLabel } from "@/lib/types";
+import { PrintLogo } from "./ui";
 
 export interface ReceiptLine {
   name: string;
@@ -100,6 +101,7 @@ export function ThermalReceipt({ data, settings, width = 80 }: { data: ReceiptDa
       style={{ width: narrow ? "48mm" : "72mm", fontFamily: "ui-monospace, Consolas, 'Courier New', monospace", fontSize: narrow ? "9.5px" : "11px", lineHeight: 1.25 }}
     >
       <div className="text-center">
+        <PrintLogo className={narrow ? "mb-1 h-auto w-[34mm]" : "mb-1 h-auto w-[44mm]"} />
         <p className="text-[13px] font-bold uppercase">{settings?.storeName ?? "OneRoot Agri Inputs"}</p>
         {settings?.address && <p>{[settings.address, settings.city].filter(Boolean).join(", ")}</p>}
         {settings?.phone && <p>Ph: {settings.phone}</p>}
@@ -180,6 +182,7 @@ export function ThermalReceipt({ data, settings, width = 80 }: { data: ReceiptDa
       <div className="my-1 border-t border-dashed border-black" />
       <p className="whitespace-pre-line text-center text-[9.5px]">{settings?.invoiceFooter ?? "Thank you for your business!"}</p>
       {d.provisional && <p className="mt-1 text-center text-[9px]">Made offline — the final invoice number will be issued when the device reconnects.</p>}
+      <p className="mt-1 text-center text-[9px]">* This is a system-generated bill and does not require a signature.</p>
       <p className="mt-1 text-center text-[9px]">OneRoot ERP</p>
     </div>
   );

@@ -66,9 +66,11 @@ function Branches() {
         title="Branches"
         subtitle="Store locations — each with its own stock, bills and staff"
         actions={
-          <Button icon={<Plus className="size-4" />} onClick={() => open(null)}>
-            New Branch
-          </Button>
+          can("branches.create") && (
+            <Button icon={<Plus className="size-4" />} onClick={() => open(null)}>
+              New Branch
+            </Button>
+          )
         }
       />
 
@@ -148,7 +150,7 @@ function Branches() {
                     </Td>
                     <Td>{b.isActive ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}</Td>
                     <ActionsTd>
-                      <RowAction kind="edit" title={`Edit ${b.name}`} onClick={() => open(b)} />
+                      {can("branches.edit") && <RowAction kind="edit" title={`Edit ${b.name}`} onClick={() => open(b)} />}
                     </ActionsTd>
                   </tr>
                 ))

@@ -28,10 +28,11 @@ export interface LabelItem {
 
 type Size = "50x25" | "38x25" | "A4";
 
-const SIZES: Record<Size, { label: string; w: number; h: number; page: string; cols?: number }> = {
+// Page margins stay 0 (no browser date / URL header or footer); an A4 sheet's margins are padding on every page instead
+const SIZES: Record<Size, { label: string; w: number; h: number; page: string; cols?: number; pad?: string }> = {
   "50x25": { label: "Roll · 50 × 25 mm", w: 50, h: 25, page: "size: 50mm 25mm; margin: 0;" },
   "38x25": { label: "Roll · 38 × 25 mm", w: 38, h: 25, page: "size: 38mm 25mm; margin: 0;" },
-  A4: { label: "A4 sheet · 65 labels (38 × 21 mm)", w: 38.1, h: 21.2, page: "size: A4; margin: 10.7mm 4.7mm;", cols: 5 },
+  A4: { label: "A4 sheet · 65 labels (38 × 21 mm)", w: 38.1, h: 21.2, page: "size: A4; margin: 0;", pad: "10.7mm 4.7mm", cols: 5 },
 };
 
 /**
@@ -117,7 +118,7 @@ function Body({ onClose, initial }: { onClose: () => void; initial: LabelItem[] 
             <span className="min-w-0 break-words">
               {missing.length} product{missing.length > 1 ? "s have" : " has"} no barcode: {missing.map((m) => m.name).join(", ")}
             </span>
-            {can("products.manage") && (
+            {can("products.edit") && (
               <Button size="sm" variant="secondary" icon={<Sparkles className="size-4" />} loading={busy} onClick={generate}>
                 Generate In-Store Barcodes
               </Button>
@@ -179,7 +180,18 @@ function Body({ onClose, initial }: { onClose: () => void; initial: LabelItem[] 
       <PrintPortal className="label-host">
         <div
           className={cx("paper label-sheet hidden")}
-          style={spec.cols ? { gridTemplateColumns: `repeat(${spec.cols}, ${spec.w}mm)`, columnGap: "2.5mm", rowGap: "0" } : undefined}
+          style={
+            spec.cols
+              ? {
+                  gridTemplateColumns: `repeat(${spec.cols}, ${spec.w}mm)`,
+                  columnGap: "2.5mm",
+                  rowGap: "0",
+                  padding: spec.pad,
+                  boxDecorationBreak: "clone",
+                  WebkitBoxDecorationBreak: "clone",
+                }
+              : undefined
+          }
         >
           {labels.map((item, i) => (
             <Label

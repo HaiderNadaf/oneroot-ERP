@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { BranchCode } from "@/components/BranchNotice";
+import { ListFilters, hasListFilters, noListFilters } from "@/components/ListFilters";
 import {
   Badge,
   Button,
@@ -13,6 +14,7 @@ import {
   EmptyRow,
   ErrorBox,
   LoadingRow,
+  Modal,
   PageHeader,
   Pagination,
   Table,
@@ -31,7 +33,7 @@ type Filter = "all" | "false" | "true";
 
 export default function GoodsInwardPage() {
   return (
-    <RequirePerm perms={["purchases.view"]}>
+    <RequirePerm perms={["grn.view", "purchases.receive"]}>
       <GoodsInward />
     </RequirePerm>
   );
@@ -41,7 +43,7 @@ function GoodsInward() {
   const router = useRouter();
   const { can } = useAuth();
   const canReceive = can("purchases.receive");
-  const canInvoice = can("purchases.manage");
+  const canInvoice = can("invoices.create");
   const canVendors = can("vendors.view");
   // With "All branches" selected, tag each PO / GRN with the branch it belongs to
   const { currentId, branches } = useBranch();
@@ -49,11 +51,12 @@ function GoodsInward() {
   const branchOf = (id?: string | null) => branches.find((b) => b.id === id);
   const [filter, setFilter] = useState<Filter>("all");
 
-  const pending = useApi<PendingInwardPo[]>("/grns/pending");
+  const [picking, setPicking] = useState(false);
   const [page, setPage] = useState(1);
-  // FEFO (first expiry, first out): GRNs whose accepted stock expires first come first
-  const [sort, setSort] = useState<"fefo" | "latest">("fefo");
-  const grns = useApi<Paged<Grn>>("/grns", { invoiced: filter === "all" ? undefined : filter, sort: sort === "fefo" ? "fefo" : undefined, page, pageSize: 25 });
+  // Newest first; FEFO (first expiry, first out) puts the GRNs whose accepted stock expires first on top
+  const [sort, setSort] = useState<"fefo" | "latest">("latest");
+  const [filters, setFilters] = useState(noListFilters);
+  const grns = useApi<Paged<Grn>>("/grns", { ...filters, invoiced: filter === "all" ? undefined : filter, sort: sort === "fefo" ? "fefo" : undefined, page, pageSize: 25 });
   const { data: settings } = useApi<StoreSettings>("/settings");
   const alertDays = settings?.expiryAlertDays ?? 60;
   // Always fetched so the banner and tab count stay visible on every tab
@@ -67,6 +70,13 @@ function GoodsInward() {
       <PageHeader
         title="Goods Inward"
         subtitle="Count what arrives against approved purchase orders: passed goods go into stock, rejected goods go back to the vendor"
+        actions={
+          canReceive && (
+            <Button icon={<Truck className="size-4" />} onClick={() => setPicking(true)}>
+              Do GRN
+            </Button>
+          )
+        }
       />
 
       {waitingTotal > 0 && (
@@ -93,101 +103,6 @@ function GoodsInward() {
       )}
 
       <Card
-        className="mb-4"
-        bodyClassName="p-0"
-        title={
-          <span className="flex items-center gap-2">
-            <Truck className="size-4 text-slate-400" /> Approved POs waiting for goods
-            {pending.data && <Badge tone="blue">{pending.data.length}</Badge>}
-          </span>
-        }
-      >
-        {pending.error ? (
-          <div className="p-4">
-            <ErrorBox message={pending.error} onRetry={pending.reload} />
-          </div>
-        ) : (
-          <Table>
-            <thead>
-              <tr>
-                <Th>PO</Th>
-                <Th>Vendor</Th>
-                <Th className="hidden md:table-cell">Products</Th>
-                <Th>Expected</Th>
-                <Th className="min-w-36">Received</Th>
-                <Th />
-              </tr>
-            </thead>
-            <tbody>
-              {pending.loading && !pending.data ? (
-                <LoadingRow colSpan={6} />
-              ) : !pending.data?.length ? (
-                <EmptyRow colSpan={6}>No approved purchase orders are waiting for goods.</EmptyRow>
-              ) : (
-                pending.data.map((po) => (
-                  <tr key={po.id} className="hover:bg-slate-50">
-                    <Td>
-                      <Link href={`/purchase-orders/${po.id}`} className="whitespace-nowrap font-medium text-slate-900 hover:text-brand-700">
-                        {po.poNo}
-                      </Link>
-                      {showBranch && po.branch && (
-                        <span className="ml-1.5">
-                          <BranchCode code={po.branch.code} title={`Deliver to ${po.branch.name}`} />
-                        </span>
-                      )}
-                      <p className="text-xs text-slate-500">Ordered {date(po.orderDate)}</p>
-                    </Td>
-                    <Td className="min-w-36">
-                      {canVendors ? (
-                        <Link href={`/vendors/${po.vendor.id}`} className="hover:text-brand-700">
-                          {po.vendor.name}
-                        </Link>
-                      ) : (
-                        po.vendor.name
-                      )}
-                    </Td>
-                    <Td className="hidden max-w-80 md:table-cell">
-                      <p className="truncate text-slate-700" title={po.products.join(", ")}>
-                        {po.products.slice(0, 3).join(", ")}
-                      </p>
-                      {po.products.length > 3 && <p className="text-xs text-slate-500">+{po.products.length - 3} more</p>}
-                    </Td>
-                    <Td className="whitespace-nowrap">
-                      {po.expectedDate ? date(po.expectedDate) : <span className="text-slate-400">—</span>}
-                      {po.late && (
-                        <span className="ml-1.5">
-                          <Badge tone="red">Late</Badge>
-                        </span>
-                      )}
-                    </Td>
-                    <Td>
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className={cx("h-full rounded-full", po.receivedPct > 0 ? "bg-violet-500" : "bg-slate-300")}
-                            style={{ width: `${po.receivedPct}%` }}
-                          />
-                        </div>
-                        <span className="num text-xs text-slate-600">{po.receivedPct}%</span>
-                      </div>
-                      {po.status === "PARTIALLY_RECEIVED" && <p className="mt-0.5 text-xs text-violet-700">Balance open</p>}
-                    </Td>
-                    <Td right>
-                      {canReceive && (
-                        <Button size="sm" icon={<PackageCheck className="size-4" />} onClick={() => router.push(`/goods-inward/new?po=${po.id}`)}>
-                          Receive
-                        </Button>
-                      )}
-                    </Td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </Table>
-        )}
-      </Card>
-
-      <Card
         bodyClassName="p-0"
         title={
           <span className="flex items-center gap-2">
@@ -198,8 +113,8 @@ function GoodsInward() {
           <div className="flex gap-1 rounded-lg bg-slate-100 p-1" role="tablist" aria-label="Order GRNs by">
             {(
               [
+                ["latest", "Latest"],
                 ["fefo", "First Expiry First (FEFO)"],
-                ["latest", "Latest Received"],
               ] as const
             ).map(([k, label]) => (
               <button
@@ -240,6 +155,17 @@ function GoodsInward() {
             ]}
           />
         </div>
+        <div className="border-b border-slate-100 px-3 pb-3">
+          <ListFilters
+            value={filters}
+            optionsPath="/grns/filters"
+            userLabel="Received By"
+            onChange={(f) => {
+              setFilters(f);
+              setPage(1);
+            }}
+          />
+        </div>
         {grns.error ? (
           <div className="p-4">
             <ErrorBox message={grns.error} onRetry={grns.reload} />
@@ -253,6 +179,7 @@ function GoodsInward() {
                 <Th>Vendor</Th>
                 <Th>Earliest Expiry</Th>
                 <Th className="hidden md:table-cell">Received By</Th>
+                <Th right>PO Qty</Th>
                 <Th right>Received</Th>
                 <Th right>Passed</Th>
                 <Th right className="hidden md:table-cell">Rejected</Th>
@@ -264,10 +191,14 @@ function GoodsInward() {
             </thead>
             <tbody>
               {grns.loading && !grns.data ? (
-                <LoadingRow colSpan={12} />
+                <LoadingRow colSpan={13} />
               ) : !grns.data?.items.length ? (
-                <EmptyRow colSpan={12}>
-                  {filter === "false" ? "Every GRN has its purchase invoice booked." : "No goods received yet."}
+                <EmptyRow colSpan={13}>
+                  {hasListFilters(filters)
+                    ? "No GRNs match these filters."
+                    : filter === "false"
+                      ? "Every GRN has its purchase invoice booked."
+                      : "No goods received yet."}
                 </EmptyRow>
               ) : (
                 grns.data.items.map((g) => (
@@ -302,6 +233,9 @@ function GoodsInward() {
                       <ExpiryCell d={g.earliestExpiry} alertDays={alertDays} />
                     </Td>
                     <Td className="hidden text-slate-600 md:table-cell">{g.receivedBy?.name ?? "—"}</Td>
+                    <Td right className="text-slate-700">
+                      {g.poQty !== undefined ? qty(g.poQty) : "—"}
+                    </Td>
                     <Td right className="font-semibold text-slate-900">
                       {qty(g.received)}
                     </Td>
@@ -341,7 +275,118 @@ function GoodsInward() {
         )}
         {grns.data && <Pagination page={grns.data.page} totalPages={grns.data.totalPages} total={grns.data.total} onPage={setPage} />}
       </Card>
+      {picking && <PendingPosModal onClose={() => setPicking(false)} />}
     </>
+  );
+}
+
+/** "Do GRN" popup: approved POs with goods still due; picking one opens the receive form */
+function PendingPosModal({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
+  const { can } = useAuth();
+  const canVendors = can("vendors.view");
+  const { currentId } = useBranch();
+  const showBranch = currentId === "all";
+  const pending = useApi<PendingInwardPo[]>("/grns/pending");
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      size="xl"
+      title={
+        <span className="flex items-center gap-2">
+          Approved POs waiting for goods
+          {pending.data && <Badge tone="blue">{pending.data.length}</Badge>}
+        </span>
+      }
+    >
+      <div className="-mx-4 -my-4 sm:-mx-5">
+        {pending.error ? (
+          <div className="p-4">
+            <ErrorBox message={pending.error} onRetry={pending.reload} />
+          </div>
+        ) : (
+          <Table>
+            <thead>
+              <tr>
+                <Th>PO</Th>
+                <Th>Vendor</Th>
+                <Th className="hidden md:table-cell">Products</Th>
+                <Th>Expected</Th>
+                <Th right>PO Qty</Th>
+                <Th className="min-w-36">Received</Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
+              {pending.loading && !pending.data ? (
+                <LoadingRow colSpan={7} />
+              ) : !pending.data?.length ? (
+                <EmptyRow colSpan={7}>No approved purchase orders are waiting for goods.</EmptyRow>
+              ) : (
+                pending.data.map((po) => (
+                  <tr key={po.id} className="hover:bg-slate-50">
+                    <Td>
+                      <span className="whitespace-nowrap font-medium text-slate-900">{po.poNo}</span>
+                      {showBranch && po.branch && (
+                        <span className="ml-1.5">
+                          <BranchCode code={po.branch.code} title={`Deliver to ${po.branch.name}`} />
+                        </span>
+                      )}
+                      <p className="text-xs text-slate-500">Ordered {date(po.orderDate)}</p>
+                    </Td>
+                    <Td className="min-w-36">
+                      {canVendors ? (
+                        <Link href={`/vendors/${po.vendor.id}`} className="hover:text-brand-700">
+                          {po.vendor.name}
+                        </Link>
+                      ) : (
+                        po.vendor.name
+                      )}
+                    </Td>
+                    <Td className="hidden max-w-80 md:table-cell">
+                      <p className="truncate text-slate-700" title={po.products.join(", ")}>
+                        {po.products.slice(0, 3).join(", ")}
+                      </p>
+                      {po.products.length > 3 && <p className="text-xs text-slate-500">+{po.products.length - 3} more</p>}
+                    </Td>
+                    <Td className="whitespace-nowrap">
+                      {po.expectedDate ? date(po.expectedDate) : <span className="text-slate-400">—</span>}
+                      {po.late && (
+                        <span className="ml-1.5">
+                          <Badge tone="red">Late</Badge>
+                        </span>
+                      )}
+                    </Td>
+                    <Td right className="num whitespace-nowrap text-slate-700">
+                      {qty(po.poQty)}
+                    </Td>
+                    <Td>
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className={cx("h-full rounded-full", po.receivedPct > 0 ? "bg-violet-500" : "bg-slate-300")}
+                            style={{ width: `${po.receivedPct}%` }}
+                          />
+                        </div>
+                        <span className="num text-xs text-slate-600">{po.receivedPct}%</span>
+                      </div>
+                      {po.status === "PARTIALLY_RECEIVED" && <p className="mt-0.5 text-xs text-violet-700">Balance open</p>}
+                    </Td>
+                    <Td right>
+                      <Button size="sm" icon={<PackageCheck className="size-4" />} onClick={() => router.push(`/goods-inward/new?po=${po.id}`)}>
+                        Do GRN
+                      </Button>
+                    </Td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </Table>
+        )}
+      </div>
+    </Modal>
   );
 }
 

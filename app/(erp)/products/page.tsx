@@ -245,7 +245,7 @@ export default function ProductsPage() {
             <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv}>
               Export
             </Button>
-            {can("products.manage") && (
+            {can("products.create") && (
               <>
                 <Link href="/products/import">
                   <Button variant="secondary" icon={<Upload className="size-4" />}>
@@ -359,7 +359,7 @@ export default function ProductsPage() {
                   ) : (
                     <>
                       No products yet.{" "}
-                      {can("products.manage") && (
+                      {can("products.create") && (
                         <button className="font-medium text-brand-700 underline" onClick={openNew}>
                           Add Your First Product
                         </button>
@@ -377,7 +377,7 @@ export default function ProductsPage() {
                     ))}
                     <ActionsTd className="sticky right-0 bg-surface group-hover:bg-slate-50">
                       <RowAction kind="view" href={`/products/${p.id}`} title={`View ${p.name}: batches and stock history`} />
-                      {can("products.manage") && (
+                      {can("products.edit") && (
                         <RowAction
                           kind="edit"
                           title={`Edit ${p.name}`}

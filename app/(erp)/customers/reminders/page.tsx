@@ -52,7 +52,7 @@ export default function RemindersPage() {
   const confirm = useConfirm();
   const { can } = useAuth();
   // Opening WhatsApp, sending and logging all write to the follow-up log
-  const canLog = can("customers.manage");
+  const canLog = can("customers.edit");
   const [search, setSearch] = useState("");
   const [minDays, setMinDays] = useState("0");
   const [all, setAll] = useState(false);

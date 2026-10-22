@@ -24,7 +24,8 @@ export default function AgentsPage() {
     setFormOpen(true);
   };
   const q = useDebounced(search);
-  const canAdd = can("vendors.manage");
+  const canAdd = can("vendors.create");
+  const canEdit = can("vendors.edit");
   const canDelete = can("vendors.delete");
   // The full list (branch, paging) needs vendors.view; billing staff read the plain agent options instead
   const full = can("vendors.view");
@@ -45,7 +46,7 @@ export default function AgentsPage() {
     }
   }
 
-  const cols = 4 + (full ? 2 : 0) + (canAdd || canDelete ? 1 : 0);
+  const cols = 4 + (full ? 2 : 0) + (canEdit || canDelete ? 1 : 0);
 
   return (
     <>
@@ -88,7 +89,7 @@ export default function AgentsPage() {
                 <Th>Mobile</Th>
                 {full && <Th>Branch</Th>}
                 {full && <Th>Added On</Th>}
-                {(canAdd || canDelete) && <ActionsTh />}
+                {(canEdit || canDelete) && <ActionsTh />}
               </tr>
             </thead>
             <tbody>
@@ -112,9 +113,9 @@ export default function AgentsPage() {
                     <Td className="whitespace-nowrap">{a.mobile ? <a href={`tel:${a.mobile}`} className="hover:text-brand-700">{a.mobile}</a> : "—"}</Td>
                     {full && <Td>{a.branch ? `${a.branch.name} (${a.branch.code})` : "—"}</Td>}
                     {full && <Td className="text-slate-500">{date(a.createdAt)}</Td>}
-                    {(canAdd || canDelete) && (
+                    {(canEdit || canDelete) && (
                       <ActionsTd>
-                        {canAdd && <RowAction kind="edit" title={`Edit ${a.agentId}`} onClick={() => openForm(a)} />}
+                        {canEdit && <RowAction kind="edit" title={`Edit ${a.agentId}`} onClick={() => openForm(a)} />}
                         {canDelete && <RowAction kind="delete" title={`Delete ${a.agentId}`} onClick={() => remove(a)} />}
                       </ActionsTd>
                     )}

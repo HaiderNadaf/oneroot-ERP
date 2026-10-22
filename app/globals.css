@@ -307,6 +307,25 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
+/* Light / dark switch (lib/theme.tsx): a gradual cross-fade, not an instant jump */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 500ms;
+  animation-timing-function: ease-in-out;
+}
+/* Browsers without view transitions: colours ease over instead */
+.theme-fading,
+.theme-fading *,
+.theme-fading *::before,
+.theme-fading *::after {
+  transition:
+    background-color 500ms ease-in-out,
+    border-color 500ms ease-in-out,
+    color 500ms ease-in-out,
+    fill 500ms ease-in-out,
+    stroke 500ms ease-in-out !important;
+}
+
 /* Thermal receipts render only while printing in receipt mode (see lib/print.ts) */
 .thermal-area {
   display: none;
@@ -326,8 +345,24 @@ input[type="number"] {
     margin: 0 !important;
     padding: 0 !important;
   }
+  /*
+   * No page margin: that margin is where the browser prints its own date / title header and URL / page-number footer.
+   * The 10mm sits inside the page instead, repeated on every printed page (clone).
+   */
   @page {
-    margin: 10mm;
+    margin: 0;
+  }
+  body:not([data-print]),
+  body[data-print="a4"] {
+    padding: 10mm;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+  body[data-print="thermal"] .thermal-area {
+    margin: 0 auto;
+    padding: 2mm 0;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
   /* Receipt / label printing: only the portal under <body> is printed (see components/PrintPortal.tsx) */
   body[data-print="thermal"] > *:not(.thermal-host),

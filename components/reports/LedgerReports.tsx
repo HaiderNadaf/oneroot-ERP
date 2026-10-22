@@ -439,7 +439,7 @@ export function DayBookReport() {
                     data.sales.map((s) => (
                       <tr key={s.id} className={cx("hover:bg-slate-50", s.status === "CANCELLED" && "text-slate-400")}>
                         <Td className="whitespace-nowrap">
-                          <ReportLink href={`/sales/${s.id}`} perms={["sales.bill"]} className="font-medium text-brand-700 hover:underline">
+                          <ReportLink href={`/sales/${s.id}`} perms={["sales.view"]} className="font-medium text-brand-700 hover:underline">
                             {s.invoiceNo}
                           </ReportLink>
                           <p className="text-xs text-slate-500">
@@ -480,7 +480,7 @@ export function DayBookReport() {
                     data.purchases.map((p) => (
                       <tr key={p.id} className={cx("hover:bg-slate-50", p.status === "CANCELLED" && "text-slate-400")}>
                         <Td className="whitespace-nowrap">
-                          <ReportLink href={`/purchases/${p.id}`} perms={["purchases.view"]} className="font-medium text-brand-700 hover:underline">
+                          <ReportLink href={`/purchases/${p.id}`} perms={["invoices.view"]} className="font-medium text-brand-700 hover:underline">
                             {p.purchaseNo}
                           </ReportLink>
                         </Td>
@@ -590,7 +590,7 @@ export function DayBookReport() {
                           {r.reason && <p className="max-w-56 truncate text-xs font-normal text-slate-500">{r.reason}</p>}
                         </Td>
                         <Td>
-                          <ReportLink href={`/sales/${r.saleId}`} perms={["sales.bill"]} className="text-brand-700 hover:underline">
+                          <ReportLink href={`/sales/${r.saleId}`} perms={["sales.view"]} className="text-brand-700 hover:underline">
                             {r.sale.invoiceNo}
                           </ReportLink>
                         </Td>

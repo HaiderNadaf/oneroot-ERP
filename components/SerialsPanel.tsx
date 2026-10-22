@@ -60,7 +60,7 @@ export function SerialsPanel({ productId, batches }: { productId: string; batche
             <option value="SOLD">Sold</option>
             <option value="">All</option>
           </Select>
-          {can("products.manage") && (
+          {can("products.edit") && (
             <Button size="sm" icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
               Register
             </Button>
@@ -93,7 +93,7 @@ export function SerialsPanel({ productId, batches }: { productId: string; batche
                 <Td className="text-xs">{s.saleItem?.sale?.invoiceNo ?? "—"}</Td>
                 <Td className="hidden whitespace-nowrap text-xs md:table-cell">{dateTime(s.soldAt ?? s.createdAt)}</Td>
                 <Td right>
-                  {s.status === "IN_STOCK" && can("products.manage") && (
+                  {s.status === "IN_STOCK" && can("products.edit") && (
                     <RowAction kind="delete" label="Remove" title={`Remove serial ${s.serialNo}`} onClick={() => remove(s)} />
                   )}
                 </Td>

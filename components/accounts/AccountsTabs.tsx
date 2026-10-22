@@ -51,7 +51,8 @@ export function ChartTab() {
   const toast = useToast();
   const confirm = useConfirm();
   const { can, isAdmin } = useAuth();
-  const canManage = can("accounts.manage");
+  const canCreate = can("accounts.create");
+  const canEdit = can("accounts.edit");
   const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState<Account | null | "new">(null);
   const [rebuilding, setRebuilding] = useState(false);
@@ -96,7 +97,7 @@ export function ChartTab() {
             Rebuild From Documents
           </Button>
         )}
-        {canManage && (
+        {canCreate && (
           <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
             New Account
           </Button>
@@ -122,7 +123,7 @@ export function ChartTab() {
                       <Th right>Debits</Th>
                       <Th right>Credits</Th>
                       <Th right>Balance</Th>
-                      {canManage && <ActionsTh />}
+                      {canEdit && <ActionsTh />}
                     </tr>
                   </thead>
                   <tbody>
@@ -146,7 +147,7 @@ export function ChartTab() {
                           <Td right>{a.debit ? inr(a.debit) : "—"}</Td>
                           <Td right>{a.credit ? inr(a.credit) : "—"}</Td>
                           <Td right className="font-semibold text-slate-900">{drcr(a.balance ?? 0)}</Td>
-                          {canManage && (
+                          {canEdit && (
                             <ActionsTd>
                               <RowAction kind="edit" title={`Edit ${a.name}`} onClick={() => setEditing(a)} />
                             </ActionsTd>
@@ -179,6 +180,7 @@ function AccountModal({ open, account, onClose, onSaved }: { open: boolean; acco
 }
 
 function AccountModalBody({ account, onClose, onSaved }: { account: Account | null; onClose: () => void; onSaved: () => void }) {
+  const { can } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
   const { data: groups } = useApi<Record<AccountType, string[]>>("/accounting/groups");
@@ -229,7 +231,7 @@ function AccountModalBody({ account, onClose, onSaved }: { account: Account | nu
       size="sm"
       footer={
         <>
-          {editing && !account!.isSystem && (
+          {editing && !account!.isSystem && can("accounts.delete") && (
             <Button variant="danger" icon={<Trash2 className="size-4" />} onClick={remove}>
               Delete
             </Button>
@@ -318,7 +320,7 @@ export function DayBookTab({ range, rangeBar }: { range: Range; rangeBar: ReactN
           ))}
         </Select>
         <Input value={search} onChange={(e) => (setSearch(e.target.value), setPage(1))} placeholder="Voucher / bill no. / narration" className="w-full sm:w-56" />
-        {can("accounts.manage") && (
+        {can("accounts.create") && (
           <>
             <div className="flex-1" />
             <Button icon={<Plus className="size-4" />} onClick={() => setManual(true)}>
@@ -408,11 +410,11 @@ function EntryModalBody({ id, onClose, onChanged }: { id: string; onClose: () =>
   // Only link to a bill the user can open
   const docLink = e?.refId
     ? e.refType === "SALE" || (e.refType === "REVERSAL" && e.refNo?.includes("INV"))
-      ? can("sales.bill") && `/sales/${e.refId}`
+      ? can("sales.view") && `/sales/${e.refId}`
       : e.refType === "PURCHASE"
-        ? can("purchases.view") && `/purchases/${e.refId}`
+        ? can("invoices.view") && `/purchases/${e.refId}`
         : e.refType === "GRN"
-          ? can("purchases.view") && `/goods-inward/${e.refId}`
+          ? can("grn.view") && `/goods-inward/${e.refId}`
           : null
     : null;
 
@@ -424,7 +426,7 @@ function EntryModalBody({ id, onClose, onChanged }: { id: string; onClose: () =>
       size="lg"
       footer={
         <>
-          {e?.isManual && can("accounts.manage") && (
+          {e?.isManual && can("accounts.delete") && (
             <Button variant="danger" icon={<Trash2 className="size-4" />} loading={busy} onClick={remove}>
               Delete
             </Button>

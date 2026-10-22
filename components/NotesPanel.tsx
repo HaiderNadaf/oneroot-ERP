@@ -11,7 +11,7 @@ import { Button, Card, cx } from "./ui";
 
 /** Posted notes that reduced the payable (rejected-at-inward notes were never billed) */
 export function postedNotesTotal(notes: NoteSummary[] | undefined) {
-  return round2((notes ?? []).filter((d) => d.status === "SENT" && reducesPayable(d.reasonType)).reduce((s, d) => s + n(d.totalAmount), 0));
+  return round2((notes ?? []).filter((d) => d.status === "SENT" && reducesPayable(d)).reduce((s, d) => s + n(d.totalAmount), 0));
 }
 
 /**
@@ -35,7 +35,7 @@ export function NotesPanel({
   const { can } = useAuth();
   const [formType, setFormType] = useState<NoteType | null>(null);
   const list = notes ?? [];
-  const canRaise = allowNew && can("purchases.manage");
+  const canRaise = allowNew && can("notes.create");
   const posted = postedNotesTotal(list);
   const drafts = list.filter((d) => d.status === "DRAFT").length;
 
@@ -75,7 +75,7 @@ export function NotesPanel({
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-1.5">
                       {/* Named PO approvers can see this panel without the Purchases section */}
-                      {can("purchases.view") ? (
+                      {can("notes.view") ? (
                         <Link
                           href={`/debit-notes${d.noteType === "CREDIT" ? "?type=credit" : ""}`}
                           className="font-medium text-brand-700 hover:underline"

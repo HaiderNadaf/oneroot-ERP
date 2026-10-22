@@ -11,7 +11,7 @@ import type { PurchaseOrder } from "@/lib/types";
 
 export default function EditPurchaseOrderPage() {
   return (
-    <RequirePerm perms={["purchases.manage"]}>
+    <RequirePerm perms={["po.edit"]}>
       <EditPurchaseOrder />
     </RequirePerm>
   );
@@ -35,7 +35,7 @@ function EditPurchaseOrder() {
         title={
           <span className="flex flex-wrap items-center gap-2">
             Edit {po.poNo}
-            <StatusBadge status={po.status} />
+            <StatusBadge status={po.displayStatus ?? po.status} />
           </span>
         }
         subtitle={`Approval round ${po.round}`}

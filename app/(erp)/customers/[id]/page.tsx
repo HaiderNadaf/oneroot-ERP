@@ -111,12 +111,12 @@ export default function CustomerDetailPage() {
                 Customers
               </Button>
             </Link>
-            {can("customers.manage") && (
+            {can("customers.edit") && (
               <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
                 Edit
               </Button>
             )}
-            {c.phone && balance > 0 && can("customers.manage") && (
+            {c.phone && balance > 0 && can("customers.edit") && (
               <Button variant="secondary" icon={<MessageCircle className="size-4" />} onClick={sendReminder}>
                 Send Reminder
               </Button>
@@ -187,7 +187,7 @@ export default function CustomerDetailPage() {
         onChange={setTab}
         tabs={[
           { value: "ledger", label: "Ledger" },
-          ...(can("sales.bill") ? [{ value: "invoices" as const, label: `Invoices (${c.stats.invoiceCount})` }] : []),
+          ...(can("sales.view") ? [{ value: "invoices" as const, label: `Invoices (${c.stats.invoiceCount})` }] : []),
           ...(can("payments.view") ? [{ value: "payments" as const, label: "Payments" }] : []),
           { value: "reminders", label: c.lastReminder ? `Reminders (last ${date(c.lastReminder.sentAt)})` : "Reminders" },
         ]}
@@ -294,7 +294,7 @@ function LedgerTab({ customer, settings }: { customer: Customer; settings: Store
                 </tr>
                 {data.entries.length === 0 && <EmptyRow colSpan={7}>No transactions yet</EmptyRow>}
                 {data.entries.map((e, i) => {
-                  const linkable = e.refId && (e.type === "Sale" || e.type === "Return") && can("sales.bill");
+                  const linkable = e.refId && (e.type === "Sale" || e.type === "Return") && can("sales.view");
                   return (
                     <tr key={`${e.refNo}-${i}`} className="hover:bg-slate-50">
                       <Td className="whitespace-nowrap">{date(e.date)}</Td>
@@ -438,7 +438,7 @@ function PaymentsTab({ customerId }: { customerId: string }) {
                   {p.reference && <p className="text-xs text-slate-500">{p.reference}</p>}
                 </Td>
                 <Td>
-                  {p.sale && can("sales.bill") ? (
+                  {p.sale && can("sales.view") ? (
                     <Link href={`/sales/${p.sale.id}`} className="font-medium text-brand-700 hover:underline">
                       {p.sale.invoiceNo}
                     </Link>
@@ -475,7 +475,7 @@ function PaymentsTab({ customerId }: { customerId: string }) {
 function RemindersTab({ customer, onLogged }: { customer: Customer; onLogged: () => void }) {
   const toast = useToast();
   const { can } = useAuth();
-  const canLog = can("customers.manage");
+  const canLog = can("customers.edit");
   const { data, error, loading, reload } = useApi<CustomerReminder[]>(`/reminders/customers/${customer.id}`);
   const [channel, setChannel] = useState<ReminderChannel>("CALL");
   const [note, setNote] = useState("");

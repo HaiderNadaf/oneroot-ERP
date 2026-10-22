@@ -3,6 +3,7 @@
 import { amountInWords, date, inr, n, qty } from "@/lib/format";
 import type { Sale, StoreSettings } from "@/lib/types";
 import { modeLabel } from "@/lib/types";
+import { PrintHeader, SystemGeneratedNote } from "./ui";
 
 /** Printable GST tax invoice. Render inside a `.print-area` container. */
 export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSettings | null }) {
@@ -12,7 +13,6 @@ export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSet
   const balance = Math.max(0, total - paid);
   const cancelled = sale.status === "CANCELLED";
   const c = sale.customer;
-  const storeAddress = [settings?.address, settings?.city, settings?.state, settings?.pincode].filter(Boolean).join(", ");
   const licences = [
     settings?.fertilizerLicenseNo && `Fert. Lic: ${settings.fertilizerLicenseNo}`,
     settings?.pesticideLicenseNo && `Pest. Lic: ${settings.pesticideLicenseNo}`,
@@ -44,21 +44,20 @@ export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSet
       )}
 
       {/* Store header */}
-      <header className="border-b-2 border-slate-800 pb-3 text-center">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Tax Invoice</p>
-        <h2 className="mt-1 text-2xl font-bold">{settings?.storeName ?? "—"}</h2>
-        {storeAddress && <p className="text-xs text-slate-600">{storeAddress}</p>}
-        <p className="text-xs text-slate-600">
-          {[settings?.phone && `Ph: ${settings.phone}`, settings?.email].filter(Boolean).join(" · ")}
-        </p>
-        {settings?.gstin && (
-          <p className="mt-0.5 text-xs font-semibold">
-            GSTIN: {settings.gstin}
-            {settings.stateCode ? ` · State code: ${settings.stateCode}` : ""}
-          </p>
-        )}
-        {licences.length > 0 && <p className="mt-0.5 text-[11px] text-slate-600">{licences.join(" · ")}</p>}
-      </header>
+      <PrintHeader
+        store={settings}
+        title="Tax Invoice"
+        number={sale.invoiceNo}
+        status={cancelled ? { label: "Cancelled", tone: "red" } : null}
+        details={
+          <>
+            {(settings?.phone || settings?.email) && (
+              <p className="text-[10.5px] text-slate-500">{[settings?.phone && `Ph: ${settings.phone}`, settings?.email].filter(Boolean).join(" · ")}</p>
+            )}
+            {licences.length > 0 && <p className="text-[10.5px] text-slate-500">{licences.join(" · ")}</p>}
+          </>
+        }
+      />
 
       {/* Bill-to and invoice meta */}
       <div className="grid grid-cols-2 gap-4 border-b border-slate-300 py-3">
@@ -242,16 +241,10 @@ export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSet
       </div>
 
       {/* Footer */}
-      <footer className="mt-8 grid grid-cols-2 items-end gap-4 border-t border-slate-300 pt-3 text-[11px] text-slate-600">
-        <div>
-          {settings?.invoiceFooter && <p className="whitespace-pre-line">{settings.invoiceFooter}</p>}
-          <p className="mt-1">Goods once sold will be taken back only as per store policy. Subject to local jurisdiction.</p>
-          <p className="mt-6">Customer signature</p>
-        </div>
-        <div className="text-right">
-          <p className="font-semibold text-slate-800">For {settings?.storeName ?? "the store"}</p>
-          <div className="mt-10 border-t border-slate-400 pt-1">Authorised signatory</div>
-        </div>
+      <footer className="mt-8 border-t border-slate-300 pt-3 text-[11px] text-slate-600">
+        {settings?.invoiceFooter && <p className="whitespace-pre-line">{settings.invoiceFooter}</p>}
+        <p className="mt-1">Goods once sold will be taken back only as per store policy. Subject to local jurisdiction.</p>
+        <SystemGeneratedNote doc="invoice" className="mt-2.5" />
       </footer>
     </div>
   );

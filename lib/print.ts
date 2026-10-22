@@ -20,7 +20,8 @@ export function printAs(mode: PrintMode, pageCss?: string, fileName?: string) {
   // Characters a file name can't hold (e.g. the slashes in PO/26-27/00001) become dashes
   if (fileName) document.title = fileName.replace(/[\\/:*?"<>|]+/g, "-");
   let style: HTMLStyleElement | null = null;
-  const css = pageCss ?? (mode === "thermal" ? "size: 80mm auto; margin: 2mm 3mm;" : null);
+  // Margins are always 0 so the browser adds no date / URL header or footer (globals.css pads the content instead)
+  const css = pageCss ?? (mode === "thermal" ? "size: 80mm auto; margin: 0;" : null);
   if (css) {
     style = document.createElement("style");
     style.textContent = `@page { ${css} }`;
@@ -36,4 +37,4 @@ export function printAs(mode: PrintMode, pageCss?: string, fileName?: string) {
   setTimeout(() => window.print(), 60);
 }
 
-export const printReceipt = (widthMm: number) => printAs("thermal", `size: ${widthMm}mm auto; margin: 2mm 3mm;`);
+export const printReceipt = (widthMm: number) => printAs("thermal", `size: ${widthMm}mm auto; margin: 0;`);

@@ -123,7 +123,7 @@ export default function VanTripPage() {
                   t.sales.map((s) => (
                     <tr key={s.id} className="hover:bg-slate-50">
                       <Td>
-                        {can("sales.bill") ? (
+                        {can("sales.view") ? (
                           <Link href={`/sales/${s.id}`} className="font-medium text-brand-700 hover:underline">
                             {s.invoiceNo}
                           </Link>

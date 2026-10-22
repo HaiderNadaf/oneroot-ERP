@@ -1,11 +1,12 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, CheckCircle2, Info as InfoIcon, Layers, PackageCheck, Plus, ScanLine, Store, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, History, Info as InfoIcon, Layers, PackageCheck, Plus, ScanLine, Store, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { BatchSelect, type BatchPick } from "@/components/BatchSelect";
+import { NotesPanel } from "@/components/NotesPanel";
 import { useCounts } from "@/components/Notifications";
 import {
   Badge,
@@ -18,6 +19,7 @@ import {
   Input,
   Modal,
   PageHeader,
+  Select,
   Spinner,
   Table,
   Td,
@@ -31,9 +33,9 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
 import { date, inr, n, qty, round2, today } from "@/lib/format";
-import { useApi } from "@/lib/hooks";
+import { clearApiCache, useApi } from "@/lib/hooks";
 import { useScanner } from "@/lib/scanner";
-import type { Grn, PoItem, PurchaseOrder } from "@/lib/types";
+import type { Grn, NoteSummary, PoItem, PurchaseOrder } from "@/lib/types";
 
 /** One batch of a line, entered in the Batch No. popup: its quantity, number and dates */
 interface BatchRow {
@@ -47,6 +49,8 @@ interface BatchRow {
 interface Line {
   /** Received (QC passed) stock, batch by batch; the Received Qty is their total */
   batches: BatchRow[];
+  /** Multiple batches mode: one batch of 1 per unit */
+  multi?: boolean;
 }
 
 let batchSeq = 0;
@@ -64,19 +68,19 @@ function check(item: PoItem, l: Line) {
   const pending = pendingOf(item);
   const passed = receivedOf(l);
   const total = passed;
-  const track = item.product.trackBatch;
   const errors: Partial<Record<"total" | "batches", { msg: string; required?: boolean }>> = {};
   if (total > pending + 0.0005) errors.total = { msg: `${qty(total)} entered — only ${qty(pending)} pending` };
 
-  // Each batch row: the quantity, and when the product tracks batches its number and a future expiry
+  // Each batch row: the quantity, its batch number, Mfg date and a future expiry
   const rowErrors = l.batches.map((b): { msg: string; required?: boolean } | null => {
     const q = num(b.qty);
     const used = q > 0;
     if (q < 0) return { msg: "Quantity can't be negative" };
     if (!used) return b.batchNo.trim() || b.mfgDate || b.expiryDate ? { msg: "Enter its quantity", required: true } : null;
-    if (track && !b.batchNo.trim()) return { msg: "Batch no. is required", required: true };
-    if (q > 0 && track && !b.expiryDate) return { msg: "Expiry date is required", required: true };
-    if (q > 0 && b.expiryDate && b.expiryDate <= today()) return { msg: "Expiry must be a future date — expired goods aren't taken into stock" };
+    if (!b.batchNo.trim()) return { msg: "Batch no. is required", required: true };
+    if (!b.mfgDate) return { msg: "Mfg date is required", required: true };
+    if (!b.expiryDate) return { msg: "Expiry date is required", required: true };
+    if (b.expiryDate <= today()) return { msg: "Expiry must be a future date — expired goods aren't taken into stock" };
     if (b.mfgDate && b.mfgDate > today()) return { msg: "Mfg date can't be in the future" };
     if (b.mfgDate && b.expiryDate && b.expiryDate < b.mfgDate) return { msg: "Expiry is before the Mfg date" };
     return null;
@@ -100,7 +104,7 @@ export default function NewGrnPage() {
 function NewGrn() {
   const params = useSearchParams();
   const poId = params.get("po");
-  const { data: po, error, loading, reload } = useApi<PurchaseOrder>(poId ? `/purchase-orders/${poId}` : null);
+  const { data: po, error, loading, refreshing, reload } = useApi<PurchaseOrder>(poId ? `/purchase-orders/${poId}` : null);
 
   if (!poId) {
     return (
@@ -111,7 +115,8 @@ function NewGrn() {
     );
   }
   if (error) return <ErrorBox message={error} onRetry={reload} />;
-  if (loading || !po) return <Spinner page />;
+  // The form seeds each line from the pending qty once, so wait for a fresh copy, not a cached one from before an earlier GRN
+  if (loading || refreshing || !po) return <Spinner page />;
   if (po.status !== "APPROVED" && po.status !== "PARTIALLY_RECEIVED") {
     return (
       <>
@@ -140,8 +145,13 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const toast = useToast();
   const confirm = useConfirm();
   const counts = useCounts();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const items = po.items ?? [];
+  // Notes are reloaded on their own so raising one doesn't reset what is typed on the form
+  const [notes, setNotes] = useState<NoteSummary[] | undefined>(po.debitNotes);
+  const reloadNotes = () =>
+    api.get<PurchaseOrder>(`/purchase-orders/${po.id}`).then((fresh) => setNotes(fresh.debitNotes), (e) => toast.error(errMsg(e)));
+  const completedBills = (po.purchases ?? []).filter((p) => p.status === "COMPLETED");
 
   const [vehicleNo, setVehicleNo] = useState("");
   const [supplierInvoiceNo, setSupplierInvoiceNo] = useState("");
@@ -163,7 +173,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
     const hit = items.find((i) => pendingOf(i) > 0 && (i.product.barcode?.toLowerCase() === q || i.product.sku.toLowerCase() === q));
     if (!hit) return toast.error(`No open line on ${po.poNo} matches barcode ${code}`);
     setScanned(hit.id);
-    setLines((ls) => (receivedOf(ls[hit.id]) > 0 ? ls : { ...ls, [hit.id]: { ...ls[hit.id], batches: [blankBatch(String(pendingOf(hit)))] } }));
+    setLines((ls) => (receivedOf(ls[hit.id]) > 0 ? ls : { ...ls, [hit.id]: { batches: [blankBatch(String(pendingOf(hit)))] } }));
     document.getElementById(`grn-line-${hit.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     setBatchFor(hit.id);
   }, true, (t) => !!t?.closest("[data-scan-input]")); // a batch or chassis number scanned into its box stays there
@@ -198,14 +208,14 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
     }
 
     const balance = shortLines.length
-      ? ` ${shortLines.length} line${shortLines.length === 1 ? "" : "s"} will stay open for the balance.`
+      ? ` ${shortLines.length} line${shortLines.length === 1 ? "" : "s"} will stay open for the balance, and the shortfall (${qty(shortfall)}) is noted on a draft short-supply debit note.`
       : " The PO will be marked fully received.";
     const invoiceNote = totals.passed > 0 ? ` The purchase invoice will be booked under ${supplierInvoiceNo.trim()}.` : "";
     if (!(await confirm(`Post goods inward for ${po.poNo}? ${qty(totals.passed)} received into stock.${balance}${invoiceNote}`, { confirmLabel: "Post GRN" }))) return;
 
     setSaving(true);
     try {
-      const grn = await api.post<Grn & { invoiceError?: string | null }>(`/purchase-orders/${po.id}/grn`, {
+      const grn = await api.post<Grn & { invoiceError?: string | null; shortNoteNo?: string | null }>(`/purchase-orders/${po.id}/grn`, {
         vehicleNo: vehicleNo.trim() || undefined,
         supplierInvoiceNo: supplierInvoiceNo.trim() || undefined,
         receivedAt,
@@ -230,8 +240,11 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
       toast.success(
         `${grn.grnNo} posted · stock updated${grn.purchase ? ` · invoice ${grn.purchase.purchaseNo} booked` : ""}`,
       );
+      if (grn.shortNoteNo) toast.info(`Short supply noted on draft debit note ${grn.shortNoteNo}`);
       if (grn.invoiceError) toast.warn(`Purchase invoice not booked: ${grn.invoiceError}. Book it from the GRN.`);
       counts.refresh();
+      // The PO's received and pending quantities changed
+      clearApiCache("/purchase-orders");
       router.push(`/goods-inward/${grn.id}`);
     } catch (e) {
       toast.error(errMsg(e));
@@ -310,6 +323,22 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
           </Field>
         </div>
       </Card>
+
+      {(po.grns?.length ?? 0) > 0 && (
+        <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <ReceivedEarlier po={po} canBrowse={can("purchases.view")} />
+          <NotesPanel
+            notes={notes}
+            preset={{
+              vendor: po.vendor ? { id: po.vendor.id, name: po.vendor.name } : undefined,
+              po: { id: po.id, poNo: po.poNo },
+              // One bill against this PO: the note is against it; otherwise the form lets you pick
+              purchase: completedBills.length === 1 ? completedBills[0] : undefined,
+            }}
+            onChanged={() => void reloadNotes()}
+          />
+        </div>
+      )}
 
       <div className="mb-4 flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 sm:px-4 text-sm text-sky-800">
         <InfoIcon className="mt-0.5 size-4 shrink-0" />
@@ -420,9 +449,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                             {named.length > 2 && <span className="block text-xs text-brand-700">+ {named.length - 2} more batches</span>}
                           </span>
                         ) : (
-                          <span className={cx("truncate", p.trackBatch ? "text-slate-500" : "text-slate-400")}>
-                            {p.trackBatch ? "Add batch details" : "Optional — add batches"}
-                          </span>
+                          <span className="truncate text-slate-500">Add batch details</span>
                         )}
                         <Layers className="mt-0.5 size-4 shrink-0 text-slate-400" />
                       </button>
@@ -511,7 +538,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
           line={lines[batchItem.id]}
           rowErrors={checks.get(batchItem.id)?.rowErrors ?? []}
           submitted={submitted}
-          onChange={(batches) => update(batchItem.id, { batches })}
+          onChange={(patch) => update(batchItem.id, patch)}
           onClose={() => setBatchFor(null)}
         />
       )}
@@ -520,8 +547,10 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
 }
 
 /**
- * Batch popup for one PO line: a table of Qty · Batch No. · Mfg Date · Expiry Date, one row per batch,
- * with an add button below. The rows' quantities add up to the line's Received Qty.
+ * Batch popup for one PO line, in one of two modes:
+ * - Single batch: a table of Qty · Batch No. · Mfg Date · Expiry Date; usually one row, with Add row to split the quantity.
+ * - Multiple batches: one batch per unit (qty 1 each), every one with its own batch no., Mfg and expiry date.
+ * The rows' quantities add up to the line's Received Qty.
  */
 function BatchesModal({
   item,
@@ -535,93 +564,85 @@ function BatchesModal({
   line: Line;
   rowErrors: ({ msg: string; required?: boolean } | null)[];
   submitted: boolean;
-  onChange: (batches: BatchRow[]) => void;
+  onChange: (patch: Partial<Line>) => void;
   onClose: () => void;
 }) {
   const p = item.product;
   const pending = pendingOf(item);
+  const confirm = useConfirm();
+  const multiple = !!line.multi;
   const rows = line.batches;
-  // "Multiple batches": one empty batch-number box per unit; each becomes its own batch of 1, all with the same dates
-  const [multi, setMulti] = useState<{ rowKey: number | null; count: string; numbers: string[]; mfgDate: string; expiryDate: string } | null>(null);
-  const [multiError, setMultiError] = useState<string | null>(null);
+  const setRows = (batches: BatchRow[]) => onChange({ batches });
+  // Multiple batches: a "for all" date shows at the top only while every row has that same date
+  const sameOf = (k: "mfgDate" | "expiryDate") => (rows.every((b) => b[k] === rows[0]?.[k]) ? (rows[0]?.[k] ?? "") : null);
+  const allMfg = sameOf("mfgDate");
+  const allExpiry = sameOf("expiryDate");
+  const [count, setCountText] = useState(String(rows.length));
   const received = receivedOf(line);
   const left = r3(pending - received);
-  const set = (key: number, patch: Partial<BatchRow>) => onChange(rows.map((b) => (b.key === key ? { ...b, ...patch } : b)));
+  const set = (key: number, patch: Partial<BatchRow>) => setRows(rows.map((b) => (b.key === key ? { ...b, ...patch } : b)));
   // Removing the only row clears it instead
-  const remove = (key: number) => onChange(rows.length > 1 ? rows.filter((b) => b.key !== key) : [blankBatch()]);
+  const remove = (key: number) => setRows(rows.length > 1 ? rows.filter((b) => b.key !== key) : [blankBatch()]);
   // A new row starts with whatever is still due
-  const add = () => onChange([...rows, blankBatch(left > 0 ? String(left) : "")]);
+  const add = () => setRows([...rows, blankBatch(left > 0 ? String(left) : "")]);
+  const errorOf = (i: number) => {
+    const err = rowErrors[i];
+    return err && (!err.required || submitted) ? err.msg : null;
+  };
 
-  /** Opens the multiple-batches form with one empty box per unit; from a row it takes that row's quantity and dates */
-  function startMulti(rowKey: number | null) {
-    const row = rowKey !== null ? rows.find((b) => b.key === rowKey) : null;
-    const base = row ? num(row.qty) : left;
-    const whole = Number.isInteger(base) && base > 0 ? Math.min(base, 500) : 2;
-    setMultiError(null);
-    setMulti({ rowKey, count: String(whole), numbers: Array(whole).fill(""), mfgDate: row?.mfgDate ?? "", expiryDate: row?.expiryDate ?? "" });
+  /** One batch of 1 per unit, starting with the shared dates (blank where the rows differ) */
+  const unitRow = (dates = { mfgDate: allMfg ?? "", expiryDate: allExpiry ?? "" }) => ({ ...blankBatch("1"), ...dates });
+
+  async function changeMode(next: "single" | "multiple") {
+    if ((next === "multiple") === multiple) return;
+    const filled = rows.filter((b) => num(b.qty) > 0 || b.batchNo.trim());
+    if (next === "multiple") {
+      // As many units as received (or still due), as whole batches of 1
+      const base = received > 0 ? received : pending;
+      const units = Number.isInteger(base) && base > 0 ? Math.min(base, 500) : 2;
+      if (filled.length > 1 && !(await confirm(`Replace the ${filled.length} batches entered with ${units} batches of 1 ${p.unit} each?`, { confirmLabel: "Use multiple batches" })))
+        return;
+      const dates = { mfgDate: rows[0]?.mfgDate ?? "", expiryDate: rows[0]?.expiryDate ?? "" };
+      setCountText(String(units));
+      onChange({ multi: true, batches: Array.from({ length: units }, () => unitRow(dates)) });
+    } else {
+      if (filled.length > 1 && !(await confirm(`Replace the ${filled.length} batches with a single batch of ${qty(received)} ${p.unit}?`, { confirmLabel: "Use single batch" })))
+        return;
+      const first = rows.find((b) => b.batchNo.trim()) ?? rows[0];
+      onChange({ multi: false, batches: [{ ...blankBatch(received > 0 ? String(received) : String(pending)), batchNo: first?.batchNo ?? "", mfgDate: first?.mfgDate ?? "", expiryDate: first?.expiryDate ?? "" }] });
+    }
   }
 
-  /** The number of boxes follows the quantity (typed numbers are kept) */
+  /** The number of rows follows the quantity (typed rows are kept) */
   function setCount(value: string) {
-    if (!multi) return;
+    setCountText(value);
     const c = Number(value);
-    const size = Number.isInteger(c) && c > 0 ? Math.min(c, 500) : 0;
-    setMulti({ ...multi, count: value, numbers: Array.from({ length: size }, (_, i) => multi.numbers[i] ?? "") });
+    if (!Number.isInteger(c) || c < 1) return;
+    const size = Math.min(c, 500);
+    setRows(Array.from({ length: size }, (_, i) => rows[i] ?? unitRow()));
   }
 
-  function setNumber(i: number, value: string) {
-    if (!multi) return;
-    setMulti({ ...multi, numbers: multi.numbers.map((x, j) => (j === i ? value : x)) });
+  /** A date at the top is copied to every row */
+  function setAllDates(patch: { mfgDate?: string; expiryDate?: string }) {
+    setRows(rows.map((b) => ({ ...b, ...patch })));
   }
 
-  /** Several batch numbers pasted at once fill the boxes from this one on */
+  /** Several batch numbers pasted at once fill the rows from this one on */
   function pasteNumbers(i: number, text: string) {
-    if (!multi) return false;
     const parts = text.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
     if (parts.length < 2) return false;
-    const next = [...multi.numbers];
-    parts.forEach((part, k) => {
-      if (i + k < next.length) next[i + k] = part;
-    });
-    setMulti({ ...multi, numbers: next });
+    setRows(rows.map((b, j) => (j >= i && j - i < parts.length ? { ...b, batchNo: parts[j - i] } : b)));
     return true;
   }
 
-  function createMulti() {
-    if (!multi) return;
-    const count = Number(multi.count);
-    if (!Number.isInteger(count) || count < 2 || count > 500) return setMultiError("Quantity must be a whole number from 2 to 500");
-    const numbers = multi.numbers.map((x) => x.trim());
-    const empty = numbers.findIndex((x) => !x);
-    if (empty >= 0) return setMultiError(`Enter the batch number in box ${empty + 1}`);
-    const lower = numbers.map((x) => x.toLowerCase());
-    const twice = lower.findIndex((x, i) => lower.indexOf(x) !== i);
-    if (twice >= 0) return setMultiError(`${numbers[twice]} is entered twice`);
-    if (p.trackBatch && !multi.expiryDate) return setMultiError("Enter the expiry date");
-    if (multi.expiryDate && multi.expiryDate <= today()) return setMultiError("Expiry must be a future date");
-    if (multi.mfgDate && multi.expiryDate && multi.expiryDate < multi.mfgDate) return setMultiError("Expiry is before the Mfg date");
-    // One batch per box, quantity 1 each, all with the dates entered once
-    const made = numbers.map((batchNo) => ({ ...blankBatch("1"), batchNo, mfgDate: multi.mfgDate, expiryDate: multi.expiryDate }));
-    const taken = new Set(rows.filter((b) => b.key !== multi.rowKey).map((b) => b.batchNo.trim().toLowerCase()).filter(Boolean));
-    const clash = made.find((b) => taken.has(b.batchNo.toLowerCase()));
-    if (clash) return setMultiError(`${clash.batchNo} is already on another row`);
-    if (multi.rowKey !== null) {
-      // From a row: that row becomes the new batches, in its place
-      const at = rows.findIndex((b) => b.key === multi.rowKey);
-      onChange([...rows.slice(0, at), ...made, ...rows.slice(at + 1)]);
-    } else {
-      // From the bottom: added after the others; a single row without a batch number gives way
-      const lone = rows.length === 1 && !rows[0].batchNo.trim();
-      onChange(lone ? made : [...rows, ...made]);
-    }
-    setMulti(null);
-  }
+  const complete = rows.filter((b) => b.batchNo.trim() && b.mfgDate && b.expiryDate).length;
 
   return (
     <Modal
       open
       onClose={onClose}
       size="xl"
+      centered
       title={
         <span className="inline-flex flex-wrap items-center gap-x-2">
           Batches · {p.name}
@@ -645,57 +666,85 @@ function BatchesModal({
         </>
       }
     >
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
-              <th className="w-8 px-3 py-2 font-medium">#</th>
-              <th className="w-32 px-3 py-2 text-right font-medium">Qty ({p.unit})</th>
-              <th className="min-w-52 px-3 py-2 font-medium">Batch No.{p.trackBatch ? " *" : ""}</th>
-              <th className="px-3 py-2 font-medium">Mfg Date</th>
-              <th className="px-3 py-2 font-medium">Expiry Date{p.trackBatch ? " *" : ""}</th>
-              <th className="w-10 px-3 py-2" />
-            </tr>
-          </thead>
-          <tbody>
+      <div className="mb-3 flex flex-wrap items-end gap-x-3 gap-y-1">
+        <Field label="Batches" className="w-full sm:w-56">
+          <Select value={multiple ? "multiple" : "single"} onChange={(e) => void changeMode(e.target.value as "single" | "multiple")} aria-label="Single or multiple batches">
+            <option value="single">Single batch</option>
+            <option value="multiple">Multiple batches</option>
+          </Select>
+        </Field>
+        <p className="pb-2 text-xs text-slate-500">
+          {multiple
+            ? "One batch per unit, each with its own batch no., Mfg date and expiry date."
+            : "The quantity received as one batch — add a row to split it across batches."}
+        </p>
+      </div>
+
+      {multiple ? (
+        <div className="rounded-lg border border-brand-200 bg-brand-50/40 p-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Field label={`Quantity (${p.unit})`} required hint="One row below for each unit">
+              <Input type="number" min="1" step="1" inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value)} className="num text-right" aria-label="Number of batches" />
+            </Field>
+            {/* Hidden once any row has its own date; the rows below hold the dates then */}
+            {allMfg !== null && (
+              <Field label="Mfg Date for all" hint="Fills every row; change any row below">
+                <DateInput max={today()} value={allMfg} onChange={(e) => setAllDates({ mfgDate: e.target.value })} aria-label="Mfg date for all" />
+              </Field>
+            )}
+            {allExpiry !== null && (
+              <Field label="Expiry Date for all" hint="Fills every row; change any row below">
+                <DateInput value={allExpiry} min={allMfg || undefined} onChange={(e) => setAllDates({ expiryDate: e.target.value })} aria-label="Expiry date for all" />
+              </Field>
+            )}
+          </div>
+          <div className="mb-1 mt-3 flex items-baseline justify-between gap-2">
+            <span className="text-xs font-medium text-slate-600">Batches · each needs its batch no., Mfg and expiry date</span>
+            <span className="num text-xs text-slate-500">
+              {complete} of {rows.length} complete
+            </span>
+          </div>
+          <div className="max-h-[50vh] space-y-2 overflow-y-auto pr-1">
+            <div className="hidden grid-cols-[1.75rem_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 text-[11px] font-medium uppercase tracking-wide text-slate-500 sm:grid">
+              <span />
+              <span>Batch No. *</span>
+              <span>Mfg Date *</span>
+              <span>Expiry Date *</span>
+            </div>
             {rows.map((b, i) => {
-              const err = rowErrors[i];
-              const msg = err && (!err.required || submitted) ? err.msg : null;
+              const msg = errorOf(i);
               return (
-                <Fragment key={b.key}>
-                  <tr className="border-t border-slate-100 align-top">
-                    <td className="px-3 py-2 pt-4 text-slate-400">{i + 1}</td>
-                    <td className="px-3 py-2">
-                      <Input
-                        type="number"
-                        step="any"
-                        min="0"
-                        inputMode="decimal"
-                        value={b.qty}
-                        placeholder="0"
-                        onChange={(e) => set(b.key, { qty: e.target.value })}
-                        className="num text-right font-semibold"
-                        aria-label={`Batch ${i + 1} quantity`}
-                        autoFocus={i === rows.length - 1 && rows.length > 1}
+                <div key={b.key}>
+                  <div className="grid grid-cols-[1.75rem_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[1.75rem_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                    <span className="num text-right text-xs text-slate-400">{i + 1}.</span>
+                    <Input
+                      value={b.batchNo}
+                      onChange={(e) => set(b.key, { batchNo: e.target.value })}
+                      onPaste={(e) => {
+                        if (pasteNumbers(i, e.clipboardData.getData("text"))) e.preventDefault();
+                      }}
+                      onKeyDown={(e) => {
+                        // Scanners end each code with Enter: move on to the next row
+                        if (e.key !== "Enter") return;
+                        e.preventDefault();
+                        document.querySelector<HTMLInputElement>(`input[aria-label="Batch number ${i + 2}"]`)?.focus();
+                      }}
+                      className={cx("font-mono", msg && /batch/i.test(msg) && "border-red-400")}
+                      placeholder="Batch no."
+                      data-scan-input
+                      aria-label={`Batch number ${i + 1}`}
+                      autoFocus={i === 0}
+                    />
+                    <div className="col-start-2 sm:col-start-auto">
+                      <DateInput
+                        max={today()}
+                        value={b.mfgDate}
+                        onChange={(e) => set(b.key, { mfgDate: e.target.value })}
+                        className={cx(msg && /mfg/i.test(msg) && "border-red-400")}
+                        aria-label={`Batch ${i + 1} Mfg date`}
                       />
-                    </td>
-                    <td className="px-3 py-2">
-                      <BatchSelect
-                        productId={item.productId}
-                        unit={p.unit}
-                        value={b.batchNo}
-                        invalid={!!msg && /batch no/i.test(msg)}
-                        placeholder={p.trackBatch ? "Select or add batch" : "Optional"}
-                        onAddMultiple={() => startMulti(b.key)}
-                        onChange={(pick: BatchPick) =>
-                          set(b.key, pick.existing ? { batchNo: pick.batchNo, mfgDate: pick.mfgDate ?? "", expiryDate: pick.expiryDate ?? "" } : { batchNo: pick.batchNo })
-                        }
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <DateInput max={today()} value={b.mfgDate} onChange={(e) => set(b.key, { mfgDate: e.target.value })} aria-label={`Batch ${i + 1} Mfg date`} />
-                    </td>
-                    <td className="px-3 py-2">
+                    </div>
+                    <div className="col-start-2 sm:col-start-auto">
                       <DateInput
                         value={b.expiryDate}
                         min={b.mfgDate || undefined}
@@ -703,110 +752,178 @@ function BatchesModal({
                         className={cx(msg && /expir/i.test(msg) && "border-red-400")}
                         aria-label={`Batch ${i + 1} expiry date`}
                       />
-                    </td>
-                    <td className="px-3 py-2 pt-3">
-                      <button
-                        type="button"
-                        onClick={() => remove(b.key)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                        aria-label={`Remove batch ${i + 1}`}
-                      >
-                        <X className="size-4" />
-                      </button>
-                    </td>
-                  </tr>
-                  {msg && (
-                    <tr>
-                      <td />
-                      <td colSpan={5} className="px-3 pb-2 text-xs text-red-600">
-                        {msg}
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
+                    </div>
+                  </div>
+                  {msg && <p className="ml-9 mt-0.5 text-xs text-red-600">{msg}</p>}
+                </div>
               );
             })}
-          </tbody>
-        </table>
-      </div>
-      {multi ? (
-        <div className="mt-3 rounded-lg border border-brand-200 bg-brand-50/40 p-3">
-          <p className="mb-2 text-sm font-semibold text-slate-800">Add multiple batches · one batch number per unit</p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Field label={`Quantity (${p.unit})`} required hint="One box below for each unit">
-              <Input type="number" min="2" step="1" inputMode="numeric" value={multi.count} onChange={(e) => setCount(e.target.value)} className="num text-right" aria-label="Number of batches" />
-            </Field>
-            <Field label="Mfg Date">
-              <DateInput max={today()} value={multi.mfgDate} onChange={(e) => setMulti({ ...multi, mfgDate: e.target.value })} aria-label="Mfg date for all" />
-            </Field>
-            <Field label="Expiry Date" required={p.trackBatch}>
-              <DateInput value={multi.expiryDate} min={multi.mfgDate || undefined} onChange={(e) => setMulti({ ...multi, expiryDate: e.target.value })} aria-label="Expiry date for all" />
-            </Field>
-          </div>
-          {multi.numbers.length > 0 && (
-            <>
-              <div className="mb-1 mt-3 flex items-baseline justify-between gap-2">
-                <span className="text-xs font-medium text-slate-600">Batch Numbers</span>
-                <span className="num text-xs text-slate-500">
-                  {multi.numbers.filter((x) => x.trim()).length} of {multi.numbers.length} entered
-                </span>
-              </div>
-              <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
-                {multi.numbers.map((no, i) => (
-                  <div key={i} className="flex items-center gap-1">
-                    <span className="num w-7 shrink-0 text-right text-xs text-slate-400">{i + 1}.</span>
-                    <Input
-                      value={no}
-                      onChange={(e) => setNumber(i, e.target.value)}
-                      onPaste={(e) => {
-                        if (pasteNumbers(i, e.clipboardData.getData("text"))) e.preventDefault();
-                      }}
-                      onKeyDown={(e) => {
-                        // Scanners end each code with Enter: move on to the next box
-                        if (e.key !== "Enter") return;
-                        e.preventDefault();
-                        document.querySelector<HTMLInputElement>(`input[aria-label="Batch number ${i + 2}"]`)?.focus();
-                      }}
-                      className="font-mono"
-                      placeholder="Batch no."
-                      data-scan-input
-                      aria-label={`Batch number ${i + 1}`}
-                      autoFocus={i === 0}
-                    />
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-          {multiError && <p className="mt-1 text-xs font-medium text-red-600">{multiError}</p>}
-          <div className="mt-3 flex gap-2">
-            <Button size="sm" onClick={createMulti}>
-              Create batches
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => setMulti(null)}>
-              Cancel
-            </Button>
           </div>
         </div>
       ) : (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <>
+          <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
+                  <th className="w-8 px-3 py-2 font-medium">#</th>
+                  <th className="w-32 px-3 py-2 text-right font-medium">Qty ({p.unit})</th>
+                  <th className="min-w-52 px-3 py-2 font-medium">Batch No. *</th>
+                  <th className="px-3 py-2 font-medium">Mfg Date *</th>
+                  <th className="px-3 py-2 font-medium">Expiry Date *</th>
+                  <th className="w-10 px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((b, i) => {
+                  const msg = errorOf(i);
+                  return (
+                    <Fragment key={b.key}>
+                      <tr className="border-t border-slate-100 align-top">
+                        <td className="px-3 py-2 pt-4 text-slate-400">{i + 1}</td>
+                        <td className="px-3 py-2">
+                          <Input
+                            type="number"
+                            step="any"
+                            min="0"
+                            inputMode="decimal"
+                            value={b.qty}
+                            placeholder="0"
+                            onChange={(e) => set(b.key, { qty: e.target.value })}
+                            className="num text-right font-semibold"
+                            aria-label={`Batch ${i + 1} quantity`}
+                            autoFocus={i === rows.length - 1 && rows.length > 1}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <BatchSelect
+                            productId={item.productId}
+                            unit={p.unit}
+                            value={b.batchNo}
+                            invalid={!!msg && /batch no/i.test(msg)}
+                            placeholder="Select or add batch"
+                            onChange={(pick: BatchPick) =>
+                              set(b.key, pick.existing ? { batchNo: pick.batchNo, mfgDate: pick.mfgDate ?? "", expiryDate: pick.expiryDate ?? "" } : { batchNo: pick.batchNo })
+                            }
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <DateInput
+                            max={today()}
+                            value={b.mfgDate}
+                            onChange={(e) => set(b.key, { mfgDate: e.target.value })}
+                            className={cx(msg && /mfg/i.test(msg) && "border-red-400")}
+                            aria-label={`Batch ${i + 1} Mfg date`}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <DateInput
+                            value={b.expiryDate}
+                            min={b.mfgDate || undefined}
+                            onChange={(e) => set(b.key, { expiryDate: e.target.value })}
+                            className={cx(msg && /expir/i.test(msg) && "border-red-400")}
+                            aria-label={`Batch ${i + 1} expiry date`}
+                          />
+                        </td>
+                        <td className="px-3 py-2 pt-3">
+                          {rows.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => remove(b.key)}
+                              className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                              aria-label={`Remove batch ${i + 1}`}
+                            >
+                              <X className="size-4" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                      {msg && (
+                        <tr>
+                          <td />
+                          <td colSpan={5} className="px-3 pb-2 text-xs text-red-600">
+                            {msg}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
           <button
             type="button"
             onClick={add}
-            className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-brand-300 px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-dashed border-brand-300 px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50"
           >
-            <Plus className="size-4" /> Add batch
+            <Plus className="size-4" /> Add row
           </button>
-          <button
-            type="button"
-            onClick={() => startMulti(null)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-brand-300 px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50"
-          >
-            <Plus className="size-4" /> Add multiple batches
-          </button>
-        </div>
+        </>
       )}
     </Modal>
+  );
+}
+
+/** What earlier GRNs against this PO took in: per GRN, each line's received qty and batch */
+function ReceivedEarlier({ po, canBrowse }: { po: PurchaseOrder; canBrowse: boolean }) {
+  const items = po.items ?? [];
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const ordered = r3(items.reduce((s, i) => s + n(i.quantity), 0));
+  const received = r3(items.reduce((s, i) => s + n(i.passedQty), 0));
+  return (
+    <Card
+      bodyClassName="p-0"
+      title={
+        <span className="inline-flex items-center gap-1.5">
+          <History className="size-4 text-slate-400" /> Received Earlier
+        </span>
+      }
+      actions={
+        <span className="text-sm text-slate-500">
+          <span className="num font-semibold text-brand-700">{qty(received)}</span> of <span className="num">{qty(ordered)}</span> received
+        </span>
+      }
+    >
+      <ul className="divide-y divide-slate-100">
+        {(po.grns ?? []).map((g) => (
+          <li key={g.id} className="px-4 py-2.5 text-sm">
+            <p className="flex flex-wrap items-baseline justify-between gap-x-3">
+              {canBrowse ? (
+                <Link href={`/goods-inward/${g.id}`} className="font-medium text-brand-700 hover:underline">
+                  {g.grnNo}
+                </Link>
+              ) : (
+                <span className="font-medium text-slate-800">{g.grnNo}</span>
+              )}
+              <span className="text-xs text-slate-500">
+                {date(g.receivedAt)}
+                {g.receivedBy && ` · ${g.receivedBy.name}`}
+              </span>
+            </p>
+            <ul className="mt-1 space-y-0.5">
+              {(g.items ?? [])
+                .filter((gi) => n(gi.passedQty) > 0)
+                .map((gi, k) => {
+                  const line = byId.get(gi.poItemId);
+                  return (
+                    <li key={k} className="flex justify-between gap-3 text-xs text-slate-600">
+                      <span className="min-w-0 truncate">
+                        {line?.product.name ?? "—"}
+                        {gi.batchNo && <span className="font-mono text-slate-500"> · {gi.batchNo}</span>}
+                        {gi.expiryDate && <span className="text-slate-500"> · Exp {date(gi.expiryDate)}</span>}
+                      </span>
+                      <span className="num shrink-0 font-medium text-slate-800">
+                        {qty(gi.passedQty)} {line?.product.unit}
+                      </span>
+                    </li>
+                  );
+                })}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 

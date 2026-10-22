@@ -375,7 +375,7 @@ function LowStockTab({
       title="Products at or Below Reorder Level"
       bodyClassName="p-0"
       actions={
-        can("purchases.manage") && (
+        can("po.create") && (
           <Link href="/purchase-orders/new">
             <Button size="sm" icon={<ClipboardList className="size-4" />}>
               Create PO

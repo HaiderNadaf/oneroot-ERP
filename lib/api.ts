@@ -72,17 +72,31 @@ interface SendOptions {
   branchId?: string | null;
 }
 
+/**
+ * Longest a request may take before the page gives up and shows an error instead of loading forever.
+ * The API drops a dead database connection after 25s and retries a read up to twice, so a read gets 90s;
+ * writes (imports, postings) get longer.
+ */
+const READ_TIMEOUT_MS = 90_000;
+const WRITE_TIMEOUT_MS = 180_000;
+
+class RequestTimeout extends Error {}
+
 async function send(method: string, path: string, body?: unknown, opts?: SendOptions) {
   const token = getToken();
   const branch = opts?.branchId ?? getBranch();
+  const ms = method === "GET" ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS;
   return fetch(API_URL + path, {
     method,
+    signal: AbortSignal.timeout(ms),
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(branch ? { "X-Branch-Id": branch } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
+  }).catch((e: unknown) => {
+    throw e instanceof DOMException && e.name === "TimeoutError" ? new RequestTimeout(`No answer from the server in ${ms / 1000}s`) : e;
   });
 }
 
@@ -96,6 +110,8 @@ async function request<T>(method: string, path: string, body?: unknown, opts?: S
       res = await send(method, path, body, opts);
     }
   } catch (e) {
+    // Already waited the full time: retrying would only make the page load for longer
+    if (e instanceof RequestTimeout) throw new ApiError(0, "The server is taking too long to answer — please try again");
     if (method !== "GET") throw new ApiError(0, "Network error — check your connection and try again");
     await new Promise((r) => setTimeout(r, 400));
     try {

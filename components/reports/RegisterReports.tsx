@@ -71,7 +71,7 @@ export function SalesRegisterReport({ range, rangeBar }: { range: Range; rangeBa
                   <tr key={s.id} className="hover:bg-slate-50">
                     <Td className="whitespace-nowrap">{date(s.saleDate)}</Td>
                     <Td className="whitespace-nowrap">
-                      <ReportLink href={`/sales/${s.id}`} perms={["sales.bill"]} className="font-medium text-brand-700 hover:underline">
+                      <ReportLink href={`/sales/${s.id}`} perms={["sales.view"]} className="font-medium text-brand-700 hover:underline">
                         {s.invoiceNo}
                       </ReportLink>
                     </Td>
@@ -175,7 +175,7 @@ export function PurchaseRegisterReport({ range, rangeBar }: { range: Range; rang
                   <tr key={p.id} className="hover:bg-slate-50">
                     <Td className="whitespace-nowrap">{date(p.purchaseDate)}</Td>
                     <Td className="whitespace-nowrap">
-                      <ReportLink href={`/purchases/${p.id}`} perms={["purchases.view"]} className="font-medium text-brand-700 hover:underline">
+                      <ReportLink href={`/purchases/${p.id}`} perms={["invoices.view"]} className="font-medium text-brand-700 hover:underline">
                         {p.purchaseNo}
                       </ReportLink>
                       {p.vendorInvoiceNo && <p className="text-xs text-slate-500">Bill {p.vendorInvoiceNo}</p>}

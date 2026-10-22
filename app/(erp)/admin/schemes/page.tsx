@@ -6,6 +6,7 @@ import { RequirePerm } from "@/components/AppShell";
 import { ProductPicker } from "@/components/pickers";
 import { ActionsTd, ActionsTh, Badge, Button, Card, Checkbox, DateInput, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, RowAction, Select, Table, Tabs, Td, Textarea, Th, cx, errMsg, useConfirm, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { date, inr, n, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { CustomerType, Product, Scheme, SchemeType } from "@/lib/types";
@@ -48,6 +49,7 @@ function describe(s: Scheme) {
 }
 
 function SchemesTab() {
+  const { can } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
   const [status, setStatus] = useState("all");
@@ -76,9 +78,11 @@ function SchemesTab() {
           <option value="">Switched On</option>
         </Select>
         <div className="flex-1" />
-        <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
-          New Scheme
-        </Button>
+        {can("schemes.create") && (
+          <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
+            New Scheme
+          </Button>
+        )}
       </div>
       <Card bodyClassName="p-0">
         <Table>
@@ -117,8 +121,8 @@ function SchemesTab() {
                     <Td right>{s._count?.saleItems ?? 0} lines</Td>
                     <Td>{!s.isActive ? <Badge>Off</Badge> : running ? <Badge tone="green">Running</Badge> : dayOf(s.from) > now ? <Badge tone="amber">Scheduled</Badge> : <Badge>Ended</Badge>}</Td>
                     <ActionsTd>
-                      <RowAction kind="edit" title={`Edit ${s.name}`} onClick={() => setEditing(s)} />
-                      <RowAction kind="delete" title={`Delete ${s.name}`} onClick={() => remove(s)} />
+                      {can("schemes.edit") && <RowAction kind="edit" title={`Edit ${s.name}`} onClick={() => setEditing(s)} />}
+                      {can("schemes.delete") && <RowAction kind="delete" title={`Delete ${s.name}`} onClick={() => remove(s)} />}
                     </ActionsTd>
                   </tr>
                 );
@@ -269,6 +273,7 @@ function SchemeForm({ scheme, onClose, onSaved }: { scheme: Scheme | null; onClo
 }
 
 function TypesTab() {
+  const { can } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
   const { data, error, loading, reload } = useApi<CustomerType[]>("/customer-types", { all: "true" });
@@ -289,9 +294,11 @@ function TypesTab() {
   return (
     <>
       <div className="mb-3 flex justify-end">
-        <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
-          New Customer Type
-        </Button>
+        {can("schemes.create") && (
+          <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
+            New Customer Type
+          </Button>
+        )}
       </div>
       <Card bodyClassName="p-0">
         <Table>
@@ -321,8 +328,8 @@ function TypesTab() {
                   <Td right>{t._count?.customers ?? 0}</Td>
                   <Td>{t.isActive ? <Badge tone="green">On</Badge> : <Badge>Off</Badge>}</Td>
                   <ActionsTd>
-                    <RowAction kind="edit" title={`Edit ${t.name}`} onClick={() => setEditing(t)} />
-                    <RowAction kind="delete" title={`Delete ${t.name}`} onClick={() => remove(t)} />
+                    {can("schemes.edit") && <RowAction kind="edit" title={`Edit ${t.name}`} onClick={() => setEditing(t)} />}
+                    {can("schemes.delete") && <RowAction kind="delete" title={`Delete ${t.name}`} onClick={() => remove(t)} />}
                   </ActionsTd>
                 </tr>
               ))

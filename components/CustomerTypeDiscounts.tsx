@@ -3,6 +3,7 @@
 import { Plus, Save } from "lucide-react";
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { n } from "@/lib/format";
 import { clearApiCache, useApi } from "@/lib/hooks";
 import type { CustomerType } from "@/lib/types";
@@ -22,6 +23,7 @@ const TYPE_LABEL: Record<string, string> = { FPO: "FPO (Farmer Producer Organisa
  * (after schemes); a bill without a customer uses the "Walk-in Customer" row.
  */
 export function CustomerTypeDiscounts() {
+  const { can } = useAuth();
   const toast = useToast();
   const { data, error, loading, reload } = useApi<CustomerType[]>("/customer-types", { all: "true" });
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -146,9 +148,11 @@ export function CustomerTypeDiscounts() {
                       <Checkbox label="" checked={d.isActive} onChange={(v) => set(t, { isActive: v })} />
                     </Td>
                     <Td right>
-                      <Button size="sm" icon={<Save className="size-4" />} disabled={!dirty(t)} loading={saving === t.id} onClick={() => save(t)}>
-                        Save
-                      </Button>
+                      {can("schemes.edit") && (
+                        <Button size="sm" icon={<Save className="size-4" />} disabled={!dirty(t)} loading={saving === t.id} onClick={() => save(t)}>
+                          Save
+                        </Button>
+                      )}
                     </Td>
                   </tr>
                 );
@@ -157,12 +161,14 @@ export function CustomerTypeDiscounts() {
           </tbody>
         </Table>
       )}
+      {can("schemes.create") && (
       <form onSubmit={add} className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-3">
         <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New customer type, e.g. Institution" className="h-9 w-72" />
         <Button type="submit" size="sm" variant="secondary" icon={<Plus className="size-4" />} loading={adding}>
           Add Type
         </Button>
       </form>
+      )}
     </Card>
   );
 }

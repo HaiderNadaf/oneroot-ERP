@@ -42,8 +42,8 @@ function partyOf(p: Payment, can: Can) {
 }
 
 function againstOf(p: Payment, can: Can) {
-  if (p.sale) return { label: p.sale.invoiceNo, href: can("sales.bill") ? `/sales/${p.sale.id}` : null };
-  if (p.purchase) return { label: p.purchase.purchaseNo, href: can("purchases.view") ? `/purchases/${p.purchase.id}` : null };
+  if (p.sale) return { label: p.sale.invoiceNo, href: can("sales.view") ? `/sales/${p.sale.id}` : null };
+  if (p.purchase) return { label: p.purchase.purchaseNo, href: can("invoices.view") ? `/purchases/${p.purchase.id}` : null };
   return null;
 }
 

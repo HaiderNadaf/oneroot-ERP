@@ -1028,14 +1028,14 @@ export default function PosPage() {
                 />
               )}
             </div>
-            {!customer && can("customers.view", "customers.manage") && (
+            {!customer && can("customers.view", "customers.create") && (
               <div className="flex items-center gap-2">
                 {can("customers.view") && (
                   <div className="min-w-0 flex-1">
                     <CustomerPicker value={null} onChange={pickCustomer} />
                   </div>
                 )}
-                {can("customers.manage") && (
+                {can("customers.create") && (
                   <Button variant="secondary" size="sm" className="h-9" icon={<UserPlus className="size-4" />} onClick={() => setQuickAdd(true)}>
                     New
                   </Button>
@@ -1091,7 +1091,7 @@ export default function PosPage() {
               placeholder="Agent (optional)"
               isSearch
               searchPlaceholder="Search name, agent ID or mobile…"
-              emptyText={can("vendors.manage") ? "No agents — add them under Agents" : "No agents yet"}
+              emptyText={can("vendors.create") ? "No agents — add them under Agents" : "No agents yet"}
               allowClear
               aria-label="Agent"
             />

@@ -442,7 +442,7 @@ export default function DashboardPage() {
   const k = data.kpis;
   const finance = can("reports.view");
   // What each part of the page needs (the API leaves out the rest)
-  const seeSales = can("sales.bill", "reports.view");
+  const seeSales = can("sales.view", "reports.view");
   const seeDues = can("customers.view", "reports.view");
   const seeStock = can("inventory.view");
   const seePurchasing = can("purchases.view");

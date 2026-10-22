@@ -36,7 +36,7 @@ import { useAuth } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { PERMISSIONS, defaultsFor, hasPerm, normalizePermissions, type Permission } from "@/lib/permissions";
-import { ROLES, type BuiltInRole, type Role, type RoleTemplate, type User } from "@/lib/types";
+import { ROLES, type BuiltInRole, type Department, type Role, type RoleTemplate, type User } from "@/lib/types";
 
 const ROLE_INFO: Record<Role, string> = {
   ADMIN: "Everything, always — including users, store settings and the audit log",
@@ -53,16 +53,6 @@ function rolePerms(role: Role, builtIns: BuiltInRole[]): Permission[] {
 
 const roleName = (r: Role) => r.charAt(0) + r.slice(1).toLowerCase();
 
-/** Custom roles grouped under their department, in the order the server sent them */
-function groupByDepartment(list: RoleTemplate[]): [string, RoleTemplate[]][] {
-  const map = new Map<string, RoleTemplate[]>();
-  for (const t of list) {
-    const key = t.department?.name ?? "No department";
-    map.set(key, [...(map.get(key) ?? []), t]);
-  }
-  return [...map.entries()];
-}
-
 export default function UsersPage() {
   return (
     <RequirePerm perms={["admin.users"]}>
@@ -76,6 +66,9 @@ function Users() {
   const { data, error, loading, reload } = useApi<User[]>("/users");
   const templates = useApi<RoleTemplate[]>("/roles/custom");
   const builtIns = useApi<BuiltInRole[]>("/roles/built-in");
+  const departments = useApi<Department[]>("/departments");
+  // "" = everyone, "none" = users on a built-in role, otherwise a department id
+  const [deptFilter, setDeptFilter] = useState("");
   const [editing, setEditing] = useState<User | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [roleForm, setRoleForm] = useState<{ template: RoleTemplate | null; departmentId: string | null } | null>(null);
@@ -85,6 +78,11 @@ function Users() {
     setFormOpen(true);
   };
 
+  const rows = (data ?? []).filter((u) => {
+    const dept = u.roleTemplate?.department?.id;
+    return !deptFilter || (deptFilter === "none" ? !dept : dept === deptFilter);
+  });
+
   return (
     <>
       <PageHeader
@@ -92,19 +90,32 @@ function Users() {
         subtitle="Staff who can sign in, what each of them may do, and which branch they work in"
         actions={
           <>
-            {can("admin.roles") && (
+            {can("roles.create") && (
               <Button variant="secondary" icon={<Plus className="size-4" />} onClick={() => setRoleForm({ template: null, departmentId: null })}>
                 New Role
               </Button>
             )}
-            <Button icon={<Plus className="size-4" />} onClick={() => open(null)}>
-              New User
-            </Button>
+            {can("users.create") && (
+              <Button icon={<Plus className="size-4" />} onClick={() => open(null)}>
+                New User
+              </Button>
+            )}
           </>
         }
       />
 
       <Card bodyClassName="p-0">
+        <div className="border-b border-slate-100 p-3">
+          <Select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="w-full sm:w-64" aria-label="Department">
+            <option value="">All Departments</option>
+            {(departments.data ?? []).map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name} ({d.code})
+              </option>
+            ))}
+            <option value="none">No Department</option>
+          </Select>
+        </div>
         {error ? (
           <div className="p-4">
             <ErrorBox message={error} onRetry={reload} />
@@ -114,6 +125,7 @@ function Users() {
             <thead>
               <tr>
                 <Th>Name</Th>
+                <Th>Department</Th>
                 <Th>Role</Th>
                 <Th>Access</Th>
                 <Th>Branch</Th>
@@ -125,11 +137,11 @@ function Users() {
             </thead>
             <tbody>
               {loading && !data ? (
-                <LoadingRow colSpan={8} />
-              ) : !data?.length ? (
-                <EmptyRow colSpan={8}>No users</EmptyRow>
+                <LoadingRow colSpan={9} />
+              ) : !rows.length ? (
+                <EmptyRow colSpan={9}>{deptFilter ? "No users in this department" : "No users"}</EmptyRow>
               ) : (
-                data.map((u) => (
+                rows.map((u) => (
                   <tr key={u.id} className={cx("hover:bg-slate-50", !u.isActive && "text-slate-400")}>
                     <Td>
                       <span className={cx("font-medium", u.isActive ? "text-slate-900" : "text-slate-500")}>{u.name}</span>
@@ -141,12 +153,20 @@ function Users() {
                       <p className="text-xs text-slate-500">{u.email}</p>
                     </Td>
                     <Td>
+                      {u.roleTemplate?.department ? (
+                        <>
+                          <span className="text-sm font-medium text-slate-800">{u.roleTemplate.department.name}</span>
+                          {u.roleTemplate.department.code && <p className="font-mono text-xs text-slate-500">{u.roleTemplate.department.code}</p>}
+                        </>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </Td>
+                    <Td>
                       {u.roleTemplate ? (
                         <>
                           <span className="text-sm font-medium text-slate-800">{u.roleTemplate.name}</span>
-                          <p className="text-xs text-slate-500">
-                            {u.roleTemplate.department?.name ?? "No department"}
-                          </p>
+                          <p className="text-xs text-slate-500">Limits of {roleName(u.roleTemplate.baseRole ?? u.role)}</p>
                         </>
                       ) : (
                         <StatusBadge status={u.role} />
@@ -170,7 +190,7 @@ function Users() {
                     <Td>{u.isActive ? <Badge tone="green">Active</Badge> : <Badge>Disabled</Badge>}</Td>
                     <ActionsTd>
                       {/* Only an administrator can edit an administrator */}
-                      {(isAdmin || u.role !== "ADMIN") && <RowAction kind="edit" title={`Edit ${u.name}`} onClick={() => open(u)} />}
+                      {can("users.edit") && (isAdmin || u.role !== "ADMIN") && <RowAction kind="edit" title={`Edit ${u.name}`} onClick={() => open(u)} />}
                     </ActionsTd>
                   </tr>
                 ))
@@ -182,7 +202,9 @@ function Users() {
 
       <DepartmentsPanel
         templates={templates.data ?? []}
-        canManage={can("admin.roles")}
+        canCreate={can("roles.create")}
+        canEdit={can("roles.edit")}
+        canDelete={can("roles.delete")}
         onNewRole={(departmentId) => setRoleForm({ template: null, departmentId })}
         onEditRole={(t) => setRoleForm({ template: t, departmentId: t.departmentId ?? null })}
         onChanged={() => void templates.reload()}
@@ -198,11 +220,10 @@ function Users() {
           ))}
         </dl>
         <p className="mt-4 border-t border-slate-100 pt-3 text-sm text-slate-600">
-          <b className="font-medium text-slate-800">Permissions:</b> the role decides what a user can open — the sidebar, the pages and the
-          API all follow it. Change a role in Roles &amp; Limits and everyone on it follows. For one person you can still tick extra
-          permissions or untick some; those stay with them when their role is edited, and picking another role clears them. Put roles inside a
-          department (Procurement, Sales, Warehouse...) so the right people find them; discount, refund and adjustment ceilings still come
-          from the limits chosen for each role (Roles &amp; Limits).
+          <b className="font-medium text-slate-800">Permissions:</b> every user gets a department and a role inside it, and that role alone
+          decides what they can open — the sidebar, the pages and the API all follow it. Edit a role and everyone on it follows; there are
+          no per-person extras. Administrators are the only users outside a department. Discount, refund and adjustment ceilings come from
+          the limits of the built-in role each role is based on (Roles &amp; Limits).
         </p>
         <p className="mt-2 text-sm text-slate-600">
           <b className="font-medium text-slate-800">Home branch:</b> staff with a home branch are locked to it — they only see and
@@ -241,98 +262,94 @@ function Users() {
   );
 }
 
-/** "Everything", "As per role" or the user's own extras / removals on top of their role */
+/** Access comes only from the user's department role: "Everything" for administrators, else how many permissions it gives */
 function AccessSummary({ user }: { user: User }) {
   if (user.role === "ADMIN") return <span className="text-xs text-slate-500">Everything</span>;
-  const extra = user.extraPermissions?.length ?? 0;
-  const removed = user.revokedPermissions?.length ?? 0;
-  const label = (keys: string[] = []) => keys.map((k) => PERMISSIONS.find((p) => p.key === k)?.label ?? k).join(" · ");
+  if (!user.roleTemplate) return <Badge tone="amber">Needs a Department Role</Badge>;
   return (
-    <span className="text-xs text-slate-500">
-      {!extra && !removed ? "As per role" : null}
-      {extra > 0 && (
-        <span title={label(user.extraPermissions)} className="mr-1">
-          <Badge tone="amber">+{extra} extra</Badge>
-        </span>
-      )}
-      {removed > 0 && (
-        <span title={label(user.revokedPermissions)} className="mr-1">
-          <Badge tone="red">−{removed} removed</Badge>
-        </span>
-      )}
-      <span className="num ml-1.5">
-        {normalizePermissions(user.permissions ?? []).length} of {PERMISSIONS.length}
-      </span>
+    <span className="num text-xs text-slate-500">
+      {normalizePermissions(user.permissions ?? []).length} of {PERMISSIONS.length} from role
     </span>
   );
 }
 
-/** Built-in roles plus the store's own roles, grouped by department; picking one fills in its ticks */
-function RolePicker({
+/**
+ * Department first, then one of the roles inside it: that role alone decides what the user may do.
+ * Administrator is the only access outside a department (only an administrator can give it).
+ */
+function DepartmentRolePicker({
   role,
   templateId,
+  departmentId,
   templates,
+  onDepartment,
   onPick,
   onNewRole,
   disabled,
 }: {
   role: Role;
   templateId: string | null;
+  /** "" = not chosen yet, "admin" = Administrator, otherwise a department id */
+  departmentId: string;
   templates: RoleTemplate[];
+  onDepartment: (departmentId: string) => void;
   onPick: (role: Role, template: RoleTemplate | null) => void;
   onNewRole?: () => void;
   disabled?: boolean;
 }) {
   const { isAdmin } = useAuth();
-  const card = (selected: boolean, off: boolean) =>
-    cx(
-      "rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-      selected ? "border-brand-500 bg-brand-50 ring-2 ring-brand-500/20" : "border-slate-200 hover:bg-slate-50",
-      off && "opacity-60",
-    );
+  const departments = useApi<Department[]>("/departments");
+  const inDepartment = templates.filter((t) => (t.departmentId ?? "") === departmentId);
+  const department = departments.data?.find((d) => d.id === departmentId);
+  const template = inDepartment.find((t) => t.id === templateId);
+  const inDept = !!departmentId && departmentId !== "admin";
   return (
-    <div className="space-y-2">
-      <div className="grid gap-2 sm:grid-cols-2">
-        {ROLES.map((r) => {
-          // Only an administrator can make another administrator
-          const off = disabled || (r === "ADMIN" && !isAdmin);
-          return (
-            <button key={r} type="button" disabled={off} onClick={() => onPick(r, null)} className={card(!templateId && role === r, false)}>
-              <p className="text-sm font-medium text-slate-800">{roleName(r)}</p>
-              <p className="text-xs text-slate-500">{ROLE_INFO[r]}</p>
-            </button>
-          );
-        })}
-      </div>
-      {templates.length > 0 && (
-        <div className="space-y-2">
-          {groupByDepartment(templates).map(([dept, list]) => (
-            <div key={dept}>
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{dept}</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {list.map((t) => (
-                  <button key={t.id} type="button" disabled={disabled} onClick={() => onPick(t.baseRole, t)} className={card(templateId === t.id, false)}>
-                    <p className="text-sm font-medium text-slate-800">{t.name}</p>
-                    <p className="text-xs text-slate-500">
-                      {t.description || `${t.permissions.length} Permissions`}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </div>
+    <div className="grid gap-3 sm:grid-cols-2">
+      <Field label="Department" required>
+        <Select value={departmentId} onChange={(e) => onDepartment(e.target.value)} disabled={disabled}>
+          <option value="">{departments.loading ? "Loading Departments…" : "Choose a Department"}</option>
+          {(departments.data ?? []).map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name} ({d.code})
+            </option>
           ))}
-        </div>
+          {/* Only an administrator can make another administrator */}
+          {(isAdmin || role === "ADMIN") && <option value="admin">None — Administrator (Full Access)</option>}
+        </Select>
+      </Field>
+      {inDept ? (
+        <Field label="Role" required hint={template?.description || (template ? `${template.permissions.length} permissions` : undefined)}>
+          <Select
+            value={templateId ?? ""}
+            onChange={(e) => {
+              const t = inDepartment.find((x) => x.id === e.target.value);
+              if (t) onPick(t.baseRole, t);
+            }}
+            disabled={disabled || !inDepartment.length}
+          >
+            <option value="">{inDepartment.length ? "Choose a Role" : "No Roles in This Department Yet"}</option>
+            {inDepartment.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : departmentId === "admin" ? (
+        <p className="self-end pb-2 text-xs text-slate-500">{ROLE_INFO.ADMIN}</p>
+      ) : (
+        <div className="hidden sm:block" />
       )}
-      {onNewRole && !disabled && (
+      {onNewRole && !disabled && inDept && (
         <button
           type="button"
           onClick={onNewRole}
-          className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-left text-sm font-medium text-brand-700 hover:bg-slate-50"
+          className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-left text-sm font-medium text-brand-700 hover:bg-slate-50 sm:col-span-2"
         >
           <span className="inline-flex items-center gap-1">
-            <Plus className="size-4" /> New Role…
+            <Plus className="size-4" /> New Role in {department?.name ?? "This Department"}…
           </span>
-          <p className="text-xs font-normal text-slate-500">Make a role inside a department, e.g. Procurement → Category head</p>
+          <p className="text-xs font-normal text-slate-500">e.g. Procurement → Category Head</p>
         </button>
       )}
     </div>
@@ -357,16 +374,14 @@ function UserForm({
   onSaved: () => void;
 }) {
   const toast = useToast();
-  const { user: me, can } = useAuth();
+  const { can } = useAuth();
   const editing = !!user;
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
   const [role, setRole] = useState<Role>(user?.role ?? "CASHIER");
   const [templateId, setTemplateId] = useState<string | null>(user?.roleTemplateId ?? null);
-  const [permissions, setPermissions] = useState<Permission[]>(() =>
-    user ? normalizePermissions(user.permissions ?? []) : rolePerms("CASHIER", builtIns).filter((k) => hasPerm(me, k)),
-  );
+  const [departmentId, setDepartmentId] = useState(user?.role === "ADMIN" ? "admin" : (user?.roleTemplate?.department?.id ?? ""));
   const [isActive, setIsActive] = useState(user?.isActive ?? true);
   const [branchId, setBranchId] = useState(user?.branchId ?? user?.branch?.id ?? "");
   const { branches, loading: branchesLoading } = useBranchOptions();
@@ -375,20 +390,29 @@ function UserForm({
   const [clearPin, setClearPin] = useState(false);
   const [saving, setSaving] = useState(false);
   const [newRole, setNewRole] = useState(false);
-  const approver = hasPerm({ role, permissions }, "approvals.decide");
+
   // Someone holding permissions you don't have keeps their role and ticks; only an administrator can change those
   const canGrantAll = useCanGrantAll();
   const outranks = !!user && !canGrantAll(user.permissions ?? []);
   const accessLocked = isSelf || outranks;
   const template = templateId ? (templates.find((t) => t.id === templateId) ?? null) : null;
-  // The role's own permissions: what the ticks are compared against (extra / removed)
-  const baseline = template ? normalizePermissions(template.permissions) : rolePerms(role, builtIns);
+  // Exactly the role's permissions — nothing is ticked per person
+  const permissions: Permission[] =
+    role === "ADMIN" ? [] : template ? normalizePermissions(template.permissions) : user && !departmentId ? rolePerms(role, builtIns) : [];
+  const approver = hasPerm({ role, permissions }, "approvals.decide");
 
-  // Picking a role (built-in or your own) starts again from that role's ticks
   const pick = (r: Role, t: RoleTemplate | null) => {
     setRole(r);
     setTemplateId(t?.id ?? null);
-    setPermissions(r === "ADMIN" ? [] : (t ? normalizePermissions(t.permissions) : rolePerms(r, builtIns)).filter((k) => hasPerm(me, k)));
+  };
+
+  // Another department: its role must be chosen again (picked straight away when it has only one)
+  const changeDepartment = (id: string) => {
+    setDepartmentId(id);
+    const inDepartment = templates.filter((t) => t.departmentId === id);
+    if (id === "admin") pick("ADMIN", null);
+    else if (inDepartment.length === 1) pick(inDepartment[0].baseRole, inDepartment[0]);
+    else setTemplateId(null);
   };
 
   async function save(e: React.FormEvent) {
@@ -396,10 +420,11 @@ function UserForm({
     if (password && password.length < 6) return toast.error("Password must be at least 6 characters");
     if (!editing && !password) return toast.error("Set a password for the new user");
     if (pin && !/^\d{4,6}$/.test(pin)) return toast.error("Approval PIN must be 4 to 6 digits");
-    if (role !== "ADMIN" && !permissions.length) return toast.error("Tick at least one permission, or disable the account instead");
+    if (!departmentId) return toast.error("Choose the user's department");
+    if (departmentId !== "admin" && !templateId) return toast.error("Choose the user's role in the department");
     setSaving(true);
     try {
-      const access = { role, roleTemplateId: role === "ADMIN" ? null : templateId, permissions: role === "ADMIN" ? [] : permissions };
+      const access = { role, roleTemplateId: role === "ADMIN" ? null : templateId };
       if (editing) {
         const body: Record<string, unknown> = { name: name.trim(), phone: phone.trim(), branchId };
         if (!isSelf) Object.assign(body, outranks ? {} : access, { isActive });
@@ -456,27 +481,29 @@ function UserForm({
           <Input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} required={!editing} />
         </Field>
         <div className="sm:col-span-2">
-          <span className="mb-1 block text-xs font-medium text-slate-600">Role</span>
-          <RolePicker role={role} templateId={templateId} templates={templates} onPick={pick} onNewRole={can("admin.roles") ? () => setNewRole(true) : undefined} disabled={accessLocked} />
+          <DepartmentRolePicker
+            role={role}
+            templateId={templateId}
+            departmentId={departmentId}
+            templates={templates}
+            onDepartment={changeDepartment}
+            onPick={pick}
+            onNewRole={can("roles.create") ? () => setNewRole(true) : undefined}
+            disabled={accessLocked}
+          />
           {isSelf ? (
             <p className="mt-1 text-xs text-slate-400">You can&apos;t change your own role, permissions or disable your own account.</p>
           ) : outranks ? (
-            <p className="mt-1 text-xs text-slate-400">This person has permissions you don&apos;t hold, so only an administrator can change their role or permissions.</p>
+            <p className="mt-1 text-xs text-slate-400">This person has permissions you don&apos;t hold, so only an administrator can change their role.</p>
           ) : (
             <p className="mt-1 text-xs text-slate-400">
-              The role decides the access. Tick extra or untick for this person only — marked below, and kept when the role is edited.
+              The department role alone decides what this person may do. To change their access, edit the role or give them another one.
             </p>
           )}
         </div>
-        <PermissionPicker
-          value={permissions}
-          onChange={setPermissions}
-          defaults={baseline}
-          resetLabel={`Reset to ${template ? template.name : roleName(role)} Role`}
-          disabled={accessLocked}
-          admin={role === "ADMIN"}
-          showRemoved
-        />
+        {(role === "ADMIN" || template) && (
+          <PermissionPicker value={permissions} onChange={() => {}} defaults={permissions} disabled admin={role === "ADMIN"} />
+        )}
         <Field
           label="Home Branch"
           className="sm:col-span-2"
@@ -524,10 +551,12 @@ function UserForm({
       {newRole && (
         <RoleTemplateForm
           template={null}
+          initialDepartmentId={departmentId || null}
           onClose={() => setNewRole(false)}
           onSaved={(t) => {
             setNewRole(false);
             onTemplatesChanged();
+            setDepartmentId(t.departmentId ?? "");
             pick(t.baseRole, t);
           }}
         />

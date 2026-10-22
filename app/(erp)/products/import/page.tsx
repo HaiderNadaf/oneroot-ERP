@@ -49,7 +49,7 @@ const norm = (s: string) => s.trim().toLowerCase().replace(/[\s_-]+/g, " ");
 
 export default function ImportPage() {
   return (
-    <RequirePerm perms={["products.manage"]}>
+    <RequirePerm perms={["products.create"]}>
       <Importer />
     </RequirePerm>
   );

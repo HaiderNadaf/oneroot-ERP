@@ -34,7 +34,7 @@ import type { Paged, Purchase, Vendor } from "@/lib/types";
 
 export default function PurchasesPage() {
   return (
-    <RequirePerm perms={["purchases.view"]}>
+    <RequirePerm perms={["invoices.view"]}>
       <Purchases />
     </RequirePerm>
   );
@@ -44,7 +44,7 @@ function Purchases() {
   const router = useRouter();
   const toast = useToast();
   const { can } = useAuth();
-  const canBook = can("purchases.manage");
+  const canBook = can("invoices.create");
   const canVendors = can("vendors.view");
   const [search, setSearch] = useState("");
   const [vendor, setVendor] = useState<Vendor | null>(null);

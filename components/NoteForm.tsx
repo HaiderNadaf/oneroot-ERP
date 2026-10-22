@@ -85,7 +85,12 @@ export const noteTypeName = (t: NoteType) => (t === "DEBIT" ? "debit note" : "cr
 export const postLabel = (t: NoteType) => (t === "DEBIT" ? "Send to vendor" : "Accept & apply");
 
 /** Goods rejected at inward were never billed, so posting their note doesn't change the payable */
-export const reducesPayable = (reasonType: NoteReason) => reasonType !== "REJECTED_AT_INWARD";
+/**
+ * Whether posting the note changes stock or the vendor balance. Notes goods inward raises on its own (rejected or
+ * short-supplied goods) are only a record for the vendor: those goods were never billed.
+ */
+export const reducesPayable = (d: { reasonType: NoteReason; affectsStock?: boolean; affectsBalance?: boolean }) =>
+  d.affectsStock !== undefined || d.affectsBalance !== undefined ? !!(d.affectsStock || d.affectsBalance) : d.reasonType !== "REJECTED_AT_INWARD";
 
 export function ReasonBadge({ reason }: { reason: NoteReason }) {
   return <Badge tone={REASON_TONE[reason] ?? "slate"}>{NOTE_REASON_LABEL[reason] ?? reason}</Badge>;

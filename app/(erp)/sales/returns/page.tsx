@@ -59,7 +59,7 @@ export default function SaleReturnsPage() {
           <DateInput value={from} max={to || undefined} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="From date" />
           <span className="text-xs text-slate-400">to</span>
           <DateInput value={to} min={from || undefined} onChange={(e) => (setTo(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="To date" />
-          {can("sales.bill") && (
+          {can("sales.returns") && (
             <p className="ml-auto text-xs text-slate-500">
               Returns are created from an invoice&apos;s <span className="font-medium">Return items</span> button.
             </p>
@@ -95,7 +95,7 @@ export default function SaleReturnsPage() {
                       <p className="text-xs text-slate-500">{date(r.returnDate)}</p>
                     </Td>
                     <Td>
-                      {can("sales.bill") ? (
+                      {can("sales.view") ? (
                         <Link href={`/sales/${r.saleId}`} className="font-medium text-brand-700 hover:underline">
                           {r.sale?.invoiceNo ?? "View Invoice"}
                         </Link>

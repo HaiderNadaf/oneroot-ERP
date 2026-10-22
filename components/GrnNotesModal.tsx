@@ -4,6 +4,7 @@ import { ExternalLink, ReceiptText, Send, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { date, inr, n, qty, round2 } from "@/lib/format";
 import { NOTE_REASON_LABEL, type DebitNote, type GrnItem } from "@/lib/types";
 import { NoteStatusBadge, NoteTypeBadge } from "./NoteForm";
@@ -55,6 +56,7 @@ export function GrnNotesModal({
   const box = useRef<HTMLDivElement>(null);
   const toast = useToast();
   const confirm = useConfirm();
+  const { user } = useAuth();
   const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => {
     if (!open || !focusId) return;
@@ -157,9 +159,12 @@ export function GrnNotesModal({
                     </p>
                     {canManage && d.status === "DRAFT" && d.noteType === "DEBIT" && d.affectsStock && (
                       <div className="mt-1.5 flex justify-end gap-1.5">
-                        <Button size="sm" variant="secondary" onClick={() => cancel(d)} disabled={!!busy}>
-                          Cancel
-                        </Button>
+                        {/* Only whoever raised the note can cancel it */}
+                        {(!d.userId || d.userId === user?.id) && (
+                          <Button size="sm" variant="secondary" onClick={() => cancel(d)} disabled={!!busy}>
+                            Cancel
+                          </Button>
+                        )}
                         <Button size="sm" icon={<Send className="size-3.5" />} onClick={() => send(d)} loading={busy === d.id}>
                           Send to vendor
                         </Button>

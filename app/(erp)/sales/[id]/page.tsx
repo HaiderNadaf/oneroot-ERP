@@ -1,10 +1,11 @@
 "use client";
 
-import { ArrowLeft, Ban, IndianRupee, Plus, Printer, Undo2 } from "lucide-react";
+import { ArrowLeft, Ban, FileText, IndianRupee, Plus, Printer, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApprovalGate, approvalNeeded, type ApprovalNeed } from "@/components/ApprovalGate";
+import { LazyReturnTermsModal } from "@/components/lazy";
 import { PrintPortal } from "@/components/PrintPortal";
 import { SaleInvoice } from "@/components/SaleInvoice";
 import { ThermalReceipt, receiptFromSale } from "@/components/ThermalReceipt";
@@ -109,11 +110,13 @@ export default function SaleDetailPage() {
         }
         actions={
           <>
-            <Link href="/sales">
-              <Button variant="ghost" icon={<ArrowLeft className="size-4" />}>
-                Invoices
-              </Button>
-            </Link>
+            {can("sales.view") && (
+              <Link href="/sales">
+                <Button variant="ghost" icon={<ArrowLeft className="size-4" />}>
+                  Invoices
+                </Button>
+              </Link>
+            )}
             <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => print()}>
               {mode === "thermal" ? "Print Receipt" : "Print Invoice"}
             </Button>
@@ -142,9 +145,11 @@ export default function SaleDetailPage() {
                 Cancel Invoice
               </Button>
             )}
-            <Link href="/sales/new">
-              <Button icon={<Plus className="size-4" />}>New Sale</Button>
-            </Link>
+            {can("sales.bill") && (
+              <Link href="/sales/new">
+                <Button icon={<Plus className="size-4" />}>New Sale</Button>
+              </Link>
+            )}
           </>
         }
       />
@@ -405,6 +410,7 @@ function ReturnBody({ open, sale, onClose, onSaved }: ReturnProps) {
   const [govtRef, setGovtRef] = useState("");
   const [saving, setSaving] = useState(false);
   const [need, setNeed] = useState<ApprovalNeed | null>(null);
+  const [termsOpen, setTermsOpen] = useState(false);
   const items = useMemo(
     () => (sale.items ?? []).map((i) => ({ ...i, left: round2(n(i.quantity) - n(i.returnedQty)) })).filter((i) => i.left > 0),
     [sale.items],
@@ -523,11 +529,23 @@ function ReturnBody({ open, sale, onClose, onSaved }: ReturnProps) {
             </Field>
           )}
         </div>
-        <p className="text-right text-sm text-slate-600">
-          Refund amount: <span className="num text-base font-semibold text-slate-900">{inr(refund)}</span>
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setTermsOpen(true)}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-800 hover:underline"
+          >
+            <FileText className="size-4" />
+            Terms & Conditions
+            <span className="text-red-500">*</span>
+          </button>
+          <p className="text-sm text-slate-600">
+            Refund amount: <span className="num text-base font-semibold text-slate-900">{inr(refund)}</span>
+          </p>
+        </div>
       </form>
     </Modal>
+    <LazyReturnTermsModal open={termsOpen} onClose={() => setTermsOpen(false)} />
     <ApprovalGate
       need={need}
       onClose={() => setNeed(null)}

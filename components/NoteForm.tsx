@@ -24,6 +24,7 @@ import {
 import { BranchBadge, BranchNotice } from "./BranchNotice";
 import { ProductPicker, VendorPicker } from "./pickers";
 import { Badge, Button, DateInput, Field, InfinityLoader, Input, Modal, Select, StatusBadge, Table, Td, Th, cx, errMsg, useToast } from "./ui";
+import { PendingFiles, uploadAttachments } from "./Attachments";
 
 // ───────────────────────── Shared note helpers ─────────────────────────
 
@@ -174,6 +175,8 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
   const [moneyLines, setMoneyLines] = useState<MoneyLine[]>(() => [blankMoneyLine()]);
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Vendor's note, photos of damaged stock… uploaded right after the note is saved
+  const [files, setFiles] = useState<File[]>([]);
 
   const isReturn = isDebit && reasonType === "RETURN";
   // Returned goods leave the stock of one branch — "All branches" can't send stock back
@@ -392,6 +395,12 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
           ? `Debit note ${note.dnNo} drafted — send it to the vendor to apply it`
           : `Credit note ${note.dnNo} recorded as a draft — accept & apply it to reduce the payable`,
       );
+      if (files.length) {
+        await uploadAttachments("NOTE", note.id, files).then(
+          (saved) => toast.success(`${saved.length} file${saved.length === 1 ? "" : "s"} attached to ${note.dnNo}`),
+          (e) => toast.warn(`${note.dnNo} saved, but the files were not attached: ${errMsg(e)}. Add them from the note.`),
+        );
+      }
       onSaved(note);
     } catch (e) {
       toast.error(errMsg(e));
@@ -805,6 +814,12 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
           {invoiceLabel ? `, settling the balance due on ${invoiceLabel} first` : ""}.
           {!isReturn && " Stock does not change."}
         </p>
+
+        <div>
+          <p className="mb-1 text-xs font-medium text-slate-600">Attachments</p>
+          <PendingFiles files={files} onChange={setFiles} />
+          <p className="mt-1 text-xs text-slate-400">Optional — the vendor&apos;s note, photos, e-mails…</p>
+        </div>
       </div>
     </Modal>
   );

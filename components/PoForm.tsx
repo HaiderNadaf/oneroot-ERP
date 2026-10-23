@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, FileText, ListPlus, Lock, PackagePlus, Route, Send, Save, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useBranchOptions } from "@/components/BranchNotice";
@@ -14,9 +15,10 @@ import { CHARGES_GST_RATE, gstSlabs, halfRate, placeOfSupply } from "@/lib/gst";
 import { date, inr, inr0, n, qty, round2, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { GST_RATES } from "@/lib/types";
-import type { ApprovalConfig, Product, PurchaseOrder, StoreSettings, Vendor } from "@/lib/types";
+import type { ApprovalConfig, Product, PurchaseOrder, StoreSettings, Vendor, VendorProductLink } from "@/lib/types";
 import { LazyPoTermsModal } from "@/components/lazy";
 import { PoPriceHistory } from "@/components/PoPriceHistory";
+import { Attachments, PendingFiles, uploadAttachments } from "@/components/Attachments";
 
 interface LowStockRow {
   id: string;
@@ -120,10 +122,16 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
   const showBranch = branchOptions.length > 1 || !branchId;
   const [saving, setSaving] = useState<"draft" | "submit" | null>(null);
   const [loadingLow, setLoadingLow] = useState(false);
+  // Files picked for a new PO; uploaded once it is saved
+  const [files, setFiles] = useState<File[]>([]);
   const [preloading, setPreloading] = useState(!po && !!presetVendorId);
 
   const { data: store } = useApi<StoreSettings>("/settings");
   const { data: rules, error: rulesError } = useApi<ApprovalConfig>("/approval-rules");
+  // Products the chosen vendor supplies: the item search only offers these
+  const { data: vendorProducts, loading: vendorProductsLoading } = useApi<VendorProductLink[]>(vendor ? `/vendors/${vendor.id}/products` : null);
+  const supplied = vendorProducts ? new Set(vendorProducts.map((p) => p.id)) : null;
+  const notSupplied = supplied ? lines.filter((l) => !supplied.has(l.productId)) : [];
 
   useEffect(() => {
     if (po || !presetVendorId) return;
@@ -165,13 +173,15 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
   }
 
   async function addLowStock() {
+    if (!vendor || !supplied) return toast.error("Choose the vendor first");
     setLoadingLow(true);
     try {
-      const low = await api.get<LowStockRow[]>("/inventory/low-stock");
+      // Only the low-stock products this vendor supplies
+      const low = (await api.get<LowStockRow[]>("/inventory/low-stock")).filter((r) => supplied.has(r.id));
       const have = new Set(lines.map((l) => l.productId));
       const todo = low.filter((r) => !have.has(r.id));
       if (!todo.length) {
-        toast.success(low.length ? "All low-stock items are already on this order" : "No products are below their reorder level");
+        toast.success(low.length ? "All low-stock items are already on this order" : `No products ${vendor.name} supplies are below their reorder level`);
         return;
       }
       setLines((ls) => [
@@ -229,6 +239,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
     if (!vendor) return toast.error("Choose the vendor");
     if (!branchId) return toast.error("Choose the branch the goods are delivered to");
     if (!lines.length) return toast.error("Add at least one product");
+    if (notSupplied.length) return toast.error(`${vendor.name} doesn't supply ${notSupplied.map((l) => l.name).join(", ")} — remove it or choose another vendor`);
     for (const l of lines) {
       if (!(Number(l.quantity) > 0)) return toast.error(`Enter a quantity for ${l.name}`);
       if (!(Number(l.rate) > 0)) return toast.error(`Enter the rate for ${l.name}`);
@@ -272,6 +283,12 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
             ? `${saved.poNo} saved — still approved`
             : `${saved.poNo} saved as draft`,
       );
+      if (files.length) {
+        await uploadAttachments("PO", saved.id, files).then(
+          (done) => toast.success(`${done.length} file${done.length === 1 ? "" : "s"} attached to ${saved.poNo}`),
+          (e) => toast.warn(`${saved.poNo} saved, but the files were not attached: ${errMsg(e)}. Add them from the PO page.`),
+        );
+      }
       refresh();
       router.push(`/purchase-orders/${saved.id}`);
     } catch (e) {
@@ -375,14 +392,37 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
         title={`Items${lines.length ? ` (${lines.length})` : ""}`}
         actions={
           can("inventory.view") && (
-            <Button variant="secondary" size="sm" icon={<ListPlus className="size-4" />} onClick={addLowStock} loading={loadingLow}>
+            <Button variant="secondary" size="sm" icon={<ListPlus className="size-4" />} onClick={addLowStock} loading={loadingLow} disabled={!supplied}>
               Add Low-Stock Items
             </Button>
           )
         }
       >
         <div className="border-b border-slate-100 p-3">
-          <ProductPicker onPick={addProduct} />
+          {!vendor ? (
+            <p className="flex h-9 items-center rounded-lg border border-dashed border-slate-300 px-3 text-sm text-slate-500">
+              Choose the vendor first — the item list shows only the products that vendor supplies
+            </p>
+          ) : (
+            // Remounted per vendor so a search typed for one vendor isn't kept for the next
+            <ProductPicker key={vendor.id} vendorId={vendor.id} onPick={addProduct} placeholder={`Search products ${vendor.name} supplies…`} />
+          )}
+          {vendor && supplied && supplied.size === 0 && !vendorProductsLoading && (
+            <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                No products are linked to {vendor.name} yet.{" "}
+                {can("vendors.edit") ? (
+                  <Link href={`/vendors/${vendor.id}`} className="font-medium underline">
+                    Link the products they supply
+                  </Link>
+                ) : (
+                  "Ask someone who can edit vendors to link the products they supply"
+                )}{" "}
+                to raise a PO for them.
+              </span>
+            </p>
+          )}
         </div>
         <Table>
           <thead>
@@ -412,6 +452,9 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
                 <tr key={l.key}>
                   <Td className="min-w-44 sm:min-w-56">
                     <p className="font-medium text-slate-900">{l.name}</p>
+                    {supplied && !supplied.has(l.productId) && (
+                      <p className="text-[11px] font-medium text-red-600">Not supplied by {vendor?.name ?? "this vendor"} — remove it</p>
+                    )}
                   </Td>
                   <Td className="whitespace-nowrap">
                     <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-medium text-slate-800">{l.sku}</span>
@@ -542,6 +585,13 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
             </button>
             <LazyPoTermsModal open={termsOpen} onClose={() => setTermsOpen(false)} />
           </Card>
+          {po ? (
+            <Attachments type="PO" entityId={po.id} canManage />
+          ) : (
+            <Card title="Attachments">
+              <PendingFiles files={files} onChange={setFiles} />
+            </Card>
+          )}
         </div>
 
         <Card className="h-fit lg:sticky lg:top-4">

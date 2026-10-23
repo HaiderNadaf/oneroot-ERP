@@ -540,6 +540,8 @@ export interface Vendor {
   city?: string | null;
   state?: string | null;
   pincode?: string | null;
+  billingAddress?: string | null;
+  shippingAddress?: string | null;
   bankName?: string | null;
   bankAccount?: string | null;
   ifsc?: string | null;
@@ -869,6 +871,8 @@ export interface GrnItem {
   rate: Dec; // PO rate excl. GST
   product: { name: string; sku: string; unit: string; hsnCode?: string | null; barcode?: string | null; mrp?: Dec; salePrice?: Dec; packSize?: string | null };
   poItem: { rate: Dec; gstRate: Dec; quantity: Dec; discountPct?: Dec };
+  /** Serial-numbered units that came in on this row (its batch); sent with a single GRN */
+  serials?: { serialNo: string; status: "IN_STOCK" | "SOLD" }[];
 }
 
 export interface Grn {
@@ -882,6 +886,8 @@ export interface Grn {
   receivedBy?: { name: string } | null;
   /** Branch the goods were received into */
   branchId?: string | null;
+  /** detail only */
+  branch?: (BranchRef & { address?: string | null; city?: string | null }) | null;
   vehicleNo?: string | null;
   /** Number on the supplier's invoice / challan that came with the goods */
   supplierInvoiceNo?: string | null;
@@ -934,7 +940,18 @@ export interface DebitNote {
   noteType: NoteType;
   reasonType: NoteReason;
   vendorId: string;
-  vendor: { id: string; code?: string; name: string; gstin?: string | null; state?: string | null; address?: string | null; city?: string | null };
+  vendor: {
+    id: string;
+    code?: string;
+    name: string;
+    gstin?: string | null;
+    state?: string | null;
+    address?: string | null;
+    city?: string | null;
+    pincode?: string | null;
+    billingAddress?: string | null;
+    shippingAddress?: string | null;
+  };
   grn?: { id: string; grnNo: string } | null;
   purchaseId?: string | null;
   purchase?: { id: string; purchaseNo: string; vendorInvoiceNo?: string | null } | null;
@@ -1043,6 +1060,14 @@ export interface AuditLog {
   details?: unknown;
   createdAt: string;
   user?: { name: string; email: string } | null;
+  /** The browser's own id (X-Device-Id); null for older entries and background jobs */
+  deviceId?: string | null;
+  /** e.g. "Samsung SM-A146B · Android 14 · Chrome 141", worked out by the server */
+  deviceName?: string | null;
+  /** Name an admin gave this device, e.g. "Front Counter PC" */
+  deviceLabel?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
 }
 
 // ───────────────────────── Accounting ─────────────────────────
@@ -1269,4 +1294,139 @@ export interface Agent {
   createdAt: string;
   deletedAt?: string | null;
   deletedById?: string | null;
+  /** Completed bills under this agent (in the list's branch and date range) */
+  sales?: { count: number; total: number };
 }
+
+/** A bill made under an agent, as the agent's sales list shows it */
+export interface AgentSale {
+  id: string;
+  invoiceNo: string;
+  saleDate: string;
+  customerName?: string | null;
+  customer?: { id: string; name: string; phone?: string | null } | null;
+  totalAmount: Dec;
+  paidAmount: Dec;
+  paymentMode: string;
+  paymentStatus: string;
+  status: string;
+  branch?: { code: string; name: string } | null;
+  _count?: { items: number };
+}
+
+/** What a file can be attached to */
+export type AttachmentEntity = "PO" | "GRN" | "NOTE";
+
+/** A file attached to a PO, GRN or debit / credit note */
+export interface Attachment {
+  id: string;
+  entityType: AttachmentEntity;
+  entityId: string;
+  fileName: string;
+  mimeType: string;
+  /** Bytes */
+  size: number;
+  uploadedBy?: { id: string; name: string } | null;
+  createdAt: string;
+}
+
+/** A product linked to a vendor (products the vendor supplies) */
+export interface VendorProductLink {
+  id: string;
+  name: string;
+  sku: string;
+  brand?: string | null;
+  packSize?: string | null;
+  unit: string;
+  purchasePrice: Dec;
+  isActive: boolean;
+  linkedAt: string;
+}
+
+export type QuotationStatus = "OPEN" | "ACCEPTED" | "REJECTED" | "CANCELLED";
+
+export interface QuotationItem {
+  id: string;
+  productId: string;
+  productName: string;
+  hsnCode?: string | null;
+  unit: string;
+  quantity: Dec;
+  /** GST-inclusive price per unit, as on a sale */
+  rate: Dec;
+  discountPct: Dec;
+  gstRate: Dec;
+  taxableAmount: Dec;
+  taxAmount: Dec;
+  amount: Dec;
+  product?: { sku: string; technicalName?: string | null; packSize?: string | null; stock?: Dec };
+}
+
+/** Price quote for a customer, laid out like a tax invoice; moves no stock and no money */
+export interface Quotation {
+  id: string;
+  /** QTN/26-27/00001 */
+  quotationNo: string;
+  branchId?: string | null;
+  /** Registered customer the details were filled from, if any */
+  customerId?: string | null;
+  customerName: string;
+  customerPhone?: string | null;
+  customerEmail?: string | null;
+  customerGstin?: string | null;
+  customerAddress?: string | null;
+  customerCity?: string | null;
+  customerState?: string | null;
+  customerPincode?: string | null;
+  quotationDate: string;
+  validUntil?: string | null;
+  subtotal: Dec;
+  discount: Dec;
+  taxAmount: Dec;
+  cgst: Dec;
+  sgst: Dec;
+  igst: Dec;
+  roundOff: Dec;
+  totalAmount: Dec;
+  isInterState: boolean;
+  status: QuotationStatus;
+  notes?: string | null;
+  terms?: string | null;
+  items?: QuotationItem[];
+  user?: { name: string } | null;
+  createdAt: string;
+  _count?: { items: number };
+}
+
+export type PettyCashType = "TOP_UP" | "SPEND";
+
+/** One movement in a branch's petty-cash fund: a top-up into it or a spend (voucher) out of it */
+export interface PettyCashEntry {
+  id: string;
+  /** PCT/… for top-ups, PCV/… for spend vouchers */
+  voucherNo: string;
+  type: PettyCashType;
+  branchId: string;
+  branch?: { id: string; code: string; name: string } | null;
+  amount: Dec;
+  entryDate: string;
+  /** Top-up: where the money came from */
+  sourceMode?: PaymentMode | null;
+  categoryId?: string | null;
+  category?: { id: string; name: string } | null;
+  paidTo?: string | null;
+  billNo?: string | null;
+  notes?: string | null;
+  user?: { name: string } | null;
+  createdAt: string;
+}
+
+export interface PettyCashSummary {
+  /** Fund balance now (all time), for the branch or all branches */
+  balance: number;
+  /** Within the filters */
+  toppedUp: number;
+  spent: number;
+  vouchers: number;
+}
+

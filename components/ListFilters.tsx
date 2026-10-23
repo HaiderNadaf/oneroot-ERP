@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { useApi } from "@/lib/hooks";
-import { Button, DateInput, Dropdown, Select } from "./ui";
+import { Button, DateInput, Dropdown, Field, Select } from "./ui";
 
 /** Filters shared by the PO, GRN and debit / credit note lists; empty strings mean "all" */
 export interface ListFilterValue {
@@ -44,53 +44,62 @@ export function ListFilters({
   const set = (patch: Partial<ListFilterValue>) => onChange({ ...value, ...patch });
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="flex w-full items-center gap-1.5 sm:w-auto">
-        <DateInput
-          value={value.from}
-          max={value.to || undefined}
-          onChange={(e) => set({ from: e.target.value })}
-          className="min-w-0 flex-1 sm:w-38 sm:flex-none"
-          aria-label="From date"
-        />
-        <span className="text-xs text-slate-400">to</span>
-        <DateInput
-          value={value.to}
-          min={value.from || undefined}
-          onChange={(e) => set({ to: e.target.value })}
-          className="min-w-0 flex-1 sm:w-38 sm:flex-none"
-          aria-label="To date"
-        />
+    <div className="flex flex-wrap items-end gap-2">
+      <div className="w-full sm:w-auto">
+        <span className="mb-1 block text-xs font-medium text-slate-600">From / To Date</span>
+        <div className="flex items-center gap-1.5">
+          <DateInput
+            value={value.from}
+            max={value.to || undefined}
+            onChange={(e) => set({ from: e.target.value })}
+            className="min-w-0 flex-1 sm:w-38 sm:flex-none"
+            aria-label="From date"
+          />
+          <span className="text-xs text-slate-400">to</span>
+          <DateInput
+            value={value.to}
+            min={value.from || undefined}
+            onChange={(e) => set({ to: e.target.value })}
+            className="min-w-0 flex-1 sm:w-38 sm:flex-none"
+            aria-label="To date"
+          />
+        </div>
       </div>
-      <Select value={value.vendorId} onChange={(e) => set({ vendorId: e.target.value })} className="w-full sm:w-52" aria-label="Vendor" isSearch>
-        <option value="">All Vendors</option>
-        {data?.vendors.map((v) => (
-          <option key={v.id} value={v.id}>
-            {v.name}
-          </option>
-        ))}
-      </Select>
-      <Select value={value.userId} onChange={(e) => set({ userId: e.target.value })} className="w-full sm:w-44" aria-label={userLabel}>
-        <option value="">{userLabel}: Anyone</option>
-        {data?.users.map((u) => (
-          <option key={u.id} value={u.id}>
-            {u.name}
-          </option>
-        ))}
-      </Select>
-      <Dropdown
-        value={value.productId}
-        onChange={(productId) => set({ productId })}
-        options={[
-          { value: "", label: "All Products" },
-          ...(data?.products ?? []).map((p) => ({ value: p.id, label: p.name, detail: p.sku })),
-        ]}
-        placeholder="All Products"
-        isSearch
-        searchPlaceholder="Search name or SKU…"
-        className="w-full sm:w-56"
-        aria-label="Product"
-      />
+      <Field label="Vendor" className="w-full sm:w-52">
+        <Select value={value.vendorId} onChange={(e) => set({ vendorId: e.target.value })} className="w-full" aria-label="Vendor" isSearch>
+          <option value="">All Vendors</option>
+          {data?.vendors.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label={userLabel} className="w-full sm:w-44">
+        <Select value={value.userId} onChange={(e) => set({ userId: e.target.value })} className="w-full" aria-label={userLabel}>
+          <option value="">Anyone</option>
+          {data?.users.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="Product" className="w-full sm:w-56">
+        <Dropdown
+          value={value.productId}
+          onChange={(productId) => set({ productId })}
+          options={[
+            { value: "", label: "All Products" },
+            ...(data?.products ?? []).map((p) => ({ value: p.id, label: p.name, detail: p.sku })),
+          ]}
+          placeholder="All Products"
+          isSearch
+          searchPlaceholder="Search name or SKU…"
+          className="w-full"
+          aria-label="Product"
+        />
+      </Field>
       {hasListFilters(value) && (
         <Button variant="ghost" icon={<X className="size-4" />} onClick={() => onChange(noListFilters)}>
           Clear

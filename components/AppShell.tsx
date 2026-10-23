@@ -13,6 +13,7 @@ import {
   PackageCheck,
   ClipboardList,
   FileText,
+  HandCoins,
   IndianRupee,
   Landmark,
   LayoutDashboard,
@@ -32,6 +33,7 @@ import {
   Wallet,
   X,
   Building2,
+  ReceiptText,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -74,7 +76,7 @@ const SIDEBAR_SCROLLBAR = {
 export const NAV: NavGroup[] = [
   {
     section: "",
-    items: [{ href: "/", label: "Dashboard", icon: <LayoutDashboard /> }],
+    items: [{ href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard /> }],
   },
   {
     section: "",
@@ -108,6 +110,7 @@ export const NAV: NavGroup[] = [
       { href: "/approvals", label: "Approvals", icon: <BadgeCheck />, perms: ["sales.bill", "approvals.decide"] },
       { href: "/van", label: "Van Trips", icon: <Truck />, perms: ["van.view", "sales.van"] },
       { href: "/agents", label: "Agents", icon: <UserRoundPlus />, perms: ["sales.bill", "vendors.view"] },
+      { href: "/quotations", label: "Quotations", icon: <ReceiptText />, perms: ["sales.view", "sales.bill"] },
     ],
   },
   {
@@ -134,6 +137,7 @@ export const NAV: NavGroup[] = [
       { href: "/shifts", label: "Shifts & Cash", icon: <Landmark />, perms: ["cash.shifts"] },
       { href: "/payments", label: "Payments", icon: <IndianRupee />, perms: ["payments.view"] },
       { href: "/expenses", label: "Expenses", icon: <Wallet />, perms: ["expenses.view"] },
+      { href: "/petty-cash", label: "Petty Cash", icon: <HandCoins />, perms: ["expenses.view"] },
       { href: "/accounts", label: "Accounts", icon: <BookOpen />, perms: ["accounts.view"] },
       { href: "/reports", label: "Reports", icon: <BarChart3 />, perms: ["reports.view"] },
     ],
@@ -202,15 +206,21 @@ const OPEN_ROUTES = ["/purchase-orders/approvals"];
  */
 const OPEN_DETAIL_ROUTES = [/^\/purchase-orders\/(?!new$|approvals$)[^/]+$/];
 
+/**
+ * Pages whose access differs from the sidebar item they sit under, matching what their API allows:
+ * a bill opens for whoever billed it (the POS prints from it) or returns goods on it, not only for invoice viewers.
+ */
+const ROUTE_PERMS: [RegExp, Permission[]][] = [
+  [/^\/sales\/(?!new$|returns$)[^/]+$/, ["sales.view", "sales.bill", "sales.returns"]],
+  [/^\/goods-inward\/[^/]+\/invoice$/, ["invoices.create"]],
+];
+
 /** Most specific nav item wins, so /sales/new doesn't also light up /sales */
 function activeHref(pathname: string) {
   let best = "";
   for (const g of NAV)
     for (const i of g.items) {
-      const match =
-        i.href === "/"
-          ? pathname === "/"
-          : pathname === i.href || pathname.startsWith(i.href + "/");
+      const match = pathname === i.href || pathname.startsWith(i.href + "/");
       if (match && i.href.length > best.length) best = i.href;
     }
   return best;
@@ -383,8 +393,8 @@ function Sidebar({ onNavigate, onClose }: { onNavigate?: () => void; onClose?: (
   return (
     <div className="flex h-full flex-col bg-forest-900">
       <div className="flex items-start gap-2 px-5 pb-4 pt-5">
-        <Link href="/" onClick={onNavigate} className="block min-w-0 flex-1" aria-label="OneRoot.farm — dashboard">
-          <Logo priority framed className="flex" imageClassName="w-full" />
+        <Link href="/dashboard" onClick={onNavigate} className="block min-w-0 flex-1" aria-label="OneRoot.farm — dashboard">
+          <Logo priority framed className="flex" imageClassName="w-auto flex-1" textClassName="text-2xl" />
           <p className="mt-1.5 text-[10.5px] uppercase tracking-[0.12em] text-sidebar-muted">
             Agri Inputs ERP
           </p>
@@ -564,6 +574,8 @@ export function canOpenPath(href: string, can: (...perms: Permission[]) => boole
   const pathname = href.split(/[?#]/)[0] || "/";
   if (OPEN_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"))) return true;
   if (OPEN_DETAIL_ROUTES.some((r) => r.test(pathname))) return true;
+  const rule = ROUTE_PERMS.find(([r]) => r.test(pathname));
+  if (rule) return can(...rule[1]);
   const active = activeHref(pathname);
   const item = NAV.flatMap((g) => g.items).find((i) => i.href === active);
   return !item?.perms || can(...item.perms);

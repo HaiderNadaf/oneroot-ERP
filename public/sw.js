@@ -42,7 +42,7 @@ self.addEventListener("fetch", (e) => {
           if (res.ok) c.put(req, res.clone());
           return res;
         } catch {
-          return (await c.match(req)) || (await c.match("/sales/new")) || (await c.match("/")) || Response.error();
+          return (await c.match(req)) || (await c.match("/sales/new")) || (await c.match("/dashboard")) || Response.error();
         }
       })(),
     );

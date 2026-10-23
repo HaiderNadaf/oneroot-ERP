@@ -7,16 +7,19 @@ import {
   ClipboardList,
   Download,
   FileText,
+  Package,
   Pencil,
   Printer,
   ReceiptIndianRupee,
   ShoppingCart,
+  Trash2,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { PartyPaymentForm, modeLabel, type FixedParty } from "@/components/PartyPaymentForm";
+import { ProductPicker } from "@/components/pickers";
 import {
   Badge,
   Button,
@@ -35,12 +38,16 @@ import {
   Td,
   Th,
   cx,
+  errMsg,
+  useConfirm,
+  useToast,
 } from "@/components/ui";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { date, downloadCsv, inr, n } from "@/lib/format";
 import { placeOfSupply } from "@/lib/gst";
 import { useApi } from "@/lib/hooks";
-import type { Dec, Ledger, Paged, Payment, Purchase, StoreSettings, Vendor } from "@/lib/types";
+import type { Dec, Ledger, Paged, Payment, Product, Purchase, StoreSettings, Vendor, VendorProductLink } from "@/lib/types";
 import { LazyVendorForm } from "@/components/lazy";
 
 type VendorDetail = Vendor & {
@@ -51,7 +58,7 @@ type VendorDetail = Vendor & {
   >[];
 };
 
-type Tab = "ledger" | "purchases" | "payments";
+type Tab = "ledger" | "products" | "purchases" | "payments";
 
 export default function VendorDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -98,22 +105,22 @@ export default function VendorDetailPage() {
         actions={
           <>
             {canBuy && (
-              <>
-                <Button
-                  variant="secondary"
-                  icon={<ClipboardList className="size-4" />}
-                  onClick={() => router.push(`/purchase-orders/new?vendorId=${v.id}`)}
-                >
-                  New PO
-                </Button>
-                <Button
-                  variant="secondary"
-                  icon={<ShoppingCart className="size-4" />}
-                  onClick={() => router.push(`/purchases/new?vendorId=${v.id}`)}
-                >
-                  New Purchase
-                </Button>
-              </>
+              <Button
+                variant="secondary"
+                icon={<ClipboardList className="size-4" />}
+                onClick={() => router.push(`/purchase-orders/new?vendorId=${v.id}`)}
+              >
+                New PO
+              </Button>
+            )}
+            {can("invoices.create") && (
+              <Button
+                variant="secondary"
+                icon={<ShoppingCart className="size-4" />}
+                onClick={() => router.push(`/purchases/new?vendorId=${v.id}`)}
+              >
+                New Purchase
+              </Button>
             )}
             {can("vendors.edit") && (
               <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
@@ -158,6 +165,12 @@ export default function VendorDetailPage() {
             <div className="col-span-2">
               <Info label="Address">{[v.address, v.city, v.state, v.pincode].filter(Boolean).join(", ")}</Info>
             </div>
+            <div className="col-span-2">
+              <Info label="Billing Address">{v.billingAddress}</Info>
+            </div>
+            <div className="col-span-2">
+              <Info label="Shipping Address">{v.shippingAddress}</Info>
+            </div>
             {v.notes && (
               <div className="col-span-2">
                 <Info label="Notes">{v.notes}</Info>
@@ -180,12 +193,14 @@ export default function VendorDetailPage() {
         onChange={setTab}
         tabs={[
           { value: "ledger", label: "Ledger" },
+          { value: "products", label: "Products Supplied" },
           ...(canSeePurchases ? [{ value: "purchases" as Tab, label: `Purchases (${v.stats.billCount})` }] : []),
           ...(canSeePayments ? [{ value: "payments" as Tab, label: "Payments" }] : []),
         ]}
       />
 
       {tab === "ledger" && <VendorLedger key={ledgerKey} vendor={v} linkPurchases={canSeePurchases} />}
+      {tab === "products" && <VendorProducts vendor={v} canEdit={can("vendors.edit")} />}
       {tab === "purchases" && canSeePurchases && <VendorPurchases vendorId={v.id} />}
       {tab === "payments" && canSeePayments && <VendorPayments key={ledgerKey} vendorId={v.id} linkPurchases={canSeePurchases} />}
 
@@ -347,6 +362,118 @@ function VendorLedger({ vendor, linkPurchases }: { vendor: Vendor; linkPurchases
               </tr>
             </tfoot>
           )}
+        </Table>
+      )}
+    </Card>
+  );
+}
+
+/** Products this vendor supplies: a PO for the vendor can only list these */
+function VendorProducts({ vendor, canEdit }: { vendor: Vendor; canEdit: boolean }) {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const { data, error, loading, reload } = useApi<VendorProductLink[]>(`/vendors/${vendor.id}/products`);
+  const [busy, setBusy] = useState(false);
+  const linked = new Set((data ?? []).map((p) => p.id));
+
+  async function link(p: Product) {
+    if (linked.has(p.id)) return toast.info(`${p.name} is already linked`);
+    setBusy(true);
+    try {
+      await api.post(`/vendors/${vendor.id}/products`, { productIds: [p.id] });
+      toast.success(`${p.name} linked to ${vendor.name}`);
+      await reload();
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unlink(p: VendorProductLink) {
+    if (!(await confirm(`Remove ${p.name} from the products ${vendor.name} supplies? New POs for this vendor won't list it.`, { danger: true, confirmLabel: "Remove" })))
+      return;
+    try {
+      await api.del(`/vendors/${vendor.id}/products/${p.id}`);
+      toast.success(`${p.name} removed`);
+      await reload();
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+  }
+
+  return (
+    <Card
+      bodyClassName="p-0"
+      title={
+        <span className="inline-flex items-center gap-1.5">
+          <Package className="size-4 text-slate-400" /> Products Supplied{data ? ` (${data.length})` : ""}
+        </span>
+      }
+    >
+      <div className="border-b border-slate-100 p-3">
+        {canEdit ? (
+          <>
+            <ProductPicker onPick={(p) => void link(p)} placeholder="Search a product to link to this vendor…" />
+            <p className="mt-1.5 text-xs text-slate-500">
+              {busy ? "Linking…" : "Purchase orders for this vendor can only list the products linked here."}
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-slate-500">Purchase orders for this vendor can only list these products.</p>
+        )}
+      </div>
+      {error ? (
+        <div className="p-4">
+          <ErrorBox message={error} onRetry={reload} />
+        </div>
+      ) : (
+        <Table>
+          <thead>
+            <tr>
+              <Th>Product</Th>
+              <Th>SKU Code</Th>
+              <Th>UOM</Th>
+              <Th right>Purchase Price</Th>
+              {canEdit && <Th />}
+            </tr>
+          </thead>
+          <tbody>
+            {loading && !data ? (
+              <LoadingRow colSpan={canEdit ? 5 : 4} />
+            ) : !data?.length ? (
+              <EmptyRow colSpan={canEdit ? 5 : 4}>No products linked yet{canEdit ? " — search above to add the ones this vendor supplies" : ""}</EmptyRow>
+            ) : (
+              data.map((p) => (
+                <tr key={p.id} className={cx("hover:bg-slate-50", !p.isActive && "opacity-60")}>
+                  <Td>
+                    <p className="font-medium text-slate-900">{p.name}</p>
+                    <p className="text-xs text-slate-500">
+                      {[p.brand, p.packSize].filter(Boolean).join(" · ")}
+                      {!p.isActive && " · inactive"}
+                    </p>
+                  </Td>
+                  <Td className="whitespace-nowrap">
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-medium text-slate-800">{p.sku}</span>
+                  </Td>
+                  <Td className="text-slate-600">{p.unit}</Td>
+                  <Td right>{inr(p.purchasePrice)}</Td>
+                  {canEdit && (
+                    <Td right>
+                      <button
+                        type="button"
+                        onClick={() => void unlink(p)}
+                        className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        aria-label={`Remove ${p.name}`}
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </Td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
         </Table>
       )}
     </Card>

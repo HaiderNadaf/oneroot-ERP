@@ -17,11 +17,14 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Fragment, useState, type ReactNode } from "react";
 import { ApprovalChain } from "@/components/ApprovalChain";
+import { Attachments } from "@/components/Attachments";
 import { NotesPanel } from "@/components/NotesPanel";
 import { PrintPortal } from "@/components/PrintPortal";
 import { useCounts } from "@/components/Notifications";
 import { isInterState } from "@/components/PoForm";
+import { LazyPoTermsModal } from "@/components/lazy";
 import { PO_TERMS_SHORT } from "@/components/PoTermsModal";
+import { vendorAddresses } from "@/lib/address";
 import { CHARGES_GST_RATE, gstSlabs, halfRate, placeOfSupply } from "@/lib/gst";
 import {
   Badge,
@@ -40,6 +43,7 @@ import {
   errMsg,
   useConfirm,
   useToast,
+  PrintLogo,
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -59,6 +63,7 @@ export default function PurchaseOrderDetailPage() {
   const confirm = useConfirm();
   const [decision, setDecision] = useState<Decision | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
   const { data: po, error, loading, reload } = useApi<PurchaseOrder>(`/purchase-orders/${id}`);
   const { data: store } = useApi<StoreSettings>("/settings");
 
@@ -139,6 +144,9 @@ export default function PurchaseOrderDetailPage() {
               }}>
               Print
             </Button>
+            <Button variant="secondary" icon={<FileText className="size-4" />} onClick={() => setTermsOpen(true)}>
+              Terms & Conditions
+            </Button>
             {po.canEdit && isBuyer && (
               <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => router.push(`/purchase-orders/${po.id}/edit`)}>
                 {editLabel}
@@ -172,6 +180,7 @@ export default function PurchaseOrderDetailPage() {
       />
 
       <StatusNotice po={po} lastNote={lastNote} />
+      <LazyPoTermsModal open={termsOpen} onClose={() => setTermsOpen(false)} />
 
       {/* Printed on its own from under <body>, so nothing in the app layout can shift its pages */}
       <PrintPortal className="sheet-host">
@@ -193,7 +202,14 @@ export default function PurchaseOrderDetailPage() {
                     ) : (
                       <p className="mt-1 break-words font-semibold text-slate-900">{v.name}</p>
                     )}
-                    <p className="break-words text-sm text-slate-600">{[v.address, v.city, v.state, v.pincode].filter(Boolean).join(", ")}</p>
+                    <p className="break-words text-sm text-slate-600">
+                      <span className="text-slate-500">Billing: </span>
+                      {vendorAddresses(v).billing || "—"}
+                    </p>
+                    <p className="break-words text-sm text-slate-600">
+                      <span className="text-slate-500">Shipping: </span>
+                      {vendorAddresses(v).shipping || "—"}
+                    </p>
                     <p className="text-sm text-slate-600">{[v.contactPerson, v.phone].filter(Boolean).join(" · ")}</p>
                   </>
                 ) : (
@@ -432,6 +448,9 @@ export default function PurchaseOrderDetailPage() {
           onChanged={() => void reload()}
         />
       )}
+
+      {/* Quotes, vendor invoices, spec sheets… attached to this PO */}
+      <Attachments type="PO" entityId={po.id} canManage={can("po.create") || can("po.edit")} className="no-print mb-4" />
 
       <Card title="Approval History" className="no-print">
         <Timeline history={history} currentRound={po.round} />
@@ -834,7 +853,15 @@ function PoPrint({ po, store, notApproved }: { po: PurchaseOrder; store: StoreSe
     ["Status", po.status.charAt(0) + po.status.slice(1).toLowerCase().replace(/_/g, " ")],
   ];
   const addresses: { title: string; name?: string | null; lines: string[] }[] = [
-    { title: "Vendor", name: v?.name, lines: [join(v?.address, v?.city), join(v?.state, v?.pincode), v?.gstin ? `GSTIN: ${v.gstin}` : ""] },
+    {
+      title: "Vendor",
+      name: v?.name,
+      lines: [
+        vendorAddresses(v).billing && `Billing: ${vendorAddresses(v).billing}`,
+        vendorAddresses(v).shipping && `Shipping: ${vendorAddresses(v).shipping}`,
+        v?.gstin ? `GSTIN: ${v.gstin}` : "",
+      ],
+    },
     {
       title: "Billed To",
       name: store?.storeName,
@@ -866,8 +893,7 @@ function PoPrint({ po, store, notApproved }: { po: PurchaseOrder; store: StoreSe
                 {/* ── Header ── */}
                 <div className="flex items-center justify-between gap-6 border-b-[3px] border-forest-700 pb-3">
                   <div className="flex items-center gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- plain img prints reliably */}
-                    <img src="/full_logo.png" alt="OneRoot.farm" className="h-11 w-auto" />
+                    <PrintLogo className="mx-0 shrink-0" />
                     <div className="border-l border-slate-300 pl-3">
                       <p className="text-[15px] font-bold leading-tight text-slate-900">{store?.storeName ?? "OneRoot"}</p>
                       <p className="text-[10.5px] text-slate-500">{join(store?.address, store?.city, store?.state, store?.pincode)}</p>

@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) router.replace("/");
+    if (!loading && user) router.replace("/dashboard");
   }, [loading, user, router]);
 
   async function submit(e: React.FormEvent) {
@@ -23,7 +23,7 @@ export default function LoginPage() {
     setError(null);
     try {
       await login(email.trim(), password);
-      router.replace("/");
+      router.replace("/dashboard");
     } catch (err) {
       setError(errMsg(err));
     } finally {
@@ -50,7 +50,7 @@ export default function LoginPage() {
               aria-hidden
               className="pointer-events-none absolute -bottom-20 -left-10 size-44 rounded-full bg-amber-300/15 blur-2xl"
             />
-            <Logo priority framed className="relative" imageClassName="w-56" />
+            <Logo priority framed className="relative" imageClassName="w-56" textClassName="text-4xl" />
             <p className="relative text-[11px] font-medium uppercase tracking-[0.18em] text-mint-100/80">
               Agri Inputs ERP
             </p>

@@ -1,12 +1,13 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useBranchOptions } from "@/components/BranchNotice";
-import { ActionsTd, ActionsTh, Button, Card, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, Pagination, RowAction, SearchInput, Select, Table, Td, Th, errMsg, useConfirm, useToast } from "@/components/ui";
+import { ActionsTd, ActionsTh, Button, Card, DateInput, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, Pagination, RowAction, SearchInput, Select, Table, Td, Th, errMsg, useConfirm, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { date } from "@/lib/format";
+import { date, inr } from "@/lib/format";
 import { useApi, useDebounced } from "@/lib/hooks";
 import type { Agent, Paged } from "@/lib/types";
 
@@ -16,6 +17,9 @@ export default function AgentsPage() {
   const confirm = useConfirm();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  // Sales totals cover this range; empty = all time
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   // Agent being edited; null = adding a new one
   const [editing, setEditing] = useState<Agent | null>(null);
@@ -29,7 +33,7 @@ export default function AgentsPage() {
   const canDelete = can("vendors.delete");
   // The full list (branch, paging) needs vendors.view; billing staff read the plain agent options instead
   const full = can("vendors.view");
-  const listed = useApi<Paged<Agent>>(full ? "/agents" : null, { search: q, page, pageSize: 25 });
+  const listed = useApi<Paged<Agent>>(full ? "/agents" : null, { search: q, from, to, page, pageSize: 25 });
   const options = useApi<Agent[]>(full ? null : "/agents/options");
   const { error, loading, reload } = full ? listed : options;
   const data: Paged<Agent> | null = full ? listed.data : options.data && filterOptions(options.data, q);
@@ -46,7 +50,8 @@ export default function AgentsPage() {
     }
   }
 
-  const cols = 4 + (full ? 2 : 0) + (canEdit || canDelete ? 1 : 0);
+  const cols = 4 + (full ? 4 : 0) + (canEdit || canDelete ? 1 : 0);
+  const salesLink = (a: Agent) => `/agents/${a.id}${from || to ? `?${new URLSearchParams({ from, to })}` : ""}`;
 
   return (
     <>
@@ -63,7 +68,7 @@ export default function AgentsPage() {
       />
 
       <Card bodyClassName="p-0">
-        <div className="border-b border-slate-100 p-3">
+        <div className="flex flex-wrap gap-2 border-b border-slate-100 p-3">
           <SearchInput
             value={search}
             onChange={(v) => {
@@ -71,8 +76,15 @@ export default function AgentsPage() {
               setPage(1);
             }}
             placeholder="Search name, mobile or agent ID…"
-            className="min-w-60"
+            className="w-full flex-1 sm:w-auto sm:min-w-60"
           />
+          {full && (
+            <div className="flex w-full items-center gap-1.5 sm:w-auto" title="Sales between these dates">
+              <DateInput value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="Sales from date" />
+              <span className="text-xs text-slate-400">to</span>
+              <DateInput value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="Sales to date" />
+            </div>
+          )}
         </div>
 
         {error ? (
@@ -89,6 +101,8 @@ export default function AgentsPage() {
                 <Th>Mobile</Th>
                 {full && <Th>Branch</Th>}
                 {full && <Th>Added On</Th>}
+                {full && <Th right>Bills</Th>}
+                {full && <Th right>Total Sales</Th>}
                 {(canEdit || canDelete) && <ActionsTh />}
               </tr>
             </thead>
@@ -107,12 +121,32 @@ export default function AgentsPage() {
               ) : (
                 data.items.map((a) => (
                   <tr key={a.id} className="hover:bg-slate-50">
-                    <Td className="font-mono text-xs font-medium text-slate-900">{a.agentId}</Td>
+                    <Td className="font-mono text-xs font-medium text-slate-900">
+                      {full ? (
+                        <Link href={salesLink(a)} className="hover:text-brand-700 hover:underline">
+                          {a.agentId}
+                        </Link>
+                      ) : (
+                        a.agentId
+                      )}
+                    </Td>
                     <Td>{a.firstName}</Td>
                     <Td>{a.lastName || "—"}</Td>
                     <Td className="whitespace-nowrap">{a.mobile ? <a href={`tel:${a.mobile}`} className="hover:text-brand-700">{a.mobile}</a> : "—"}</Td>
                     {full && <Td>{a.branch ? `${a.branch.name} (${a.branch.code})` : "—"}</Td>}
                     {full && <Td className="text-slate-500">{date(a.createdAt)}</Td>}
+                    {full && (
+                      <Td right className="num text-slate-600">
+                        {a.sales?.count ?? 0}
+                      </Td>
+                    )}
+                    {full && (
+                      <Td right className="whitespace-nowrap">
+                        <Link href={salesLink(a)} className="num font-semibold text-slate-900 hover:text-brand-700 hover:underline">
+                          {inr(a.sales?.total ?? 0)}
+                        </Link>
+                      </Td>
+                    )}
                     {(canEdit || canDelete) && (
                       <ActionsTd>
                         {canEdit && <RowAction kind="edit" title={`Edit ${a.agentId}`} onClick={() => openForm(a)} />}

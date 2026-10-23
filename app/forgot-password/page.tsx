@@ -58,7 +58,7 @@ export default function ForgotPassword() {
           <div className="relative overflow-hidden bg-gradient-to-br from-forest-900 via-forest-800 to-brand-600  p-4 pb-1 text-center">
             <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-brand-400/20 blur-2xl" />
             <div aria-hidden className="pointer-events-none absolute -bottom-20 -left-10 size-44 rounded-full bg-amber-300/15 blur-2xl" />
-            <Logo priority framed className="relative" imageClassName="w-56" />
+            <Logo priority framed className="relative" imageClassName="w-56" textClassName="text-4xl" />
             <p className="relative text-[11px] font-medium uppercase tracking-[0.18em] text-mint-100/80">Agri Inputs ERP</p>
           </div>
           <div className="h-1 bg-gradient-to-r from-brand-500 via-brand-400 to-amber-400" />

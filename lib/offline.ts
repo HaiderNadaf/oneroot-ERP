@@ -7,7 +7,7 @@ import { api, ApiError } from "./api";
 // A copy of the data the POS needs is kept in the browser so billing works when the
 // internet drops: catalogue, categories, store settings, branches and customer lookups.
 
-const PERSIST_PREFIXES = ["/products", "/categories", "/settings", "/branches/mine", "/customers", "/auth/me", "/schemes/active", "/roles/mine", "/shifts/current", "/van-trips/"];
+const PERSIST_PREFIXES = ["/products", "/categories", "/settings", "/branches/mine", "/customers", "/auth/me", "/schemes/active", "/roles/mine", "/shifts/current", "/van-trips/", "/agents/options"];
 const PKEY = "oneroot.cache:";
 
 export const shouldPersist = (key: string) => PERSIST_PREFIXES.some((p) => key.startsWith(p));

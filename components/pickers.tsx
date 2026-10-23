@@ -121,19 +121,24 @@ export function ProductPicker({
   autoFocus,
   inputRef,
   inStockOnly,
+  vendorId,
+  placeholder = "Search product by name, SKU, barcode, brand…",
 }: {
   onPick: (p: Product) => void;
   autoFocus?: boolean;
   inputRef?: React.RefObject<HTMLInputElement | null>;
   inStockOnly?: boolean;
+  /** Only products this vendor supplies (PO items) */
+  vendorId?: string;
+  placeholder?: string;
 }) {
   return (
     <AsyncPicker<Product>
-      placeholder="Search product by name, SKU, barcode, brand…"
+      placeholder={placeholder}
       autoFocus={autoFocus}
       inputRef={inputRef}
       fetcher={async (q) => {
-        const r = await api.get<Paged<Product>>("/products", { search: q, pageSize: 20 });
+        const r = await api.get<Paged<Product>>("/products", { search: q, pageSize: 20, vendorId });
         return inStockOnly ? r.items.filter((p) => n(p.stock) > 0) : r.items;
       }}
       onPick={onPick}

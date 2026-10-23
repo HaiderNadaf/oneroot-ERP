@@ -225,9 +225,9 @@ export default function PosPage() {
       if (c?.phone) setPhone(c.phone);
       if (!c && mode === "CREDIT") setMode("CASH");
       // Credit position (overdue dues, hold) comes from the detail endpoint
-      if (c && can("customers.view")) api.get<Customer>(`/customers/${c.id}`).then(setCredit).catch(() => {});
+      if (c) api.get<Customer>(`/customers/${c.id}`).then(setCredit).catch(() => {});
     },
-    [store, mode, can],
+    [store, mode],
   );
 
   // Preselect a customer from ?customerId=
@@ -485,6 +485,7 @@ export default function PosPage() {
       }
     }
     if (summary.total <= 0) return "Bill total must be more than zero";
+    if (!agentId) return "Choose the agent for this bill";
     if (!customer && due > 0) return "Credit needs a registered customer — pick or add the farmer first";
     if (due > 0 && creditHold) return `Credit is on hold for ${customer?.name} — collect the dues first or ask a manager to lift the hold`;
     if (phone && phone.length !== 10) return "Enter a valid 10-digit mobile number";
@@ -1082,13 +1083,16 @@ export default function PosPage() {
             )}
           </div>
 
-          {/* Agent — internal reference only: shown in sales lists and details, not on the printed bill */}
+          {/* Agent (required) — internal reference only: shown in sales lists and details, not on the printed bill */}
           <div className="border-b border-line px-4 py-3">
+            <p className="mb-1 text-xs font-medium text-slate-600">
+              Agent<span className="text-red-500"> *</span>
+            </p>
             <Dropdown
               options={agentOptions}
               value={agentId}
               onChange={setAgentId}
-              placeholder="Agent (optional)"
+              placeholder="Choose Agent"
               isSearch
               searchPlaceholder="Search name, agent ID or mobile…"
               emptyText={can("vendors.create") ? "No agents — add them under Agents" : "No agents yet"}

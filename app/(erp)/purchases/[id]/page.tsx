@@ -25,6 +25,7 @@ import {
   useConfirm,
   useToast,
 } from "@/components/ui";
+import { vendorAddresses } from "@/lib/address";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { amountInWords, date, daysUntil, inr, n, qty, round2 } from "@/lib/format";
@@ -184,7 +185,14 @@ function PurchaseDetail() {
                 ) : (
                   <p className="mt-1 break-words font-semibold text-slate-900">{v.name}</p>
                 )}
-                <p className="text-sm text-slate-600">{[v.address, v.city, v.state, v.pincode].filter(Boolean).join(", ") || "No address on file"}</p>
+                <p className="text-sm text-slate-600">
+                  <span className="text-slate-500">Billing: </span>
+                  {vendorAddresses(v).billing || "—"}
+                </p>
+                <p className="text-sm text-slate-600">
+                  <span className="text-slate-500">Shipping: </span>
+                  {vendorAddresses(v).shipping || "—"}
+                </p>
                 <p className="text-sm text-slate-600">{[v.phone, v.gstin && `GSTIN ${v.gstin}`].filter(Boolean).join(" · ")}</p>
               </>
             ) : (

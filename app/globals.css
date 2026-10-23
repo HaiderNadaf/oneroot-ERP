@@ -376,7 +376,8 @@ input[type="number"] {
   body[data-print="labels"] .label-sheet {
     display: grid !important;
   }
-  body[data-print="sheet"] .po-print {
+  body[data-print="sheet"] .po-print,
+  body[data-print="sheet"] .grn-print {
     display: block !important;
   }
 }
@@ -488,5 +489,23 @@ input[type="number"] {
 @media (prefers-reduced-motion: reduce) {
   .or-loader-turn {
     animation-duration: 6s;
+  }
+}
+
+/* Landing page: the "Built for" strip scrolls sideways (a duplicated list moves by half its width) */
+@theme {
+  --animate-marquee: landing-marquee 45s linear infinite;
+  @keyframes landing-marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none;
   }
 }

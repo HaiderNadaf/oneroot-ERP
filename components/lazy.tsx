@@ -17,6 +17,7 @@ import type { CustomerForm } from "./CustomerForm";
 import type { LabelPrintModal } from "./LabelPrintModal";
 import type { PoTermsModal } from "./PoTermsModal";
 import type { ProductForm } from "./ProductForm";
+import type { ReturnTermsModal } from "./ReturnTermsModal";
 import type { StockAdjustModal } from "./StockAdjustModal";
 import type { TransferModal } from "./TransferModal";
 import type { VendorForm } from "./VendorForm";
@@ -32,6 +33,7 @@ const CategoryManagerLazy = dynamic(() => import("./CategoryManager").then((m) =
 const LabelPrintModalLazy = dynamic(() => import("./LabelPrintModal").then((m) => m.LabelPrintModal), { ssr: false });
 const CameraScannerLazy = dynamic(() => import("./CameraScanner").then((m) => m.CameraScanner), { ssr: false });
 const PoTermsModalLazy = dynamic(() => import("./PoTermsModal").then((m) => m.PoTermsModal), { ssr: false });
+const ReturnTermsModalLazy = dynamic(() => import("./ReturnTermsModal").then((m) => m.ReturnTermsModal), { ssr: false });
 
 export const LazyProductForm = (p: ComponentProps<typeof ProductForm>) => (p.open ? <ProductFormLazy {...p} /> : null);
 export const LazyCustomerForm = (p: ComponentProps<typeof CustomerForm>) => (p.open ? <CustomerFormLazy {...p} /> : null);
@@ -42,6 +44,7 @@ export const LazyCategoryManager = (p: ComponentProps<typeof CategoryManager>) =
 export const LazyLabelPrintModal = (p: ComponentProps<typeof LabelPrintModal>) => (p.open ? <LabelPrintModalLazy {...p} /> : null);
 export const LazyCameraScanner = (p: ComponentProps<typeof CameraScanner>) => (p.open ? <CameraScannerLazy {...p} /> : null);
 export const LazyPoTermsModal = (p: ComponentProps<typeof PoTermsModal>) => (p.open ? <PoTermsModalLazy {...p} /> : null);
+export const LazyReturnTermsModal = (p: ComponentProps<typeof ReturnTermsModal>) => (p.open ? <ReturnTermsModalLazy {...p} /> : null);
 
 /** Dashboard bar chart; recharts loads after the rest of the dashboard, with a loader in its place meanwhile */
 export const LazySalesPurchaseChart = dynamic(() => import("./SalesPurchaseChart"), {

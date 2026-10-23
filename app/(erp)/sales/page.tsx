@@ -96,9 +96,11 @@ export default function SalesPage() {
             <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv} loading={exporting}>
               Export
             </Button>
-            <Link href="/sales/new">
-              <Button icon={<Plus className="size-4" />}>New Sale</Button>
-            </Link>
+            {can("sales.bill") && (
+              <Link href="/sales/new">
+                <Button icon={<Plus className="size-4" />}>New Sale</Button>
+              </Link>
+            )}
           </>
         }
       />
@@ -154,9 +156,11 @@ export default function SalesPage() {
               ) : !data?.items.length ? (
                 <EmptyRow colSpan={9}>
                   No invoices for these filters.{" "}
-                  <Link href="/sales/new" className="font-medium text-brand-700 underline">
-                    Create a Sale
-                  </Link>
+                  {can("sales.bill") && (
+                    <Link href="/sales/new" className="font-medium text-brand-700 underline">
+                      Create a Sale
+                    </Link>
+                  )}
                 </EmptyRow>
               ) : (
                 data.items.map((s) => {

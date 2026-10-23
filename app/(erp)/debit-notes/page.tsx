@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
+import { Attachments } from "@/components/Attachments";
 import { NoteForm, NoteStatusBadge, ReasonBadge, noteTypeName, postLabel, reducesPayable } from "@/components/NoteForm";
 import { ListFilters, hasListFilters, noListFilters } from "@/components/ListFilters";
 import {
@@ -32,6 +33,7 @@ import {
   useConfirm,
   useToast,
 } from "@/components/ui";
+import { vendorAddresses } from "@/lib/address";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { amountInWords, date, inr, n, qty } from "@/lib/format";
@@ -344,6 +346,7 @@ function Notes() {
                   : undefined
               }
             />
+            <Attachments type="NOTE" entityId={viewing.id} canManage={can("notes.create") || can("notes.edit")} bare className="mt-5 border-t border-slate-100 pt-4" />
           </Modal>
           {/* The modal is hidden when printing; this copy is what prints */}
           <div className="print-area hidden print:block">
@@ -486,9 +489,8 @@ function NoteDoc({ dn, store, onShipTo }: { dn: DebitNote; store: StoreSettings 
         <div className="min-w-0">
           <p className="text-xs uppercase tracking-wide text-slate-500">{isDebit ? "To" : "From"}</p>
           <p className="break-words font-semibold">{dn.vendor.name}</p>
-          {(dn.vendor.address || dn.vendor.city) && (
-            <p className="text-xs text-slate-600">{[dn.vendor.address, dn.vendor.city, dn.vendor.state].filter(Boolean).join(", ")}</p>
-          )}
+          {vendorAddresses(dn.vendor).billing && <p className="text-xs text-slate-600">Billing: {vendorAddresses(dn.vendor).billing}</p>}
+          {vendorAddresses(dn.vendor).shipping && <p className="text-xs text-slate-600">Shipping: {vendorAddresses(dn.vendor).shipping}</p>}
           <p className="mt-1 text-xs text-slate-600">
             {dn.vendor.code && (
               <>

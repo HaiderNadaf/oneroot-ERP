@@ -517,11 +517,14 @@ export function DateInput({
 export function Logo({
   className,
   imageClassName = "w-[176px]",
+  textClassName = "text-3xl",
   framed = false,
   priority,
 }: {
   className?: string;
   imageClassName?: string;
+  /** Size of the "ERP" word beside the logo */
+  textClassName?: string;
   framed?: boolean;
   /** Load eagerly (above-the-fold logos: sidebar, login) */
   priority?: boolean;
@@ -534,15 +537,32 @@ export function Logo({
         className,
       )}
     >
-      <Image src="/full_logo.png" alt="OneRoot.farm" width={1630} height={640} priority={priority} className={cx("h-auto", imageClassName)} />
+      <Image src="/full_logo.png" alt="OneRoot.farm" width={1630} height={640} priority={priority} className={cx("h-auto min-w-0", imageClassName)} />
+      <span className={cx("shrink-0 pr-3 font-display font-bold leading-none text-brand-800", textClassName)}>ERP</span>
     </div>
   );
 }
 
-/** Company logo at the top of printed bills, invoices and notes (as on the PO) */
-export function PrintLogo({ className }: { className?: string }) {
-  // eslint-disable-next-line @next/next/no-img-element -- plain img prints reliably
-  return <img src="/full_logo.png" alt="OneRoot.farm" className={cx("mx-auto block h-11 w-auto", className)} />;
+/**
+ * Company logo with "ERP" at the top of printed bills, invoices, notes and receipts (as on the PO).
+ * `className` places the pair; `imageClassName` sizes the image (default 44px tall); `textClassName` sizes "ERP".
+ */
+export function PrintLogo({
+  className,
+  imageClassName = "h-11 w-auto",
+  textClassName = "text-[26px]",
+}: {
+  className?: string;
+  imageClassName?: string;
+  textClassName?: string;
+}) {
+  return (
+    <span className={cx("mx-auto flex w-fit items-center gap-1", className)}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- plain img prints reliably */}
+      <img src="/full_logo.png" alt="OneRoot.farm" className={cx("block", imageClassName)} />
+      <span className={cx("font-bold leading-none text-brand-800", textClassName)}>ERP</span>
+    </span>
+  );
 }
 
 /**
@@ -1114,6 +1134,9 @@ const statusTones: Record<string, Tone> = {
   RECEIVED: "green",
   REJECTED: "red",
   SENT: "green",
+  OPEN: "blue",
+  ACCEPTED: "green",
+  EXPIRED: "amber",
   SEED: "green",
   FERTILIZER: "blue",
   PESTICIDE: "violet",

@@ -20,6 +20,8 @@ const TEXT_FIELDS = [
   "city",
   "state",
   "pincode",
+  "billingAddress",
+  "shippingAddress",
   "bankName",
   "bankAccount",
   "ifsc",
@@ -32,8 +34,14 @@ function toForm(v?: Vendor | null): FormState {
   f.paymentTermsDays = v ? String(v.paymentTermsDays ?? 0) : "30";
   f.openingBalance = v ? String(n(v.openingBalance)) : "";
   f.isActive = v?.isActive ?? true;
+  // "Same as Address" starts ticked when the saved address matches the main one
+  for (const k of LINKED_ADDRESSES) f[sameKey(k)] = !!v?.[k] && v[k] === v.address;
   return f;
 }
+
+/** Addresses that can be copied from the main Address with a "Same as Address" tick */
+const LINKED_ADDRESSES = ["billingAddress", "shippingAddress"] as const;
+const sameKey = (k: (typeof LINKED_ADDRESSES)[number]) => `${k}Same`;
 
 interface VendorFormProps {
   open: boolean;
@@ -49,7 +57,7 @@ export function VendorForm(props: VendorFormProps) {
 }
 
 /** Saved in capitals; State stays as chosen (GST compares it with the store's state) */
-const UPPER_FIELDS = ["name", "contactPerson", "address", "city", "bankName"] as const;
+const UPPER_FIELDS = ["name", "contactPerson", "address", "billingAddress", "shippingAddress", "city", "bankName"] as const;
 
 function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
   const toast = useToast();
@@ -57,7 +65,16 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
   const [saving, setSaving] = useState(false);
   const editing = !!vendor;
 
-  const set = (k: string, v: string | boolean) => setF((s) => ({ ...s, [k]: v }));
+  const set = (k: string, v: string | boolean) =>
+    setF((s) => {
+      const next = { ...s, [k]: v };
+      // Ticked "Same as Address" fields follow the main address as it is typed
+      if (k === "address") for (const a of LINKED_ADDRESSES) if (s[sameKey(a)]) next[a] = v;
+      return next;
+    });
+  // Ticking copies the main address in; unticking leaves the copy to edit
+  const setSame = (k: (typeof LINKED_ADDRESSES)[number], same: boolean) =>
+    setF((s) => ({ ...s, [sameKey(k)]: same, ...(same ? { [k]: s.address } : {}) }));
   // Shown in capitals while typing (CSS) and saved in capitals, so the cursor never jumps
   const caps = (k: string) => ({ value: str(k), onChange: (e: React.ChangeEvent<HTMLInputElement>) => set(k, e.target.value), className: "uppercase" });
   const str = (k: string) => String(f[k] ?? "");
@@ -148,6 +165,16 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
         <Field label="Pincode">
           <Input inputMode="numeric" maxLength={6} value={str("pincode")} onChange={(e) => set("pincode", e.target.value)} />
         </Field>
+        {LINKED_ADDRESSES.map((k) => (
+          <div key={k} className="sm:col-span-3">
+            <Field label={k === "billingAddress" ? "Billing Address" : "Shipping Address"}>
+              <Input {...caps(k)} disabled={!!f[sameKey(k)]} />
+            </Field>
+            <div className="mt-1.5">
+              <Checkbox label="Same as Address" checked={!!f[sameKey(k)]} onChange={(v) => setSame(k, v)} />
+            </div>
+          </div>
+        ))}
 
         <fieldset className="min-w-0 rounded-lg border border-dashed border-slate-300 p-3 sm:col-span-3">
           <legend className="px-1 text-xs font-medium text-slate-600">Bank details (for payments)</legend>

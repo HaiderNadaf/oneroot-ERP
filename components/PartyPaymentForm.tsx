@@ -53,7 +53,7 @@ function PartyPaymentFormBody({ open, onClose, onSaved, fixed, defaultType = "CU
   const { can } = useAuth();
   // Only the sides this user may record (and pick a party for)
   const allowed = (["CUSTOMER", "VENDOR"] as const).filter((t) =>
-    t === "CUSTOMER" ? can("payments.record") && can("customers.view") : can("payments.vendor") && can("vendors.view"),
+    t === "CUSTOMER" ? can("payments.record") : can("payments.vendor"),
   );
   const initialType = fixed?.partyType ?? (allowed.includes(defaultType) ? defaultType : (allowed[0] ?? defaultType));
   const suggested = fixed ? (fixed.due ?? fixed.balance ?? 0) : 0;

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { API_URL, api, getToken, setToken } from "./api";
+import { API_URL, api, deviceHeader, getToken, setToken } from "./api";
 import { clearApiCache } from "./hooks";
 import { isNetworkError, persistClear, persistGet, persistSet } from "./offline";
 import { hasPerm, type Permission } from "./permissions";
@@ -14,7 +14,7 @@ import type { Role } from "./types";
 async function postAuth<T>(path: string, body: unknown, token: string | null = getToken()): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...deviceHeader() },
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => null);

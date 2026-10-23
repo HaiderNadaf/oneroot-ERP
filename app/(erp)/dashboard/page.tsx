@@ -1,16 +1,9 @@
 "use client";
 
-import {
-  Boxes,
-  Layers,
-  Leaf,
-  Truck,
-  UserCog,
-  Users,
-} from "lucide-react";
+import { Boxes, Layers, Leaf, Truck, UserCog, Users } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { canOpenPath } from "@/components/AppShell";
+import { NAV, canOpenPath } from "@/components/AppShell";
 import { CashReconciliationCard } from "@/components/CashReconciliationCard";
 import { LazySalesPurchaseChart } from "@/components/lazy";
 import { ErrorBox, Spinner, StatusBadge, cx } from "@/components/ui";
@@ -46,12 +39,33 @@ interface Dashboard {
   periodLabel: string;
   greetingName: string;
   kpis: {
-    sales: { value: number; growth: number | null; invoices: number; grossProfit: number | null; netProfit: number | null } | null;
-    collected: { value: number; growth: number | null; pctOfSales: number | null } | null;
+    sales: {
+      value: number;
+      growth: number | null;
+      invoices: number;
+      grossProfit: number | null;
+      netProfit: number | null;
+    } | null;
+    collected: {
+      value: number;
+      growth: number | null;
+      pctOfSales: number | null;
+    } | null;
     receivables: { value: number; customers: number; over30: number } | null;
-    purchases: { value: number; growth: number | null; bills: number; payables: number; payablesDueSoon: number } | null;
+    purchases: {
+      value: number;
+      growth: number | null;
+      bills: number;
+      payables: number;
+      payablesDueSoon: number;
+    } | null;
   };
-  spark: { label: string; sales: number; purchases: number; collected: number }[];
+  spark: {
+    label: string;
+    sales: number;
+    purchases: number;
+    collected: number;
+  }[];
   alerts: {
     expiring7: number | null;
     expired: number | null;
@@ -69,14 +83,23 @@ interface Dashboard {
   cash?: CashReconciliation | null;
   trend: { month: string; sales: number; purchases: number }[];
   byCategory: { category: string; amount: number }[];
-  split?: { channels: { channel: "COUNTER" | "VAN"; total: number; bills: number }[]; modes: { mode: PaymentMode; amount: number }[]; credit: number } | null;
+  split?: {
+    channels: { channel: "COUNTER" | "VAN"; total: number; bills: number }[];
+    modes: { mode: PaymentMode; amount: number }[];
+    credit: number;
+  } | null;
   expiring: {
     id: string;
     batchNo: string;
     expiryDate: string;
     quantity: number;
     value: number;
-    product: { id: string; name: string; unit: string; packSize: string | null };
+    product: {
+      id: string;
+      name: string;
+      unit: string;
+      packSize: string | null;
+    };
     branch?: { code: string; name: string } | null;
   }[];
   approvals: {
@@ -102,10 +125,37 @@ interface Dashboard {
     paymentMode: PaymentMode;
     _count: { items: number };
   }[];
-  gst: { output: number; input: number; net: number; gstr1Due: string; gstr3bDue: string } | null;
-  topProducts: { productId: string; name: string; unit: string; packSize: string | null; quantity: number; amount: number }[];
-  topDues: { id: string; name: string; phone: string | null; village: string | null; balance: number; creditLimit: number }[];
-  counts: { customers: number | null; vendors: number | null; products: number | null; batches: number | null; openPos: number | null; users: number | null };
+  gst: {
+    output: number;
+    input: number;
+    net: number;
+    gstr1Due: string;
+    gstr3bDue: string;
+  } | null;
+  topProducts: {
+    productId: string;
+    name: string;
+    unit: string;
+    packSize: string | null;
+    quantity: number;
+    amount: number;
+  }[];
+  topDues: {
+    id: string;
+    name: string;
+    phone: string | null;
+    village: string | null;
+    balance: number;
+    creditLimit: number;
+  }[];
+  counts: {
+    customers: number | null;
+    vendors: number | null;
+    products: number | null;
+    batches: number | null;
+    openPos: number | null;
+    users: number | null;
+  };
   /** null = all branches */
   branchId?: string | null;
   branches?: BranchRow[];
@@ -148,7 +198,12 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className={cx("flex flex-col overflow-hidden rounded-[10px] border border-line bg-surface shadow-[0_1px_2px_rgba(20,40,25,.06),0_4px_14px_rgba(20,40,25,.05)]", className)}>
+    <section
+      className={cx(
+        "flex flex-col overflow-hidden rounded-[10px] border border-line bg-surface shadow-[0_1px_2px_rgba(20,40,25,.06),0_4px_14px_rgba(20,40,25,.05)]",
+        className,
+      )}
+    >
       <header className="flex flex-wrap items-center justify-between gap-2.5 border-b border-line px-4 py-3">
         <div className="min-w-0">
           <h3 className="text-[14.5px] font-bold text-ink">{title}</h3>
@@ -194,12 +249,7 @@ function Trend({ value, invert }: { value: number | null; invert?: boolean }) {
   if (value === null) return null;
   const good = invert ? value <= 0 : value >= 0;
   return (
-    <span
-      className={cx(
-        "num rounded-full px-[7px] py-0.5 text-xs font-bold",
-        good ? "bg-leaf-100 text-leaf-600" : "bg-rust-100 text-rust-600",
-      )}
-    >
+    <span className={cx("num rounded-full px-[7px] py-0.5 text-xs font-bold", good ? "bg-leaf-100 text-leaf-600" : "bg-rust-100 text-rust-600")}>
       {value > 0 ? "+" : ""}
       {value}%
     </span>
@@ -231,7 +281,8 @@ function Kpi({
   /** A plain number, not rupees */
   count?: boolean;
 }) {
-  const cls = "flex flex-col gap-1 rounded-[10px] border border-line bg-surface px-4 pb-3 pt-3.5 shadow-[0_1px_2px_rgba(20,40,25,.06),0_4px_14px_rgba(20,40,25,.05)]";
+  const cls =
+    "flex flex-col gap-1 rounded-[10px] border border-line bg-surface px-4 pb-3 pt-3.5 shadow-[0_1px_2px_rgba(20,40,25,.06),0_4px_14px_rgba(20,40,25,.05)]";
   const body = (
     <>
       <div className="flex items-center justify-between text-xs font-semibold tracking-wide text-muted">
@@ -329,7 +380,13 @@ function BranchPerformance({
     <Panel
       title="Branch Performance"
       sub={`${periodLabel} · ${rows.length} branches${locked ? "" : " · pick a branch to open its dashboard"}`}
-      footer={finance ? { text: `Gross margin = sales − GST − cost, before returns. Stock value${dues ? " and dues are" : " is"} as of today.` } : undefined}
+      footer={
+        finance
+          ? {
+              text: `Gross margin = sales − GST − cost, before returns. Stock value${dues ? " and dues are" : " is"} as of today.`,
+            }
+          : undefined
+      }
     >
       <div className="overflow-x-auto">
         <table className={cx("w-full", finance ? "min-w-[860px]" : "min-w-[560px]")}>
@@ -364,7 +421,13 @@ function BranchPerformance({
                     title={`${b.name}: ${inr0(b.sales)} · ${pctOf(b.sales, total.sales)} of all sales`}
                   >
                     <span className="h-2 rounded-full bg-paper-3">
-                      <span className="block h-2 rounded-full" style={{ width: `${(b.sales / top) * 100}%`, background: GREEN }} />
+                      <span
+                        className="block h-2 rounded-full"
+                        style={{
+                          width: `${(b.sales / top) * 100}%`,
+                          background: GREEN,
+                        }}
+                      />
                     </span>
                     <span className="text-right">
                       <span className="num block font-semibold text-ink">{inrCompact(b.sales)}</span>
@@ -433,7 +496,9 @@ export default function DashboardPage() {
   const { current, locked, setBranch } = useBranch();
   const [period, setPeriod] = useState<Period>("month");
   const [expTab, setExpTab] = useState<7 | 30 | 60>(30);
-  const { data, error, loading, reload } = useApi<Dashboard>("/dashboard", { period });
+  const { data, error, loading, reload } = useApi<Dashboard>("/dashboard", {
+    period,
+  });
 
   if (loading && !data) return <Spinner page />;
   if (error && !data) return <ErrorBox message={error} onRetry={reload} />;
@@ -483,7 +548,10 @@ export default function DashboardPage() {
   const sparkOf = (key: "sales" | "purchases" | "collected") => data.spark.map((s) => s[key]);
   const trend = data.trend.map((m) => ({
     ...m,
-    label: new Date(`${m.month}-01T00:00:00`).toLocaleDateString("en-IN", { month: "short", year: "2-digit" }),
+    label: new Date(`${m.month}-01T00:00:00`).toLocaleDateString("en-IN", {
+      month: "short",
+      year: "2-digit",
+    }),
   }));
   const expRows = data.expiring.filter((b) => (daysUntil(b.expiryDate) ?? 999) <= expTab);
   const catMax = Math.max(...data.byCategory.map((c) => c.amount), 1);
@@ -491,6 +559,13 @@ export default function DashboardPage() {
   // Prefer the server's view of the scope; fall back to the top-bar choice
   const scopedToBranch = data.branchId != null || current !== null;
   const scopeName = current?.name ?? (scopedToBranch ? "This branch" : "All branches");
+  // Whether any figure on this page is covered by the user's role; without one, the page lists their screens instead
+  const hasInsights =
+    kpiCount > 0 || alertTiles.length > 0 || countTiles.length > 0 || seeSales || seeStock || seePurchasing || seeDues || (finance && !!data.gst);
+  const workspace = NAV.map((g) => ({
+    section: g.section,
+    items: g.items.filter((i) => i.href !== "/dashboard" && i.href !== "/notifications" && canOpenPath(i.href, can)),
+  })).filter((g) => g.items.length > 0);
 
   return (
     <div className={cx("space-y-[18px] transition-opacity", loading && "opacity-60")}>
@@ -502,99 +577,113 @@ export default function DashboardPage() {
             {greeting()}, {data.greetingName}
           </h1>
           <p className="text-[13px] text-muted">
-            {scopeName} · {data.periodLabel} · {season()}
+            {scopeName} · {hasInsights ? `${data.periodLabel} · ` : ""}
+            {season()}
           </p>
         </div>
-        <div role="tablist" aria-label="Period" className="inline-flex overflow-hidden rounded-[9px] border border-line bg-surface">
-          {(
-            [
-              ["today", "Today"],
-              ["month", "This Month"],
-              ["fy", "This FY"],
-            ] as const
-          ).map(([v, l]) => (
-            <button
-              key={v}
-              role="tab"
-              aria-selected={period === v}
-              onClick={() => setPeriod(v)}
-              className={cx(
-                "h-9 px-3 text-[13px] font-semibold transition-colors",
-                period === v ? "bg-leaf-100 text-leaf-600" : "text-muted hover:bg-paper-2",
-              )}
-            >
-              {l}
-            </button>
-          ))}
-        </div>
+        {hasInsights && (
+          <div role="tablist" aria-label="Period" className="inline-flex overflow-hidden rounded-[9px] border border-line bg-surface">
+            {(
+              [
+                ["today", "Today"],
+                ["month", "This Month"],
+                ["fy", "This FY"],
+              ] as const
+            ).map(([v, l]) => (
+              <button
+                key={v}
+                role="tab"
+                aria-selected={period === v}
+                onClick={() => setPeriod(v)}
+                className={cx(
+                  "h-9 px-3 text-[13px] font-semibold transition-colors",
+                  period === v ? "bg-leaf-100 text-leaf-600" : "text-muted hover:bg-paper-2",
+                )}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* No figures for this role: the screens it can open, grouped like the sidebar */}
+      {!hasInsights && <WorkspacePanel groups={workspace} />}
 
       {/* KPIs */}
       {kpiCount > 0 && (
-      <section className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-        {k.sales && (
-          <Kpi
-            label="Sales"
-            value={k.sales.value}
-            growth={k.sales.growth}
-            spark={sparkOf("sales")}
-            color={GREEN}
-            href={linkIf("/sales") ?? linkIf("/reports?tab=sales")}
-            periodWord={periodWord}
-            sub={
-              finance && k.sales.grossProfit !== null
-                ? `${k.sales.invoices} invoices · gross profit ${inrCompact(k.sales.grossProfit)}`
-                : `${k.sales.invoices} invoices`
-            }
-          />
-        )}
-        {k.collected && (
-          <Kpi
-            label="Collected"
-            value={k.collected.value}
-            growth={k.collected.growth}
-            spark={sparkOf("collected")}
-            color={GREEN}
-            href={linkIf("/payments")}
-            periodWord={periodWord}
-            sub={k.collected.pctOfSales === null ? "Payments received" : `${k.collected.pctOfSales}% of billed value`}
-          />
-        )}
-        {k.receivables && (
-          <Kpi
-            label="Receivables"
-            value={k.receivables.value}
-            color="var(--color-ochre-600)"
-            href={finance ? "/reports?tab=outstanding" : linkIf("/customers")}
-            periodWord={periodWord}
-            sub={
-              scopedToBranch
-                ? `Unpaid bills in this branch · ${k.receivables.customers} customers · over 30 days: ${inrCompact(k.receivables.over30)}`
-                : `${k.receivables.customers} customers · over 30 days: ${inrCompact(k.receivables.over30)}`
-            }
-          />
-        )}
-        {finance && k.purchases ? (
-          <Kpi
-            label="Purchase"
-            value={k.purchases.value}
-            growth={k.purchases.growth}
-            spark={sparkOf("purchases")}
-            color={GOLD}
-            href={linkIf("/purchases")}
-            periodWord={periodWord}
-            sub={
-              scopedToBranch
-                ? `Unpaid bills in this branch ${inrCompact(k.purchases.payables)} · due in 7 days: ${inrCompact(k.purchases.payablesDueSoon)}`
-                : `Payables ${inrCompact(k.purchases.payables)} · due in 7 days: ${inrCompact(k.purchases.payablesDueSoon)}`
-            }
-          />
-        ) : (
-          data.counts.customers !== null && (
-            <Kpi label="Customers" value={data.counts.customers} count color={GREEN} href={linkIf("/customers")} periodWord={periodWord} sub="Active farmers & dealers" />
-          )
-        )}
-      </section>
+        <section className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+          {k.sales && (
+            <Kpi
+              label="Sales"
+              value={k.sales.value}
+              growth={k.sales.growth}
+              spark={sparkOf("sales")}
+              color={GREEN}
+              href={linkIf("/sales") ?? linkIf("/reports?tab=sales")}
+              periodWord={periodWord}
+              sub={
+                finance && k.sales.grossProfit !== null
+                  ? `${k.sales.invoices} invoices · gross profit ${inrCompact(k.sales.grossProfit)}`
+                  : `${k.sales.invoices} invoices`
+              }
+            />
+          )}
+          {k.collected && (
+            <Kpi
+              label="Collected"
+              value={k.collected.value}
+              growth={k.collected.growth}
+              spark={sparkOf("collected")}
+              color={GREEN}
+              href={linkIf("/payments")}
+              periodWord={periodWord}
+              sub={k.collected.pctOfSales === null ? "Payments received" : `${k.collected.pctOfSales}% of billed value`}
+            />
+          )}
+          {k.receivables && (
+            <Kpi
+              label="Receivables"
+              value={k.receivables.value}
+              color="var(--color-ochre-600)"
+              href={finance ? "/reports?tab=outstanding" : linkIf("/customers")}
+              periodWord={periodWord}
+              sub={
+                scopedToBranch
+                  ? `Unpaid bills in this branch · ${k.receivables.customers} customers · over 30 days: ${inrCompact(k.receivables.over30)}`
+                  : `${k.receivables.customers} customers · over 30 days: ${inrCompact(k.receivables.over30)}`
+              }
+            />
+          )}
+          {finance && k.purchases ? (
+            <Kpi
+              label="Purchase"
+              value={k.purchases.value}
+              growth={k.purchases.growth}
+              spark={sparkOf("purchases")}
+              color={GOLD}
+              href={linkIf("/purchases")}
+              periodWord={periodWord}
+              sub={
+                scopedToBranch
+                  ? `Unpaid bills in this branch ${inrCompact(k.purchases.payables)} · due in 7 days: ${inrCompact(k.purchases.payablesDueSoon)}`
+                  : `Payables ${inrCompact(k.purchases.payables)} · due in 7 days: ${inrCompact(k.purchases.payablesDueSoon)}`
+              }
+            />
+          ) : (
+            data.counts.customers !== null && (
+              <Kpi
+                label="Customers"
+                value={data.counts.customers}
+                count
+                color={GREEN}
+                href={linkIf("/customers")}
+                periodWord={periodWord}
+                sub="Active farmers & dealers"
+              />
+            )
+          )}
+        </section>
       )}
 
       {/* Needs attention */}
@@ -629,51 +718,57 @@ export default function DashboardPage() {
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* Sales vs purchase */}
         {seeSales && (
-        <Panel
-          title={finance ? "Sales vs Purchase" : "Sales"}
-          sub="Last 12 months"
-          className="lg:col-span-8"
-          action={
-            <div className="flex gap-3 text-xs text-muted">
-              <span className="flex items-center gap-1.5">
-                <i className="size-2.5 rounded-sm" style={{ background: GREEN }} />
-                Sales
-              </span>
-              {finance && (
+          <Panel
+            title={finance ? "Sales vs Purchase" : "Sales"}
+            sub="Last 12 months"
+            className="lg:col-span-8"
+            action={
+              <div className="flex gap-3 text-xs text-muted">
                 <span className="flex items-center gap-1.5">
-                  <i className="size-2.5 rounded-sm" style={{ background: GOLD }} />
-                  Purchase
+                  <i className="size-2.5 rounded-sm" style={{ background: GREEN }} />
+                  Sales
                 </span>
-              )}
+                {finance && (
+                  <span className="flex items-center gap-1.5">
+                    <i className="size-2.5 rounded-sm" style={{ background: GOLD }} />
+                    Purchase
+                  </span>
+                )}
+              </div>
+            }
+            bodyClassName="p-4"
+          >
+            <div className="h-64">
+              <LazySalesPurchaseChart data={trend} showPurchases={finance} />
             </div>
-          }
-          bodyClassName="p-4"
-        >
-          <div className="h-64">
-            <LazySalesPurchaseChart data={trend} showPurchases={finance} />
-          </div>
-        </Panel>
+          </Panel>
         )}
 
         {/* Sales by category */}
         {seeSales && (
-        <Panel title="Sales by Category" sub={data.periodLabel} className="lg:col-span-4" bodyClassName="p-4">
-          {data.byCategory.length === 0 ? (
-            <p className="py-10 text-center text-sm text-slate-400">No sales in this period</p>
-          ) : (
-            <ul className="space-y-3">
-              {data.byCategory.map((c) => (
-                <li key={c.category} className="grid grid-cols-[minmax(0,7rem)_1fr_auto] items-center gap-2.5 text-[13px]">
-                  <span className="truncate text-ink">{c.category}</span>
-                  <span className="h-2 rounded-full bg-paper-3">
-                    <span className="block h-2 rounded-full" style={{ width: `${(c.amount / catMax) * 100}%`, background: GREEN }} />
-                  </span>
-                  <span className="num text-right font-semibold text-ink">{inrCompact(c.amount)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
+          <Panel title="Sales by Category" sub={data.periodLabel} className="lg:col-span-4" bodyClassName="p-4">
+            {data.byCategory.length === 0 ? (
+              <p className="py-10 text-center text-sm text-slate-400">No sales in this period</p>
+            ) : (
+              <ul className="space-y-3">
+                {data.byCategory.map((c) => (
+                  <li key={c.category} className="grid grid-cols-[minmax(0,7rem)_1fr_auto] items-center gap-2.5 text-[13px]">
+                    <span className="truncate text-ink">{c.category}</span>
+                    <span className="h-2 rounded-full bg-paper-3">
+                      <span
+                        className="block h-2 rounded-full"
+                        style={{
+                          width: `${(c.amount / catMax) * 100}%`,
+                          background: GREEN,
+                        }}
+                      />
+                    </span>
+                    <span className="num text-right font-semibold text-ink">{inrCompact(c.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
         )}
 
         {/* Where sales were made and how they were paid */}
@@ -681,132 +776,138 @@ export default function DashboardPage() {
 
         {/* Expiry watch */}
         {seeStock && (
-        <Panel
-          title="Expiry Watch"
-          sub="Batches in stock, earliest expiry first"
-          className={seePurchasing ? "lg:col-span-7" : "lg:col-span-12"}
-          action={
-            <div className="flex gap-1 rounded-lg bg-paper p-0.5">
-              {([7, 30, 60] as const).map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setExpTab(d)}
-                  className={cx(
-                    "rounded-md px-2.5 py-1 text-xs font-semibold",
-                    expTab === d ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink",
-                  )}
-                >
-                  {d} days
-                </button>
-              ))}
-            </div>
-          }
-          footer={{ text: `Alert window set in Store Settings`, href: "/inventory", link: "Open Stock & Batches" }}
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr>
-                  <th className={th}>Product / batch</th>
-                  <th className={th}>Expiry</th>
-                  <th className={th}>Left</th>
-                  <th className={cx(th, "text-right")}>Qty</th>
-                  {finance && <th className={cx(th, "text-right")}>Value</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {expRows.length === 0 ? (
+          <Panel
+            title="Expiry Watch"
+            sub="Batches in stock, earliest expiry first"
+            className={seePurchasing ? "lg:col-span-7" : "lg:col-span-12"}
+            action={
+              <div className="flex gap-1 rounded-lg bg-paper p-0.5">
+                {([7, 30, 60] as const).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setExpTab(d)}
+                    className={cx("rounded-md px-2.5 py-1 text-xs font-semibold", expTab === d ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink")}
+                  >
+                    {d} days
+                  </button>
+                ))}
+              </div>
+            }
+            footer={{
+              text: `Alert window set in Store Settings`,
+              href: "/inventory",
+              link: "Open Stock & Batches",
+            }}
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">
-                      No batches expire in the next {expTab} days
-                    </td>
+                    <th className={th}>Product / batch</th>
+                    <th className={th}>Expiry</th>
+                    <th className={th}>Left</th>
+                    <th className={cx(th, "text-right")}>Qty</th>
+                    {finance && <th className={cx(th, "text-right")}>Value</th>}
                   </tr>
-                ) : (
-                  expRows.slice(0, 8).map((b) => (
-                    <tr key={b.id} className="hover:bg-paper-2">
-                      <td className={td}>
-                        <MaybeLink href={productLink(b.product.id)}>{b.product.name}</MaybeLink>
-                        <p className="text-xs text-muted">
-                          {b.product.packSize ? `${b.product.packSize} · ` : ""}Batch {b.batchNo}
-                          {!scopedToBranch && b.branch && (
-                            <>
-                              {" "}
-                              <CodeBadge code={b.branch.code} title={b.branch.name} />
-                            </>
-                          )}
-                        </p>
+                </thead>
+                <tbody>
+                  {expRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">
+                        No batches expire in the next {expTab} days
                       </td>
-                      <td className={cx(td, "num whitespace-nowrap")}>{date(b.expiryDate)}</td>
-                      <td className={td}>
-                        <ExpiryBadge d={b.expiryDate} />
-                      </td>
-                      <td className={cx(td, "num text-right")}>
-                        {qty(b.quantity)} {b.product.unit}
-                      </td>
-                      {finance && <td className={cx(td, "num text-right")}>{inr0(b.value)}</td>}
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
+                  ) : (
+                    expRows.slice(0, 8).map((b) => (
+                      <tr key={b.id} className="hover:bg-paper-2">
+                        <td className={td}>
+                          <MaybeLink href={productLink(b.product.id)}>{b.product.name}</MaybeLink>
+                          <p className="text-xs text-muted">
+                            {b.product.packSize ? `${b.product.packSize} · ` : ""}
+                            Batch {b.batchNo}
+                            {!scopedToBranch && b.branch && (
+                              <>
+                                {" "}
+                                <CodeBadge code={b.branch.code} title={b.branch.name} />
+                              </>
+                            )}
+                          </p>
+                        </td>
+                        <td className={cx(td, "num whitespace-nowrap")}>{date(b.expiryDate)}</td>
+                        <td className={td}>
+                          <ExpiryBadge d={b.expiryDate} />
+                        </td>
+                        <td className={cx(td, "num text-right")}>
+                          {qty(b.quantity)} {b.product.unit}
+                        </td>
+                        {finance && <td className={cx(td, "num text-right")}>{inr0(b.value)}</td>}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
         )}
 
         {/* PO approvals */}
         {seePurchasing && (
-        <Panel
-          title="PO Approvals"
-          sub="Waiting on approvers"
-          className={seeStock ? "lg:col-span-5" : "lg:col-span-12"}
-          action={
-            (data.alerts.approvals ?? 0) > 0 ? (
-              <span className="rounded-full bg-ochre-100 px-2.5 py-0.5 text-xs font-semibold text-ochre-600">{data.alerts.approvals} pending</span>
-            ) : undefined
-          }
-          footer={{ text: "Limits set in PO Approval Rules", href: "/purchase-orders/approvals", link: "Review" }}
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr>
-                  <th className={th}>PO / vendor</th>
-                  <th className={cx(th, "text-right")}>Value</th>
-                  <th className={th}>Waiting at</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.approvals.length === 0 ? (
+          <Panel
+            title="PO Approvals"
+            sub="Waiting on approvers"
+            className={seeStock ? "lg:col-span-5" : "lg:col-span-12"}
+            action={
+              (data.alerts.approvals ?? 0) > 0 ? (
+                <span className="rounded-full bg-ochre-100 px-2.5 py-0.5 text-xs font-semibold text-ochre-600">{data.alerts.approvals} pending</span>
+              ) : undefined
+            }
+            footer={{
+              text: "Limits set in PO Approval Rules",
+              href: "/purchase-orders/approvals",
+              link: "Review",
+            }}
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
                   <tr>
-                    <td colSpan={3} className="px-4 py-10 text-center text-sm text-slate-400">
-                      Nothing waiting for approval
-                    </td>
+                    <th className={th}>PO / vendor</th>
+                    <th className={cx(th, "text-right")}>Value</th>
+                    <th className={th}>Waiting at</th>
                   </tr>
-                ) : (
-                  data.approvals.map((p) => (
-                    <tr key={p.id} className="hover:bg-paper-2">
-                      <td className={td}>
-                        <Link href={`/purchase-orders/${p.id}`} className="font-semibold text-ink hover:text-brand-700">
-                          {p.poNo}
-                        </Link>
-                        <p className="text-xs text-muted">
-                          {p.vendor}
-                          {p.round > 1 && <span className="font-semibold text-rust-600"> · Re-approval · round {p.round}</span>}
-                        </p>
-                      </td>
-                      <td className={cx(td, "num text-right")}>{inr0(p.totalAmount)}</td>
-                      <td className={td}>
-                        <span className="whitespace-nowrap rounded-full bg-paper-3 px-2 py-0.5 text-xs font-medium text-ink">
-                          {p.waitingAt} · {p.level} of {p.levels}
-                        </span>
+                </thead>
+                <tbody>
+                  {data.approvals.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-10 text-center text-sm text-slate-400">
+                        Nothing waiting for approval
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
+                  ) : (
+                    data.approvals.map((p) => (
+                      <tr key={p.id} className="hover:bg-paper-2">
+                        <td className={td}>
+                          <Link href={`/purchase-orders/${p.id}`} className="font-semibold text-ink hover:text-brand-700">
+                            {p.poNo}
+                          </Link>
+                          <p className="text-xs text-muted">
+                            {p.vendor}
+                            {p.round > 1 && <span className="font-semibold text-rust-600"> · Re-approval · round {p.round}</span>}
+                          </p>
+                        </td>
+                        <td className={cx(td, "num text-right")}>{inr0(p.totalAmount)}</td>
+                        <td className={td}>
+                          <span className="whitespace-nowrap rounded-full bg-paper-3 px-2 py-0.5 text-xs font-medium text-ink">
+                            {p.waitingAt} · {p.level} of {p.levels}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
         )}
 
         {/* Goods received: POs received in part or in full */}
@@ -814,62 +915,63 @@ export default function DashboardPage() {
 
         {/* Recent sales */}
         {seeSales && (
-        <Panel
-          title="Recent Sales"
-          sub="Latest invoices and POS bills"
-          className={finance ? "lg:col-span-8" : "lg:col-span-12"}
-          action={
-            canOpenPath("/sales", can) ? (
-              <Link href="/sales" className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand-500">
-                View All
-              </Link>
-            ) : undefined
-          }
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr>
-                  <th className={th}>Bill no.</th>
-                  <th className={th}>Customer</th>
-                  <th className={th}>Payment</th>
-                  <th className={cx(th, "text-right")}>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.recentSales.length === 0 ? (
+          <Panel
+            title="Recent Sales"
+            sub="Latest invoices and POS bills"
+            className={finance ? "lg:col-span-8" : "lg:col-span-12"}
+            action={
+              canOpenPath("/sales", can) ? (
+                <Link href="/sales" className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand-500">
+                  View All
+                </Link>
+              ) : undefined
+            }
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
                   <tr>
-                    <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-400">
-                      No sales yet
-                    </td>
+                    <th className={th}>Bill no.</th>
+                    <th className={th}>Customer</th>
+                    <th className={th}>Payment</th>
+                    <th className={cx(th, "text-right")}>Amount</th>
                   </tr>
-                ) : (
-                  data.recentSales.map((s) => (
-                    <tr key={s.id} className="hover:bg-paper-2">
-                      <td className={td}>
-                        <MaybeLink href={linkIf(`/sales/${s.id}`)}>{s.invoiceNo}</MaybeLink>
-                        <p className="text-xs text-muted">
-                          {date(s.saleDate)} · {s._count.items} item{s._count.items === 1 ? "" : "s"}
-                        </p>
+                </thead>
+                <tbody>
+                  {data.recentSales.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-400">
+                        No sales yet
                       </td>
-                      <td className={td}>
-                        <p className="font-medium text-ink">{s.customerName || "Walk-in"}</p>
-                        {s.customer?.village && <p className="text-xs text-muted">{s.customer.village}</p>}
-                      </td>
-                      <td className={td}>
-                        <span className="flex flex-wrap items-center gap-1.5">
-                          <StatusBadge status={s.paymentStatus} />
-                          <span className="text-xs text-muted">{modeLabel(s.paymentMode)}</span>
-                        </span>
-                      </td>
-                      <td className={cx(td, "num text-right font-semibold")}>{inr(s.totalAmount)}</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
+                  ) : (
+                    data.recentSales.map((s) => (
+                      <tr key={s.id} className="hover:bg-paper-2">
+                        <td className={td}>
+                          <MaybeLink href={linkIf(`/sales/${s.id}`)}>{s.invoiceNo}</MaybeLink>
+                          <p className="text-xs text-muted">
+                            {date(s.saleDate)} · {s._count.items} item
+                            {s._count.items === 1 ? "" : "s"}
+                          </p>
+                        </td>
+                        <td className={td}>
+                          <p className="font-medium text-ink">{s.customerName || "Walk-in"}</p>
+                          {s.customer?.village && <p className="text-xs text-muted">{s.customer.village}</p>}
+                        </td>
+                        <td className={td}>
+                          <span className="flex flex-wrap items-center gap-1.5">
+                            <StatusBadge status={s.paymentStatus} />
+                            <span className="text-xs text-muted">{modeLabel(s.paymentMode)}</span>
+                          </span>
+                        </td>
+                        <td className={cx(td, "num text-right font-semibold")}>{inr(s.totalAmount)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
         )}
 
         {/* GST */}
@@ -878,7 +980,11 @@ export default function DashboardPage() {
             title="GST This Period"
             sub={`${data.periodLabel} · provisional`}
             className="lg:col-span-4"
-            footer={{ text: "From invoices booked in the ERP", href: "/reports?tab=gst", link: "GST Summary" }}
+            footer={{
+              text: "From invoices booked in the ERP",
+              href: "/reports?tab=gst",
+              link: "GST Summary",
+            }}
             bodyClassName="p-4"
           >
             <div className="grid grid-cols-3 gap-2 rounded-lg bg-paper-2 p-3 text-center">
@@ -912,7 +1018,11 @@ export default function DashboardPage() {
                         left <= 3 ? "bg-rust-100 text-rust-600" : left <= 10 ? "bg-ochre-100 text-ochre-600" : "bg-sea-100 text-sea-700",
                       )}
                     >
-                      Due {new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                      Due{" "}
+                      {new Date(d).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                      })}
                     </span>
                   </li>
                 );
@@ -923,95 +1033,130 @@ export default function DashboardPage() {
 
         {/* Top moving products */}
         {seeSales && (
-        <Panel title="Top Moving Products" sub={`${data.periodLabel} · quantity sold`} className={seeDues ? "lg:col-span-6" : "lg:col-span-12"}>
-          <table className="w-full">
-            <tbody>
-              {data.topProducts.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-10 text-center text-sm text-slate-400">No sales in this period</td>
-                </tr>
-              ) : (
-                data.topProducts.map((t, i) => (
-                  <tr key={t.productId} className="hover:bg-paper-2">
-                    <td className={cx(td, "num w-8 text-muted")}>{i + 1}</td>
-                    <td className={td}>
-                      <MaybeLink href={productLink(t.productId)}>{t.name}</MaybeLink>
-                      <p className="text-xs text-muted">
-                        {t.packSize ? `${t.packSize} · ` : ""}
-                        {inr0(t.amount)}
-                      </p>
-                    </td>
-                    <td className={cx(td, "num text-right")}>
-                      <b>{qty(t.quantity)}</b> <span className="text-xs text-muted">{t.unit}</span>
-                    </td>
+          <Panel title="Top Moving Products" sub={`${data.periodLabel} · quantity sold`} className={seeDues ? "lg:col-span-6" : "lg:col-span-12"}>
+            <table className="w-full">
+              <tbody>
+                {data.topProducts.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-10 text-center text-sm text-slate-400">No sales in this period</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </Panel>
+                ) : (
+                  data.topProducts.map((t, i) => (
+                    <tr key={t.productId} className="hover:bg-paper-2">
+                      <td className={cx(td, "num w-8 text-muted")}>{i + 1}</td>
+                      <td className={td}>
+                        <MaybeLink href={productLink(t.productId)}>{t.name}</MaybeLink>
+                        <p className="text-xs text-muted">
+                          {t.packSize ? `${t.packSize} · ` : ""}
+                          {inr0(t.amount)}
+                        </p>
+                      </td>
+                      <td className={cx(td, "num text-right")}>
+                        <b>{qty(t.quantity)}</b> <span className="text-xs text-muted">{t.unit}</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </Panel>
         )}
 
         {/* Customer dues */}
         {seeDues && k.receivables && (
-        <Panel
-          title="Dues to Collect"
-          sub="Customers with the highest balance"
-          className={seeSales ? "lg:col-span-6" : "lg:col-span-12"}
-          footer={{
-            text: `${k.receivables.customers} customers owe ${inr0(k.receivables.value)}`,
-            href: finance ? "/reports?tab=outstanding" : linkIf("/customers"),
-            link: finance ? "Outstanding Report" : "All Customers",
-          }}
-        >
-          <table className="w-full">
-            <tbody>
-              {data.topDues.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-10 text-center text-sm text-slate-400">No customer dues</td>
-                </tr>
-              ) : (
-                data.topDues.map((c) => {
-                  const over = c.creditLimit > 0 && c.balance > c.creditLimit;
-                  return (
-                    <tr key={c.id} className="hover:bg-paper-2">
-                      <td className={td}>
-                        <MaybeLink href={linkIf(`/customers/${c.id}`)}>{c.name}</MaybeLink>
-                        <p className="text-xs text-muted">{[c.village, c.phone].filter(Boolean).join(" · ") || "—"}</p>
-                      </td>
-                      <td className={cx(td, "text-right")}>
-                        <p className="num font-semibold text-rust-600">{inr0(c.balance)}</p>
-                        {over && <p className="text-[11px] text-rust-600">over credit limit</p>}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </Panel>
+          <Panel
+            title="Dues to Collect"
+            sub="Customers with the highest balance"
+            className={seeSales ? "lg:col-span-6" : "lg:col-span-12"}
+            footer={{
+              text: `${k.receivables.customers} customers owe ${inr0(k.receivables.value)}`,
+              href: finance ? "/reports?tab=outstanding" : linkIf("/customers"),
+              link: finance ? "Outstanding Report" : "All Customers",
+            }}
+          >
+            <table className="w-full">
+              <tbody>
+                {data.topDues.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-10 text-center text-sm text-slate-400">No customer dues</td>
+                  </tr>
+                ) : (
+                  data.topDues.map((c) => {
+                    const over = c.creditLimit > 0 && c.balance > c.creditLimit;
+                    return (
+                      <tr key={c.id} className="hover:bg-paper-2">
+                        <td className={td}>
+                          <MaybeLink href={linkIf(`/customers/${c.id}`)}>{c.name}</MaybeLink>
+                          <p className="text-xs text-muted">{[c.village, c.phone].filter(Boolean).join(" · ") || "—"}</p>
+                        </td>
+                        <td className={cx(td, "text-right")}>
+                          <p className="num font-semibold text-rust-600">{inr0(c.balance)}</p>
+                          {over && <p className="text-[11px] text-rust-600">over credit limit</p>}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </Panel>
         )}
       </section>
 
       {/* Counts: only those the user may open */}
       {countTiles.length > 0 && (
-      <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
-        {countTiles.map(([href, icon, value, label]) => (
-          <Link
-            key={label}
-            href={href}
-            className="flex items-center gap-3 rounded-[10px] border border-line bg-surface px-3.5 py-3 transition-colors hover:border-brand-500"
-          >
-            <span className="shrink-0 rounded-lg bg-leaf-100 p-2 text-leaf-600 [&>svg]:size-4">{icon}</span>
-            <span className="min-w-0">
-              <b className="num block font-display text-lg leading-tight text-ink">{value.toLocaleString("en-IN")}</b>
-              <span className="text-xs text-muted">{label}</span>
-            </span>
-          </Link>
-        ))}
-      </section>
+        <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
+          {countTiles.map(([href, icon, value, label]) => (
+            <Link
+              key={label}
+              href={href}
+              className="flex items-center gap-3 rounded-[10px] border border-line bg-surface px-3.5 py-3 transition-colors hover:border-brand-500"
+            >
+              <span className="shrink-0 rounded-lg bg-leaf-100 p-2 text-leaf-600 [&>svg]:size-4">{icon}</span>
+              <span className="min-w-0">
+                <b className="num block font-display text-lg leading-tight text-ink">{value.toLocaleString("en-IN")}</b>
+                <span className="text-xs text-muted">{label}</span>
+              </span>
+            </Link>
+          ))}
+        </section>
       )}
     </div>
+  );
+}
+
+/** Shortcuts to every screen the user's role opens (shown when no dashboard figure is theirs) */
+function WorkspacePanel({ groups }: { groups: { section: string; items: (typeof NAV)[number]["items"] }[] }) {
+  return (
+    <Panel
+      title="Your Workspace"
+      sub="The screens your role gives you — figures appear here once your role includes sales, stock, purchasing or reports"
+      bodyClassName="p-4"
+    >
+      {groups.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted">Your role has no screens yet. Ask an administrator to give you access in Users.</p>
+      ) : (
+        <div className="space-y-5">
+          {groups.map((g) => (
+            <div key={g.section || "general"}>
+              {g.section && <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">{g.section}</p>}
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                {g.items.map((i) => (
+                  <Link
+                    key={i.href}
+                    href={i.href}
+                    className="flex items-center gap-3 rounded-[10px] border border-line bg-surface px-3.5 py-3 transition-colors hover:border-brand-500"
+                  >
+                    <span className="shrink-0 rounded-lg bg-leaf-100 p-2 text-leaf-600 [&>svg]:size-4">{i.icon}</span>
+                    <span className="text-sm font-semibold text-ink">{i.label}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
   );
 }
 
@@ -1042,15 +1187,26 @@ function GrnProgressPanel() {
   const { currentId } = useBranch();
   const showBranch = currentId === "all";
   const [tab, setTab] = useState<"partial" | "full">("partial");
-  const { data, error, loading, reload } = useApi<{ partial: ReceiptRow[]; full: ReceiptRow[]; counts: { partial: number; full: number } }>(
-    "/grns/progress",
-    { limit: 10 },
-  );
+  const { data, error, loading, reload } = useApi<{
+    partial: ReceiptRow[];
+    full: ReceiptRow[];
+    counts: { partial: number; full: number };
+  }>("/grns/progress", { limit: 10 });
   const rows = data?.[tab] ?? [];
   const q = (x: number, r: ReceiptRow) => `${qty(x)}${r.unit ? ` ${r.unit}` : ""}`;
   const tabs = [
-    { key: "partial" as const, label: "Partially Received", n: data?.counts.partial ?? 0, on: "bg-ochre-100 text-ochre-600" },
-    { key: "full" as const, label: "Fully Received", n: data?.counts.full ?? 0, on: "bg-brand-50 text-brand-700" },
+    {
+      key: "partial" as const,
+      label: "Partially Received",
+      n: data?.counts.partial ?? 0,
+      on: "bg-ochre-100 text-ochre-600",
+    },
+    {
+      key: "full" as const,
+      label: "Fully Received",
+      n: data?.counts.full ?? 0,
+      on: "bg-brand-50 text-brand-700",
+    },
   ];
 
   return (
@@ -1151,12 +1307,16 @@ function GrnProgressPanel() {
                   <td className={cx(td, "min-w-36")}>
                     <div className="flex items-center gap-2">
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-paper-3">
-                        <div className={cx("h-full rounded-full", r.receivedPct >= 100 ? "bg-brand-600" : "bg-ochre-600")} style={{ width: `${r.receivedPct}%` }} />
+                        <div
+                          className={cx("h-full rounded-full", r.receivedPct >= 100 ? "bg-brand-600" : "bg-ochre-600")}
+                          style={{ width: `${r.receivedPct}%` }}
+                        />
                       </div>
                       <span className="num w-9 text-right text-xs font-semibold text-ink">{r.receivedPct}%</span>
                     </div>
                     <p className="text-[11px] text-muted">
-                      {r.linesComplete} of {r.lines} line{r.lines === 1 ? "" : "s"} complete
+                      {r.linesComplete} of {r.lines} line
+                      {r.lines === 1 ? "" : "s"} complete
                     </p>
                   </td>
                 </tr>
@@ -1198,12 +1358,19 @@ function SplitPanel({ split, label }: { split: NonNullable<Dashboard["split"]>; 
               <li key={c.channel} className="grid grid-cols-[5rem_1fr_auto] items-center gap-2.5 text-[13px] sm:grid-cols-[6rem_1fr_auto]">
                 <span className="text-ink">{CHANNEL_LABEL[c.channel] ?? c.channel}</span>
                 <span className="h-2 rounded-full bg-paper-3">
-                  <span className="block h-2 rounded-full" style={{ width: `${(c.total / totalSales) * 100}%`, background: c.channel === "VAN" ? "#3b82c4" : GREEN }} />
+                  <span
+                    className="block h-2 rounded-full"
+                    style={{
+                      width: `${(c.total / totalSales) * 100}%`,
+                      background: c.channel === "VAN" ? "#3b82c4" : GREEN,
+                    }}
+                  />
                 </span>
                 <span className="num text-right">
                   <b className="text-ink">{inrCompact(c.total)}</b>
                   <span className="block text-xs text-muted sm:ml-1 sm:inline">
-                    {Math.round((c.total / totalSales) * 100)}% · {c.bills} bill{c.bills === 1 ? "" : "s"}
+                    {Math.round((c.total / totalSales) * 100)}% · {c.bills} bill
+                    {c.bills === 1 ? "" : "s"}
                   </span>
                 </span>
               </li>
@@ -1219,14 +1386,26 @@ function SplitPanel({ split, label }: { split: NonNullable<Dashboard["split"]>; 
           <>
             <div className="mb-3 flex h-3 overflow-hidden rounded-full bg-paper-3">
               {modes.map((m, i) => (
-                <span key={m.mode} title={`${modeLabel(m.mode)} ${inrCompact(m.amount)}`} style={{ width: `${(m.amount / totalModes) * 100}%`, background: m.mode === "CREDIT" ? "#d97706" : MODE_COLORS[i % MODE_COLORS.length] }} />
+                <span
+                  key={m.mode}
+                  title={`${modeLabel(m.mode)} ${inrCompact(m.amount)}`}
+                  style={{
+                    width: `${(m.amount / totalModes) * 100}%`,
+                    background: m.mode === "CREDIT" ? "#d97706" : MODE_COLORS[i % MODE_COLORS.length],
+                  }}
+                />
               ))}
             </div>
             <ul className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-[13px] sm:grid-cols-2">
               {modes.map((m, i) => (
                 <li key={m.mode} className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 text-ink">
-                    <span className="size-2.5 rounded-sm" style={{ background: m.mode === "CREDIT" ? "#d97706" : MODE_COLORS[i % MODE_COLORS.length] }} />
+                    <span
+                      className="size-2.5 rounded-sm"
+                      style={{
+                        background: m.mode === "CREDIT" ? "#d97706" : MODE_COLORS[i % MODE_COLORS.length],
+                      }}
+                    />
                     {m.mode === "CREDIT" ? "On credit (unpaid)" : modeLabel(m.mode)}
                   </span>
                   <span className="num font-semibold text-ink">{inrCompact(m.amount)}</span>

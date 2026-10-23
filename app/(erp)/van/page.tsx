@@ -8,6 +8,7 @@ import { useNeedBranch } from "@/components/BranchNotice";
 import { LoadLines, type LoadLine } from "@/components/VanLoadLines";
 import { Badge, Button, Card, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, Select, Table, Td, Textarea, Th, errMsg, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { dateTime, inr, n } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { VanTrip } from "@/lib/types";
@@ -15,6 +16,7 @@ import type { VanTrip } from "@/lib/types";
 export default function VanTripsPage() {
   const router = useRouter();
   const [status, setStatus] = useState("");
+  const { can } = useAuth();
   const [opening, setOpening] = useState(false);
   const { data, error, loading, reload } = useApi<(VanTrip & { lines: number; salesTotal: number; _count: { sales: number } })[]>("/van-trips", { status });
 
@@ -24,9 +26,11 @@ export default function VanTripsPage() {
         title="Van Trips"
         subtitle="Load stock onto the van in the morning, bill farmers in the villages against the trip, and reconcile returns and cash in the evening"
         actions={
-          <Button icon={<Plus className="size-4" />} onClick={() => setOpening(true)}>
-            Load a Van
-          </Button>
+          can("sales.van") && (
+            <Button icon={<Plus className="size-4" />} onClick={() => setOpening(true)}>
+              Load a Van
+            </Button>
+          )
         }
       />
       <Card bodyClassName="p-0">

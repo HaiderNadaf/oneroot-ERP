@@ -4,7 +4,7 @@ import { ScanLine } from "lucide-react";
 import { useState } from "react";
 import { useApi } from "@/lib/hooks";
 import type { SerialNumber } from "@/lib/types";
-import { Button, Input, Modal, cx, useToast } from "./ui";
+import { Button, Input, Modal, Select, cx, useToast } from "./ui";
 
 /**
  * Pick which serial-numbered units leave with a bill: tick them, or scan / type each serial.
@@ -109,5 +109,62 @@ function PickerBody({ productId, productName, quantity, value, onClose, onChange
         {picked.length} of {quantity} picked · {all.length} in stock
       </p>
     </Modal>
+  );
+}
+
+/** "SP-0041", or "SP-0041 · Batch B12" when the unit's batch number differs from its serial */
+const entryLabel = (s: SerialNumber) => (s.batch?.batchNo && s.batch.batchNo !== s.serialNo && s.batch.batchNo !== "DEFAULT" ? `${s.serialNo} · Batch ${s.batch.batchNo}` : s.serialNo);
+
+/**
+ * POS: one Batch / Serial No. dropdown per unit on the line, listing that product's entries in stock in this branch
+ * (added at goods inward). Hands back the picked serials and the batch each one sits in.
+ */
+export function SerialSelect({
+  productId,
+  quantity,
+  value,
+  onChange,
+}: {
+  productId: string;
+  quantity: number;
+  value: string[];
+  onChange: (serialNos: string[], batchOf: Record<string, string | null>) => void;
+}) {
+  const { data, loading } = useApi<SerialNumber[]>(`/products/${productId}/serials`, { status: "IN_STOCK" });
+  const all = data ?? [];
+  const units = Math.max(1, Math.round(quantity) || 1);
+
+  function pick(i: number, serialNo: string) {
+    const next = Array.from({ length: units }, (_, j) => (j === i ? serialNo : (value[j] ?? ""))).filter(Boolean);
+    onChange(next, Object.fromEntries(all.filter((s) => next.includes(s.serialNo)).map((s) => [s.serialNo, s.batchId ?? null])));
+  }
+
+  return (
+    <div className="mt-1 space-y-1">
+      {Array.from({ length: units }, (_, i) => {
+        const current = value[i] ?? "";
+        // An entry picked for another unit isn't offered again
+        const options = all.filter((s) => s.serialNo === current || !value.includes(s.serialNo));
+        return (
+          <Select
+            key={i}
+            value={current}
+            onChange={(e) => pick(i, e.target.value)}
+            disabled={loading && !data}
+            className={cx("h-8 text-xs", !current && "border-amber-400 bg-amber-50")}
+            aria-label={`Batch / Serial No.${units > 1 ? ` ${i + 1}` : ""}`}
+          >
+            <option value="">
+              {loading && !data ? "Loading…" : !all.length ? "No Batch / Serial No. in stock here" : `Select Batch / Serial No.${units > 1 ? ` (unit ${i + 1})` : ""}`}
+            </option>
+            {options.map((s) => (
+              <option key={s.id} value={s.serialNo}>
+                {entryLabel(s)}
+              </option>
+            ))}
+          </Select>
+        );
+      })}
+    </div>
   );
 }

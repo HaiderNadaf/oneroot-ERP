@@ -24,7 +24,6 @@ import {
   Spinner,
   Table,
   Td,
-  Textarea,
   Th,
   cx,
   errMsg,
@@ -46,8 +45,6 @@ interface BatchRow {
   batchNo: string;
   mfgDate: string;
   expiryDate: string;
-  /** Serial-tracked products: the serial numbers of this batch's units, one per line */
-  serials: string;
 }
 
 interface Line {
@@ -58,9 +55,18 @@ interface Line {
 }
 
 let batchSeq = 0;
-const blankBatch = (qtyValue = ""): BatchRow => ({ key: ++batchSeq, qty: qtyValue, batchNo: "", mfgDate: "", expiryDate: "", serials: "" });
-/** Serial numbers typed or scanned into a batch: one per line (commas also split) */
-const serialsOf = (b: BatchRow) => b.serials.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean);
+const blankBatch = (qtyValue = ""): BatchRow => ({ key: ++batchSeq, qty: qtyValue, batchNo: "", mfgDate: "", expiryDate: "" });
+
+/**
+ * A line as the form starts it: everything due as one batch, or — for products that track serial numbers —
+ * one row per unit, each with its own Batch / Serial No. (the same number is the unit's batch and its serial)
+ */
+function startLine(item: PoItem): Line {
+  const due = pendingOf(item);
+  if (!item.product.trackSerial) return { batches: [blankBatch(String(due))] };
+  const units = Number.isInteger(due) && due > 0 ? Math.min(due, 500) : 1;
+  return { multi: true, batches: Array.from({ length: units }, () => blankBatch("1")) };
+}
 
 const num = (s: string) => Number(s) || 0;
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
@@ -79,31 +85,25 @@ function check(item: PoItem, l: Line) {
 
   // Each batch row: the quantity, its batch number, Mfg date and a future expiry
   const serialTracked = !!item.product.trackSerial;
-  // Serials across every batch of the line: one unit can't be entered twice
-  const allSerials = serialTracked ? l.batches.flatMap((b) => (num(b.qty) > 0 ? serialsOf(b).map((x) => x.toUpperCase()) : [])) : [];
+  const numberName = serialTracked ? "Batch / serial no." : "Batch no.";
   const rowErrors = l.batches.map((b): { msg: string; required?: boolean } | null => {
     const q = num(b.qty);
     const used = q > 0;
     if (q < 0) return { msg: "Quantity can't be negative" };
-    if (used && serialTracked && !Number.isInteger(q)) return { msg: "Received per unit with a serial number — quantity must be a whole number" };
+    if (used && serialTracked && q !== 1) return { msg: "Each Batch / Serial No. is one unit — enter 1" };
     if (!used) return b.batchNo.trim() || b.mfgDate || b.expiryDate ? { msg: "Enter its quantity", required: true } : null;
-    if (!b.batchNo.trim()) return { msg: "Batch no. is required", required: true };
+    if (!b.batchNo.trim()) return { msg: `${numberName} is required`, required: true };
     if (!b.mfgDate) return { msg: "Mfg date is required", required: true };
     if (!b.expiryDate) return { msg: "Expiry date is required", required: true };
     if (b.expiryDate <= today()) return { msg: "Expiry must be a future date — expired goods aren't taken into stock" };
     if (b.mfgDate && b.mfgDate > today()) return { msg: "Mfg date can't be in the future" };
     if (b.mfgDate && b.expiryDate && b.expiryDate < b.mfgDate) return { msg: "Expiry is before the Mfg date" };
-    if (serialTracked) {
-      const sn = serialsOf(b);
-      if (sn.length !== q) return { msg: `Enter ${q} serial no.${q === 1 ? "" : "s"} for this batch (${sn.length} given)`, required: sn.length < q };
-      const twice = sn.find((x) => allSerials.filter((y) => y === x.toUpperCase()).length > 1);
-      if (twice) return { msg: `Serial no. ${twice} is entered twice` };
-    }
     return null;
   });
   const numbers = l.batches.map((b) => b.batchNo.trim().toLowerCase()).filter(Boolean);
   const firstRow = rowErrors.findIndex(Boolean);
-  if (new Set(numbers).size !== numbers.length) errors.batches = { msg: "The same batch number is entered twice — put its whole quantity on one row" };
+  if (new Set(numbers).size !== numbers.length)
+    errors.batches = { msg: serialTracked ? "The same Batch / Serial No. is entered twice — each unit needs its own" : "The same batch number is entered twice — put its whole quantity on one row" };
   else if (firstRow >= 0) errors.batches = { msg: `Batch ${firstRow + 1}: ${rowErrors[firstRow]!.msg}`, required: rowErrors[firstRow]!.required };
 
   return { pending, passed, total, errors, rowErrors };
@@ -174,7 +174,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const [receivedAt, setReceivedAt] = useState(today());
   // Every open line starts as fully received in one batch; the batch popup splits it
   const [lines, setLines] = useState<Record<string, Line>>(() =>
-    Object.fromEntries(items.map((i) => [i.id, { batches: [blankBatch(String(pendingOf(i)))] } as Line])),
+    Object.fromEntries(items.map((i) => [i.id, startLine(i)])),
   );
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -191,7 +191,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
     const hit = items.find((i) => pendingOf(i) > 0 && (i.product.barcode?.toLowerCase() === q || i.product.sku.toLowerCase() === q));
     if (!hit) return toast.error(`No open line on ${po.poNo} matches barcode ${code}`);
     setScanned(hit.id);
-    setLines((ls) => (receivedOf(ls[hit.id]) > 0 ? ls : { ...ls, [hit.id]: { batches: [blankBatch(String(pendingOf(hit)))] } }));
+    setLines((ls) => (receivedOf(ls[hit.id]) > 0 ? ls : { ...ls, [hit.id]: startLine(hit) }));
     document.getElementById(`grn-line-${hit.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     setBatchFor(hit.id);
   }, true, (t) => !!t?.closest("[data-scan-input]")); // a batch or chassis number scanned into its box stays there
@@ -251,8 +251,8 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
             batchNo: b.batchNo.trim() || undefined,
             mfgDate: b.mfgDate || undefined,
             expiryDate: b.expiryDate || undefined,
-            // Each serial is stored against this batch
-            serialNos: i.product.trackSerial && num(b.qty) > 0 ? serialsOf(b) : undefined,
+            // Serial-tracked: the unit's Batch / Serial No. is also its serial number
+            serialNos: i.product.trackSerial && num(b.qty) > 0 ? [b.batchNo.trim()] : undefined,
           }));
         }),
       });
@@ -370,8 +370,8 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
         <InfoIcon className="mt-0.5 size-4 shrink-0" />
         <p>
           Click <b>Batch No.</b> on a line to enter each batch received — its quantity, batch number, Mfg and expiry date; <b>Received Qty</b> is
-          their total. For serial-numbered products, enter each unit&apos;s serial number under the batch it came in. Anything not received
-          stays open on the PO for a later delivery.
+          their total. For serial-numbered products, each unit gets one <b>Batch / Serial No.</b> Anything not received stays open on the PO for
+          a later delivery.
           <span className="mt-1 flex items-center gap-1 text-xs text-sky-700">
             <ScanLine className="size-3.5" /> Scan a pack&apos;s barcode to jump to its line and fill the batch details.
           </span>
@@ -438,7 +438,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                         <span className="font-mono">{p.sku}</span>
                         {p.packSize && ` · ${p.packSize}`}
                         {p.trackBatch && " · batch tracked"}
-                        {p.trackSerial && " · serial no. per unit"}
+                        {p.trackSerial && " · batch / serial no. per unit"}
                       </p>
                     </Td>
                     <Td right className="whitespace-nowrap pt-3">
@@ -471,7 +471,6 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                                   {" "}
                                   · {qty(num(b.qty))} {p.unit}
                                   {b.expiryDate ? ` · Exp ${date(b.expiryDate)}` : ""}
-                                  {p.trackSerial ? ` · ${serialsOf(b).length} serial${serialsOf(b).length === 1 ? "" : "s"}` : ""}
                                 </span>
                               </span>
                             ))}
@@ -604,11 +603,11 @@ function BatchesModal({
   const pending = pendingOf(item);
   const confirm = useConfirm();
   const multiple = !!line.multi;
+  // Serial-tracked products: one row per unit with a single Batch / Serial No. field
   const serialTracked = !!p.trackSerial;
-  // Multiple batches: # · Batch No. · (Serial No.) · Mfg · Expiry
-  const unitCols = serialTracked
-    ? "sm:grid-cols-[1.75rem_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]"
-    : "sm:grid-cols-[1.75rem_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]";
+  const numberLabel = serialTracked ? "Batch / Serial No." : "Batch No.";
+  // Multiple batches: # · Batch No. · Mfg · Expiry
+  const unitCols = "sm:grid-cols-[1.75rem_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]";
   const rows = line.batches;
   const setRows = (batches: BatchRow[]) => onChange({ batches });
   // Multiple batches: a "for all" date shows at the top only while every row has that same date
@@ -673,7 +672,7 @@ function BatchesModal({
     return true;
   }
 
-  const complete = rows.filter((b) => b.batchNo.trim() && b.mfgDate && b.expiryDate && (!serialTracked || serialsOf(b).length === 1)).length;
+  const complete = rows.filter((b) => b.batchNo.trim() && b.mfgDate && b.expiryDate).length;
 
   return (
     <Modal
@@ -704,19 +703,21 @@ function BatchesModal({
         </>
       }
     >
-      <div className="mb-3 flex flex-wrap items-end gap-x-3 gap-y-1">
-        <Field label="Batches" className="w-full sm:w-56">
-          <Select value={multiple ? "multiple" : "single"} onChange={(e) => void changeMode(e.target.value as "single" | "multiple")} aria-label="Single or multiple batches">
-            <option value="single">Single batch</option>
-            <option value="multiple">Multiple batches</option>
-          </Select>
-        </Field>
-        <p className="pb-2 text-xs text-slate-500">
-          {multiple
-            ? `One batch per unit, each with its own batch no.${serialTracked ? ", serial no." : ""}, Mfg date and expiry date.`
-            : `The quantity received as one batch — add a row to split it across batches.${serialTracked ? " Enter each unit's serial no. under its batch." : ""}`}
-        </p>
-      </div>
+      {serialTracked ? (
+        <p className="mb-3 text-xs text-slate-500">One row per unit: enter each unit&apos;s Batch / Serial No., Mfg date and expiry date.</p>
+      ) : (
+        <div className="mb-3 flex flex-wrap items-end gap-x-3 gap-y-1">
+          <Field label="Batches" className="w-full sm:w-56">
+            <Select value={multiple ? "multiple" : "single"} onChange={(e) => void changeMode(e.target.value as "single" | "multiple")} aria-label="Single or multiple batches">
+              <option value="single">Single batch</option>
+              <option value="multiple">Multiple batches</option>
+            </Select>
+          </Field>
+          <p className="pb-2 text-xs text-slate-500">
+            {multiple ? "One batch per unit, each with its own batch no., Mfg date and expiry date." : "The quantity received as one batch — add a row to split it across batches."}
+          </p>
+        </div>
+      )}
 
       {multiple ? (
         <div className="rounded-lg border border-brand-200 bg-brand-50/40 p-3">
@@ -737,7 +738,7 @@ function BatchesModal({
             )}
           </div>
           <div className="mb-1 mt-3 flex items-baseline justify-between gap-2">
-            <span className="text-xs font-medium text-slate-600">Batches · each needs its batch no.{serialTracked ? ", serial no." : ""}, Mfg and expiry date</span>
+            <span className="text-xs font-medium text-slate-600">Batches · each needs its {serialTracked ? "batch / serial no." : "batch no."}, Mfg and expiry date</span>
             <span className="num text-xs text-slate-500">
               {complete} of {rows.length} complete
             </span>
@@ -745,8 +746,7 @@ function BatchesModal({
           <div className="max-h-[50vh] space-y-2 overflow-y-auto pr-1">
             <div className={cx("hidden gap-2 text-[11px] font-medium uppercase tracking-wide text-slate-500 sm:grid", unitCols)}>
               <span />
-              <span>Batch No. *</span>
-              {serialTracked && <span>Serial No. *</span>}
+              <span>{numberLabel} *</span>
               <span>Mfg Date *</span>
               <span>Expiry Date *</span>
             </div>
@@ -763,34 +763,17 @@ function BatchesModal({
                         if (pasteNumbers(i, e.clipboardData.getData("text"))) e.preventDefault();
                       }}
                       onKeyDown={(e) => {
-                        // Scanners end each code with Enter: move on to this row's serial, or the next row
+                        // Scanners end each code with Enter: move on to the next row
                         if (e.key !== "Enter") return;
                         e.preventDefault();
-                        document.querySelector<HTMLInputElement>(`input[aria-label="${serialTracked ? `Serial number ${i + 1}` : `Batch number ${i + 2}`}"]`)?.focus();
+                        document.querySelector<HTMLInputElement>(`input[aria-label="Batch number ${i + 2}"]`)?.focus();
                       }}
                       className={cx("font-mono", msg && /batch/i.test(msg) && "border-red-400")}
-                      placeholder="Batch no."
+                      placeholder={serialTracked ? "Batch / serial no." : "Batch no."}
                       data-scan-input
                       aria-label={`Batch number ${i + 1}`}
                       autoFocus={i === 0}
                     />
-                    {serialTracked && (
-                      <div className="col-start-2 sm:col-start-auto">
-                        <Input
-                          value={b.serials}
-                          onChange={(e) => set(b.key, { serials: e.target.value })}
-                          onKeyDown={(e) => {
-                            if (e.key !== "Enter") return;
-                            e.preventDefault();
-                            document.querySelector<HTMLInputElement>(`input[aria-label="Batch number ${i + 2}"]`)?.focus();
-                          }}
-                          className={cx("font-mono", msg && /serial/i.test(msg) && "border-red-400")}
-                          placeholder="Serial no."
-                          data-scan-input
-                          aria-label={`Serial number ${i + 1}`}
-                        />
-                      </div>
-                    )}
                     <div className="col-start-2 sm:col-start-auto">
                       <DateInput
                         max={today()}
@@ -894,28 +877,6 @@ function BatchesModal({
                           )}
                         </td>
                       </tr>
-                      {serialTracked && (
-                        <tr>
-                          <td />
-                          <td colSpan={5} className="px-3 pb-2">
-                            <label className="mb-1 flex items-baseline justify-between gap-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                              <span>Serial Nos. of batch {b.batchNo.trim() || i + 1} * · one per line</span>
-                              <span className={cx("num normal-case", serialsOf(b).length === num(b.qty) ? "text-brand-700" : "text-amber-700")}>
-                                {serialsOf(b).length} of {qty(num(b.qty))}
-                              </span>
-                            </label>
-                            <Textarea
-                              rows={Math.min(6, Math.max(2, Math.ceil(num(b.qty))))}
-                              value={b.serials}
-                              onChange={(e) => set(b.key, { serials: e.target.value })}
-                              className={cx("font-mono text-sm", msg && /serial/i.test(msg) && "border-red-400")}
-                              placeholder={"Scan or type each unit's serial no.\ne.g. SP2026-00041"}
-                              data-scan-input
-                              aria-label={`Batch ${i + 1} serial numbers`}
-                            />
-                          </td>
-                        </tr>
-                      )}
                       {msg && (
                         <tr>
                           <td />

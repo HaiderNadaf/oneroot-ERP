@@ -108,6 +108,11 @@ export default function QuotationsPage() {
                       </Td>
                       <Td>
                         <span className="text-slate-800">{x.customerName}</span>
+                        {x.partyType === "BUSINESS" && (
+                          <span className="ml-1.5">
+                            <Badge tone="blue">Business</Badge>
+                          </span>
+                        )}
                         {(x.customerPhone || x.customerGstin) && <p className="text-xs text-slate-500">{[x.customerPhone, x.customerGstin].filter(Boolean).join(" · ")}</p>}
                       </Td>
                       <Td right className="text-slate-500">

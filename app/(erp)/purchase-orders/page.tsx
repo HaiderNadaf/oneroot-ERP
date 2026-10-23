@@ -178,6 +178,7 @@ function PurchaseOrders() {
                       </Td>
                       <Td className="min-w-40">
                         <p className="break-words font-medium text-slate-800">{po.vendor?.name ?? "—"}</p>
+                        {po.vendorBranch && <p className="text-xs font-medium text-brand-700">{po.vendorBranch.code ? `${po.vendorBranch.name} (${po.vendorBranch.code})` : po.vendorBranch.name}</p>}
                         <p className="text-xs text-slate-500">
                           {po.vendor?.code && <span className="font-mono">{po.vendor.code}</span>}
                           {po.vendor?.code && po.itemCount !== undefined && " · "}

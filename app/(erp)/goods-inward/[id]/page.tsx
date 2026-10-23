@@ -9,6 +9,7 @@ import { PrintPortal } from "@/components/PrintPortal";
 import { Attachments } from "@/components/Attachments";
 import { Badge, Button, Card, ErrorBox, PageHeader, PrintHeader, Spinner, SystemGeneratedNote, Table, Td, Th, cx } from "@/components/ui";
 import { vendorAddresses } from "@/lib/address";
+import { branchAddress, branchLabel } from "@/components/VendorBranches";
 import { date, dateTime, inr, n, qty, round2 } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
 import { useApi } from "@/lib/hooks";
@@ -124,6 +125,14 @@ function GrnView() {
               {vendorAddresses(v).shipping || "—"}
             </p>
             <p className="text-sm text-slate-600">{[v.phone, v.gstin && `GSTIN ${v.gstin}`].filter(Boolean).join(" · ")}</p>
+            {g.po.vendorBranch && (
+              <p className="mt-1 text-sm text-slate-600">
+                <span className="font-medium text-brand-700">From branch: </span>
+                <span className="font-medium text-slate-900">{branchLabel(g.po.vendorBranch)}</span>
+                {branchAddress(g.po.vendorBranch) && ` · ${branchAddress(g.po.vendorBranch)}`}
+                {g.po.vendorBranch.gstin && ` · GSTIN ${g.po.vendorBranch.gstin}`}
+              </p>
+            )}
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <dt className="text-slate-500">GRN no.</dt>
@@ -399,6 +408,13 @@ function GrnPrint({ g, store }: { g: GrnDetail; store: StoreSettings | null | un
                   {vendorAddresses(v).billing && <p className="text-[10px] text-slate-600">Billing: {vendorAddresses(v).billing}</p>}
                   {vendorAddresses(v).shipping && <p className="text-[10px] text-slate-600">Shipping: {vendorAddresses(v).shipping}</p>}
                   <p className="text-[10px] text-slate-600">{[v.phone, v.gstin && `GSTIN: ${v.gstin}`].filter(Boolean).join(" · ")}</p>
+                  {g.po.vendorBranch && (
+                    <p className="mt-1 text-[10px] text-slate-700">
+                      <span className="font-semibold">From branch: {branchLabel(g.po.vendorBranch)}</span>
+                      {branchAddress(g.po.vendorBranch) && ` · ${branchAddress(g.po.vendorBranch)}`}
+                      {g.po.vendorBranch.gstin && ` · GSTIN: ${g.po.vendorBranch.gstin}`}
+                    </p>
+                  )}
                 </div>
                 <div className="min-w-0 rounded-md border border-slate-200 border-t-[3px] border-t-brand-600 px-3 py-2">
                   <Label>Received At</Label>

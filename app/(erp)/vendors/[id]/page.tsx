@@ -20,6 +20,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { PartyPaymentForm, modeLabel, type FixedParty } from "@/components/PartyPaymentForm";
 import { ProductPicker } from "@/components/pickers";
+import { VendorBranchList } from "@/components/VendorBranches";
 import {
   Badge,
   Button,
@@ -58,7 +59,7 @@ type VendorDetail = Vendor & {
   >[];
 };
 
-type Tab = "ledger" | "products" | "purchases" | "payments";
+type Tab = "ledger" | "branches" | "products" | "purchases" | "payments";
 
 export default function VendorDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -193,6 +194,7 @@ export default function VendorDetailPage() {
         onChange={setTab}
         tabs={[
           { value: "ledger", label: "Ledger" },
+          { value: "branches", label: "Depots" },
           { value: "products", label: "Products Supplied" },
           ...(canSeePurchases ? [{ value: "purchases" as Tab, label: `Purchases (${v.stats.billCount})` }] : []),
           ...(canSeePayments ? [{ value: "payments" as Tab, label: "Payments" }] : []),
@@ -200,6 +202,7 @@ export default function VendorDetailPage() {
       />
 
       {tab === "ledger" && <VendorLedger key={ledgerKey} vendor={v} linkPurchases={canSeePurchases} />}
+      {tab === "branches" && <VendorBranchList vendor={v} />}
       {tab === "products" && <VendorProducts vendor={v} canEdit={can("vendors.edit")} />}
       {tab === "purchases" && canSeePurchases && <VendorPurchases vendorId={v.id} />}
       {tab === "payments" && canSeePayments && <VendorPayments key={ledgerKey} vendorId={v.id} linkPurchases={canSeePurchases} />}

@@ -25,6 +25,7 @@ import { isInterState } from "@/components/PoForm";
 import { LazyPoTermsModal } from "@/components/lazy";
 import { PO_TERMS_SHORT } from "@/components/PoTermsModal";
 import { vendorAddresses } from "@/lib/address";
+import { branchAddress, branchLabel } from "@/components/VendorBranches";
 import { CHARGES_GST_RATE, gstSlabs, halfRate, placeOfSupply } from "@/lib/gst";
 import {
   Badge,
@@ -53,6 +54,9 @@ import { printAs } from "@/lib/print";
 import type { ChainStep, PoHistory, PurchaseOrder, StoreSettings } from "@/lib/types";
 
 type Decision = "approve" | "send_back" | "reject";
+
+/** Who supplies the PO for GST: the vendor branch when it has a GSTIN / state, else the vendor (as the backend decides) */
+const supplierOf = (po: PurchaseOrder) => (po.vendorBranch && (po.vendorBranch.gstin || po.vendorBranch.state) ? po.vendorBranch : po.vendor);
 
 export default function PurchaseOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -99,8 +103,10 @@ export default function PurchaseOrderDetailPage() {
   const isBuyer = can("po.edit");
   // Named approvers can open this page without the purchases section
   const canBrowse = can("purchases.view");
-  const igst = isInterState(v, store);
-  const pos = placeOfSupply(v, store);
+  const vb = po.vendorBranch;
+  const supplier = supplierOf(po);
+  const igst = isInterState(supplier, store);
+  const pos = placeOfSupply(supplier, store);
   const tax = n(po.taxAmount);
   const slabs = poGstSlabs(po);
   const late = receivable ? daysUntil(po.expectedDate) : null;
@@ -211,6 +217,17 @@ export default function PurchaseOrderDetailPage() {
                       {vendorAddresses(v).shipping || "—"}
                     </p>
                     <p className="text-sm text-slate-600">{[v.contactPerson, v.phone].filter(Boolean).join(" · ")}</p>
+                    {vb && (
+                      <div className="mt-2 rounded-lg border border-brand-200 bg-brand-50/50 px-3 py-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-brand-700">Buying From Branch</p>
+                        <p className="font-semibold text-slate-900">
+                          {branchLabel(vb)}
+                          {!vb.isActive && <span className="ml-1.5 text-xs font-normal text-slate-500">(inactive)</span>}
+                        </p>
+                        <p className="break-words text-sm text-slate-600">{branchAddress(vb) || "—"}</p>
+                        <p className="text-sm text-slate-600">{[vb.contactPerson, vb.phone, vb.gstin && `GSTIN ${vb.gstin}`].filter(Boolean).join(" · ")}</p>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <p className="mt-1 text-sm text-slate-500">—</p>
@@ -232,8 +249,8 @@ export default function PurchaseOrderDetailPage() {
                 <dd>{po.expiryDays ? `${po.expiryDays} days` : "—"}</dd>
                 <dt className="text-slate-500">Vendor code</dt>
                 <dd className="font-mono text-xs">{v?.code || "—"}</dd>
-                <dt className="text-slate-500">Vendor GSTIN</dt>
-                <dd className="break-all font-mono text-xs">{v?.gstin || "—"}</dd>
+                <dt className="text-slate-500">{vb?.gstin ? "Branch GSTIN" : "Vendor GSTIN"}</dt>
+                <dd className="break-all font-mono text-xs">{supplier?.gstin || "—"}</dd>
                 <dt className="text-slate-500">Place of supply</dt>
                 <dd>
                   {pos.label}
@@ -830,8 +847,10 @@ const Label = ({ children }: { children: ReactNode }) => (
 /** A4 print layout of the PO (hidden on screen): header, details, three addresses, items, totals, terms */
 function PoPrint({ po, store, notApproved }: { po: PurchaseOrder; store: StoreSettings | null | undefined; notApproved: boolean }) {
   const v = po.vendor;
+  const vb = po.vendorBranch;
+  const supplier = supplierOf(po);
   const items = po.items ?? [];
-  const igst = isInterState(v, store);
+  const igst = isInterState(supplier, store);
   const tax = n(po.taxAmount);
   const slabs = poGstSlabs(po);
   const validUntil = po.expiryDays ? new Date(new Date(po.orderDate).getTime() + po.expiryDays * 86_400_000) : null;
@@ -846,9 +865,9 @@ function PoPrint({ po, store, notApproved }: { po: PurchaseOrder; store: StoreSe
     ["PO Date", date(po.orderDate)],
     ["Expected Delivery", date(po.expectedDate)],
     ["Valid Till", validUntil ? `${date(validUntil)} · ${po.expiryDays} days` : "—"],
-    ["Place of Supply", placeOfSupply(v, store).label],
+    ["Place of Supply", placeOfSupply(supplier, store).label],
     ["Vendor Code", v?.code || "—"],
-    ["Vendor GSTIN", v?.gstin || "—"],
+    [vb?.gstin ? "Branch GSTIN" : "Vendor GSTIN", supplier?.gstin || "—"],
     ["Raised By", po.createdBy?.name ?? "—"],
     ["Status", po.status.charAt(0) + po.status.slice(1).toLowerCase().replace(/_/g, " ")],
   ];
@@ -856,11 +875,19 @@ function PoPrint({ po, store, notApproved }: { po: PurchaseOrder; store: StoreSe
     {
       title: "Vendor",
       name: v?.name,
-      lines: [
-        vendorAddresses(v).billing && `Billing: ${vendorAddresses(v).billing}`,
-        vendorAddresses(v).shipping && `Shipping: ${vendorAddresses(v).shipping}`,
-        v?.gstin ? `GSTIN: ${v.gstin}` : "",
-      ],
+      // Buying from a branch: the branch's address and GSTIN (the one the goods and the bill come from)
+      lines: vb
+        ? [
+            `Branch: ${branchLabel(vb)}`,
+            branchAddress(vb),
+            [vb.contactPerson, vb.phone].filter(Boolean).join(" · "),
+            supplier?.gstin ? `GSTIN: ${supplier.gstin}` : "",
+          ]
+        : [
+            vendorAddresses(v).billing && `Billing: ${vendorAddresses(v).billing}`,
+            vendorAddresses(v).shipping && `Shipping: ${vendorAddresses(v).shipping}`,
+            v?.gstin ? `GSTIN: ${v.gstin}` : "",
+          ],
     },
     {
       title: "Billed To",

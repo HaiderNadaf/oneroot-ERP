@@ -34,6 +34,7 @@ import {
   X,
   Building2,
   ReceiptText,
+  Megaphone,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -111,12 +112,14 @@ export const NAV: NavGroup[] = [
       { href: "/van", label: "Van Trips", icon: <Truck />, perms: ["van.view", "sales.van"] },
       { href: "/agents", label: "Agents", icon: <UserRoundPlus />, perms: ["sales.bill", "vendors.view"] },
       { href: "/quotations", label: "Quotations", icon: <ReceiptText />, perms: ["sales.view", "sales.bill"] },
+      { href: "/campaigns", label: "Campaigns", icon: <Megaphone />, perms: ["admin.schemes"] },
     ],
   },
   {
     section: "Purchases",
     items: [
       { href: "/vendors", label: "Vendors", icon: <Boxes />, perms: ["vendors.view"] },
+      { href: "/vendor-branches", label: "Depot", icon: <Store />, perms: ["vendors.view"] },
       { href: "/purchase-orders", label: "Purchase Orders", icon: <ClipboardList />, perms: ["purchases.view"] },
       { href: "/goods-inward", label: "Goods Inward (GRN)", icon: <PackageCheck />, perms: ["grn.view", "purchases.receive"] },
       { href: "/purchases", label: "Purchase Invoices", icon: <Truck />, perms: ["invoices.view"] },

@@ -15,7 +15,8 @@ import { CHARGES_GST_RATE, gstSlabs, halfRate, placeOfSupply } from "@/lib/gst";
 import { date, inr, inr0, n, qty, round2, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { GST_RATES } from "@/lib/types";
-import type { ApprovalConfig, Product, PurchaseOrder, StoreSettings, Vendor, VendorProductLink } from "@/lib/types";
+import type { ApprovalConfig, Product, PurchaseOrder, StoreSettings, Vendor, VendorBranch, VendorProductLink } from "@/lib/types";
+import { branchAddress, branchLabel } from "@/components/VendorBranches";
 import { LazyPoTermsModal } from "@/components/lazy";
 import { PoPriceHistory } from "@/components/PoPriceHistory";
 import { Attachments, PendingFiles, uploadAttachments } from "@/components/Attachments";
@@ -80,7 +81,14 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
   const { refresh } = useCounts();
   const editing = !!po;
 
-  const [vendor, setVendor] = useState<Vendor | null>(po?.vendor ?? null);
+  const [vendor, setVendorState] = useState<Vendor | null>(po?.vendor ?? null);
+  // The vendor's branch we buy from ("" = the vendor's main address)
+  // undefined = not chosen yet: a new PO starts on the vendor's primary depot
+  const [vendorBranchChoice, setVendorBranchId] = useState<string | undefined>(po ? (po.vendorBranchId ?? "") : undefined);
+  const setVendor = (v: Vendor | null) => {
+    setVendorState(v);
+    if (v?.id !== vendor?.id) setVendorBranchId(undefined);
+  };
   const [orderDate, setOrderDate] = useState(po ? today(new Date(po.orderDate)) : today());
   const [expectedDate, setExpectedDate] = useState(po?.expectedDate ? today(new Date(po.expectedDate)) : "");
   const [expiryDays, setExpiryDays] = useState(po?.expiryDays ? String(po.expiryDays) : "");
@@ -228,8 +236,18 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
   // Whole rupees, as the backend saves it: up to .49 goes down, .50 and above goes up
   const total = Math.round(raw);
   const roundOff = round2(total - raw);
-  const igst = isInterState(vendor, store);
-  const pos = placeOfSupply(vendor, store);
+  const { data: vendorBranches } = useApi<VendorBranch[]>(vendor ? `/vendor-branches/vendor/${vendor.id}` : null);
+  // An inactive branch already on this PO stays listed so it isn't silently dropped
+  const branchChoices = [
+    ...(vendorBranches ?? []),
+    ...(po?.vendorBranch && po.vendorBranch.vendorId === vendor?.id && !vendorBranches?.some((b) => b.id === po.vendorBranch!.id) ? [po.vendorBranch] : []),
+  ];
+  const vendorBranchId = vendorBranchChoice ?? vendorBranches?.[0]?.id ?? "";
+  const vendorBranch = branchChoices.find((b) => b.id === vendorBranchId) ?? null;
+  // Same as the backend: the branch's GSTIN / state decide intra- or inter-state when it has them
+  const supplier = vendorBranch && (vendorBranch.gstin || vendorBranch.state) ? vendorBranch : vendor;
+  const igst = isInterState(supplier, store);
+  const pos = placeOfSupply(supplier, store);
   const route = rules ? chainForValue(rules, total) : null;
 
   const hadApprovals = !!po && (po.level > 0 || po.status === "APPROVED");
@@ -253,6 +271,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
     setSaving(submit ? "submit" : "draft");
     const body = {
       vendorId: vendor.id,
+      vendorBranchId: vendorBranchId || null,
       branchId,
       orderDate,
       expectedDate: expectedDate || undefined,
@@ -377,9 +396,33 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
             </Select>
           </Field>
         </div>
+        {vendor && branchChoices.length > 0 && (
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="Buying From" hint="Which of the vendor's branches supplies this order">
+              <Select value={vendorBranchId} onChange={(e) => setVendorBranchId(e.target.value)} aria-label="Vendor branch">
+                <option value="">Main address ({vendor.city || vendor.state || "head office"})</option>
+                {branchChoices.map((b, i) => (
+                  <option key={b.id} value={b.id}>
+                    {branchLabel(b)}
+                    {i === 0 && b.isActive ? " · Primary" : ""}
+                    {b.city ? ` · ${b.city}` : ""}
+                    {!b.isActive ? " (inactive)" : ""}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            {vendorBranch && (
+              <p className="self-end pb-2 text-xs text-slate-600 lg:col-span-2">
+                {branchAddress(vendorBranch) || "Address not recorded"}
+                {vendorBranch.contactPerson && ` · ${vendorBranch.contactPerson}`}
+                {vendorBranch.phone && ` · ${vendorBranch.phone}`}
+              </p>
+            )}
+          </div>
+        )}
         {vendor && (
           <p className="mt-2 text-xs text-slate-500">
-            {vendor.gstin ? `GSTIN ${vendor.gstin}` : "Vendor GSTIN not recorded"} · Place of supply:{" "}
+            {supplier?.gstin ? `GSTIN ${supplier.gstin}${vendorBranch?.gstin ? " (branch)" : ""}` : "Vendor GSTIN not recorded"} · Place of supply:{" "}
             <b className="font-medium text-slate-700">{pos.name ?? "state not recorded"}</b>
             {pos.taxType && ` · ${pos.interState ? "inter-state supply (IGST)" : "intra-state supply (CGST + SGST)"}`}
           </p>

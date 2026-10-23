@@ -30,7 +30,7 @@ import { useNeedBranch } from "@/components/BranchNotice";
 import { ApprovalGate, approvalNeeded, type ApprovalNeed } from "@/components/ApprovalGate";
 import { CustomerPicker } from "@/components/pickers";
 import { PrintPortal } from "@/components/PrintPortal";
-import { SerialPicker } from "@/components/SerialPicker";
+import { SerialSelect } from "@/components/SerialPicker";
 import { ThermalReceipt, receiptFromSale, type ReceiptData } from "@/components/ThermalReceipt";
 import { Button, Checkbox, Dropdown, Input, Modal, Select, Spinner, Textarea, cx, errMsg, useConfirm, useToast, type DropdownOption } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -60,6 +60,8 @@ interface Line {
   discountPct: string;
   /** Serial numbers picked for this line (products that track serials) */
   serialNos: string[];
+  /** The batch each picked Batch / Serial No. sits in, so each unit leaves stock from its own batch */
+  serialBatches?: Record<string, string | null>;
 }
 
 /** One part of a split payment */
@@ -165,8 +167,6 @@ export default function PosPage() {
   const [holdsOpen, setHoldsOpen] = useState(false);
   const [holdLabel, setHoldLabel] = useState<string | null>(null);
   const [holding, setHolding] = useState(false);
-  // Cart line whose serial numbers are being picked
-  const [serialFor, setSerialFor] = useState<number | null>(null);
   const [openShift, setOpenShift] = useState(false);
   const [openingFloat, setOpeningFloat] = useState("");
   const [openingShift, setOpeningShift] = useState(false);
@@ -339,7 +339,7 @@ export default function PosPage() {
     setSearch("");
   }
   // Off while a dialog takes its own scans (serial numbers, approvals, holds)
-  useScanner(scanCode, !done && !camOpen && !quickAdd && serialFor === null && !need && holdLabel === null && !holdsOpen);
+  useScanner(scanCode, !done && !camOpen && !quickAdd && !need && holdLabel === null && !holdsOpen);
 
   function step(key: number, delta: number) {
     setLines((ls) =>
@@ -481,7 +481,7 @@ export default function PosPage() {
       if (l.product.trackSerial) {
         if (!online) return `${l.product.name} is sold by serial number, which needs internet`;
         if (!Number.isInteger(n(l.quantity))) return `${l.product.name} is sold per unit — use a whole number`;
-        if (l.serialNos.length !== n(l.quantity)) return `Pick the ${qty(l.quantity)} serial number${n(l.quantity) === 1 ? "" : "s"} for ${l.product.name}`;
+        if (l.serialNos.length !== n(l.quantity)) return `Select the Batch / Serial No. for ${l.product.name}${n(l.quantity) > 1 ? ` (${qty(l.quantity)} needed)` : ""}`;
       }
     }
     if (summary.total <= 0) return "Bill total must be more than zero";
@@ -571,14 +571,21 @@ export default function PosPage() {
       customerId: customer?.id,
       customerName: customer ? undefined : walkinName.trim() || undefined,
       customerPhone: customer ? undefined : phone || undefined,
-      items: lines.map((l) => ({
-        productId: l.product.id,
-        batchId: l.batchId || undefined,
-        quantity: n(l.quantity),
-        rate: n(l.rate),
-        discountPct: n(l.discountPct) || undefined,
-        serialNos: l.product.trackSerial && l.serialNos.length ? l.serialNos : undefined,
-      })),
+      items: lines.flatMap((l) => {
+        const item = {
+          productId: l.product.id,
+          batchId: l.batchId || undefined,
+          quantity: n(l.quantity),
+          rate: n(l.rate),
+          discountPct: n(l.discountPct) || undefined,
+          serialNos: l.product.trackSerial && l.serialNos.length ? l.serialNos : undefined,
+        };
+        // Serial-tracked: each selected Batch / Serial No. leaves stock from its own batch, one unit each
+        if (l.product.trackSerial && l.serialNos.length && l.serialNos.every((sn) => l.serialBatches?.[sn])) {
+          return l.serialNos.map((sn) => ({ ...item, batchId: l.serialBatches![sn]!, quantity: 1, serialNos: [sn] }));
+        }
+        return [item];
+      }),
       discount: summary.discount || undefined,
       paidAmount,
       paymentMode: split ? undefined : mode,
@@ -1148,17 +1155,12 @@ export default function PosPage() {
                           </span>
                           <LinePricing p={pricing.byKey.get(l.key)} unit={l.product.unit} />
                           {l.product.trackSerial && (
-                            <button
-                              type="button"
-                              onClick={() => setSerialFor(l.key)}
-                              className={cx(
-                                "mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium",
-                                l.serialNos.length === n(l.quantity) ? "bg-brand-50 text-brand-800" : "bg-amber-50 text-amber-800",
-                              )}
-                            >
-                              Serial no. {l.serialNos.length}/{qty(l.quantity)}
-                              {l.serialNos.length ? ` · ${l.serialNos.join(", ")}` : " · pick"}
-                            </button>
+                            <SerialSelect
+                              productId={l.product.id}
+                              quantity={n(l.quantity)}
+                              value={l.serialNos}
+                              onChange={(serialNos, serialBatches) => update(l.key, { serialNos, serialBatches })}
+                            />
                           )}
                         </div>
                         <div className="shrink-0 text-right">
@@ -1522,20 +1524,6 @@ export default function PosPage() {
         )}
       </Modal>
 
-      {(() => {
-        const sl = lines.find((l) => l.key === serialFor);
-        return sl ? (
-          <SerialPicker
-            open
-            productId={sl.product.id}
-            productName={sl.product.name}
-            quantity={Math.max(1, Math.round(n(sl.quantity)))}
-            value={sl.serialNos}
-            onClose={() => setSerialFor(null)}
-            onChange={(serialNos) => update(sl.key, { serialNos })}
-          />
-        ) : null;
-      })()}
 
       <ApprovalGate
         need={need}

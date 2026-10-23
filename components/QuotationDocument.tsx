@@ -1,6 +1,7 @@
 "use client";
 
-import { amountInWords, date, inr, n, qty } from "@/lib/format";
+import { amountInWords, date, inr, n, qty, round2 } from "@/lib/format";
+import { stateCodeOf } from "@/lib/gst";
 import type { Quotation, StoreSettings } from "@/lib/types";
 import { PrintHeader, SystemGeneratedNote } from "./ui";
 
@@ -20,19 +21,34 @@ export function QuotationDocument({ quotation: q, settings }: { quotation: Quota
     settings?.seedLicenseNo && `Seed Lic: ${settings.seedLicenseNo}`,
   ].filter(Boolean);
   const address = [q.customerAddress, q.customerCity, q.customerState, q.customerPincode].filter(Boolean).join(", ");
-  const totalQty = items.reduce((s, i) => s + n(i.quantity), 0);
   const grossBeforeDiscount = items.reduce((s, i) => s + n(i.quantity) * n(i.rate), 0);
 
-  // Tax summary grouped by GST rate
-  const byRate = new Map<number, { taxable: number; tax: number }>();
+  const business = q.partyType === "BUSINESS";
+  const code = business ? stateCodeOf({ gstin: q.customerGstin, state: q.customerState }) : undefined;
+
+  // GST summary by HSN (and rate, should one HSN carry two): CGST and SGST are each half the tax, at half the rate
+  const byHsn = new Map<string, { hsn: string; rate: number; taxable: number; tax: number }>();
   for (const i of items) {
-    const r = n(i.gstRate);
-    const cur = byRate.get(r) ?? { taxable: 0, tax: 0 };
-    cur.taxable += n(i.taxableAmount);
-    cur.tax += n(i.taxAmount);
-    byRate.set(r, cur);
+    const key = `${i.hsnCode || "—"}|${n(i.gstRate)}`;
+    const cur = byHsn.get(key) ?? { hsn: i.hsnCode || "—", rate: n(i.gstRate), taxable: 0, tax: 0 };
+    cur.taxable = round2(cur.taxable + n(i.taxableAmount));
+    cur.tax = round2(cur.tax + n(i.taxAmount));
+    byHsn.set(key, cur);
   }
-  const rates = [...byRate.entries()].sort((a, b) => a[0] - b[0]);
+  const hsnRows = [...byHsn.values()]
+    .sort((a, b) => a.hsn.localeCompare(b.hsn) || a.rate - b.rate)
+    .map((r) => ({ ...r, cgst: round2(r.tax / 2), sgst: round2(r.tax - round2(r.tax / 2)), total: round2(r.taxable + r.tax) }));
+  const hsnTotal = hsnRows.reduce(
+    (t, r) => ({
+      taxable: round2(t.taxable + r.taxable),
+      cgst: round2(t.cgst + r.cgst),
+      sgst: round2(t.sgst + r.sgst),
+      tax: round2(t.tax + r.tax),
+      total: round2(t.total + r.total),
+    }),
+    { taxable: 0, cgst: 0, sgst: 0, tax: 0, total: 0 },
+  );
+  const pct = (x: number) => `${round2(x)}%`;
 
   const status = cancelled
     ? { label: "Cancelled", tone: "red" as const }
@@ -60,7 +76,9 @@ export function QuotationDocument({ quotation: q, settings }: { quotation: Quota
         details={
           <>
             {(settings?.phone || settings?.email) && (
-              <p className="text-[10.5px] text-slate-500">{[settings?.phone && `Ph: ${settings.phone}`, settings?.email].filter(Boolean).join(" · ")}</p>
+              <p className="text-[10.5px] text-slate-500">
+                {[settings?.phone && `Ph: ${settings.phone}`, settings?.email].filter(Boolean).join(" · ")}
+              </p>
             )}
             {licences.length > 0 && <p className="text-[10.5px] text-slate-500">{licences.join(" · ")}</p>}
           </>
@@ -69,14 +87,35 @@ export function QuotationDocument({ quotation: q, settings }: { quotation: Quota
 
       {/* Quoted-to and quotation meta */}
       <div className="grid grid-cols-2 gap-4 border-b border-slate-300 py-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase text-slate-500">Quotation For</p>
-          <p className="font-semibold">{q.customerName}</p>
-          {q.customerPhone && <p className="text-xs">Ph: {q.customerPhone}</p>}
-          {q.customerEmail && <p className="text-xs">{q.customerEmail}</p>}
-          {address && <p className="text-xs">{address}</p>}
-          {q.customerGstin && <p className="text-xs font-medium">GSTIN: {q.customerGstin}</p>}
-        </div>
+        {business ? (
+          // A business: the firm's registered details, as on a B2B tax invoice
+          <div>
+            <p className="text-[11px] font-semibold uppercase text-slate-500">Quotation For (Business)</p>
+            <p className="font-semibold">{q.customerName}</p>
+            {q.customerGstin && <p className="text-xs font-semibold">GSTIN: {q.customerGstin}</p>}
+            {/* PAN is characters 3–12 of a GSTIN */}
+            {q.customerGstin?.length === 15 && <p className="text-xs">PAN: {q.customerGstin.slice(2, 12)}</p>}
+            {address && <p className="text-xs">{address}</p>}
+            {q.customerState && (
+              <p className="text-xs">
+                State: {q.customerState}
+                {code ? ` (Code ${code})` : ""} · Place of supply: {q.customerState}
+              </p>
+            )}
+            {q.contactPerson && <p className="text-xs">Attn: {q.contactPerson}</p>}
+            {(q.customerPhone || q.customerEmail) && (
+              <p className="text-xs">{[q.customerPhone && `Ph: ${q.customerPhone}`, q.customerEmail].filter(Boolean).join(" · ")}</p>
+            )}
+          </div>
+        ) : (
+          // A customer: just who the quote is for
+          <div>
+            <p className="text-[11px] font-semibold uppercase text-slate-500">Quotation For</p>
+            <p className="font-semibold">{q.customerName}</p>
+            {q.customerPhone && <p className="text-xs">Ph: {q.customerPhone}</p>}
+            {address && <p className="text-xs">{address}</p>}
+          </div>
+        )}
         <div className="text-right">
           <p>
             <span className="text-slate-500">Quotation no: </span>
@@ -100,7 +139,7 @@ export function QuotationDocument({ quotation: q, settings }: { quotation: Quota
       </div>
 
       {/* Items */}
-      <table className="mt-3 w-full border-collapse text-[12px]">
+      <table className="mt-3 w-full border-collapse border-b border-slate-800 text-[12px]">
         <thead>
           <tr className="border-y border-slate-800 text-left text-[11px] uppercase">
             <th className="py-1.5 pr-1">Sl</th>
@@ -136,58 +175,83 @@ export function QuotationDocument({ quotation: q, settings }: { quotation: Quota
             </tr>
           ))}
         </tbody>
-        <tfoot>
-          <tr className="border-b border-slate-800 font-semibold">
-            <td className="py-1.5" colSpan={3}>
-              Total ({items.length} item{items.length === 1 ? "" : "s"})
-            </td>
-            <td className="num py-1.5 pr-1 text-right">{qty(totalQty)}</td>
-            <td colSpan={2} />
-            <td className="num py-1.5 pr-1 text-right">{inr(q.subtotal)}</td>
-            <td />
-            <td className="num py-1.5 text-right">{inr(items.reduce((s, i) => s + n(i.amount), 0))}</td>
-          </tr>
-        </tfoot>
       </table>
 
-      {/* Tax summary + totals */}
-      <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-[1fr_260px] print:grid-cols-[1fr_260px]">
-        <div>
-          <table className="w-full border-collapse text-[11px]">
+      {/* Second table: GST by HSN code — HSN · Taxable · CGST/IGST % · amount · SGST % · amount · Total (taxable + tax) */}
+      <div className="mt-4">
+        <p className="mb-1 text-[11px] font-semibold uppercase text-slate-500">GST Summary</p>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[11.5px]">
             <thead>
-              <tr className="border-b border-slate-400 text-left uppercase text-slate-500">
-                <th className="py-1">GST %</th>
-                <th className="py-1 text-right">Taxable</th>
+              <tr className="border-b border-slate-400 text-right uppercase text-slate-500">
+                <th className="py-1 pr-2 text-left">HSN Code</th>
+                <th className="py-1 pr-2">Taxable</th>
                 {q.isInterState ? (
-                  <th className="py-1 text-right">IGST</th>
+                  <>
+                    <th className="py-1 pr-2">IGST %</th>
+                    <th className="py-1 pr-2">IGST Amt</th>
+                  </>
                 ) : (
                   <>
-                    <th className="py-1 text-right">CGST</th>
-                    <th className="py-1 text-right">SGST</th>
+                    <th className="py-1 pr-2">CGST %</th>
+                    <th className="py-1 pr-2">CGST Amt</th>
+                    <th className="py-1 pr-2">SGST %</th>
+                    <th className="py-1 pr-2">SGST Amt</th>
                   </>
                 )}
-                <th className="py-1 text-right">Total tax</th>
+                <th className="py-1">Total Amt</th>
               </tr>
             </thead>
             <tbody>
-              {rates.map(([r, v]) => (
-                <tr key={r} className="border-b border-slate-100">
-                  <td className="py-1">{r}%</td>
-                  <td className="num py-1 text-right">{inr(v.taxable)}</td>
+              {hsnRows.map((r) => (
+                <tr key={`${r.hsn}|${r.rate}`} className="border-b border-slate-100 text-right">
+                  <td className="py-1 pr-2 text-left">{r.hsn}</td>
+                  <td className="num py-1 pr-2">{inr(r.taxable)}</td>
                   {q.isInterState ? (
-                    <td className="num py-1 text-right">{inr(v.tax)}</td>
+                    <>
+                      <td className="num py-1 pr-2">{pct(r.rate)}</td>
+                      <td className="num py-1 pr-2">{inr(r.tax)}</td>
+                    </>
                   ) : (
                     <>
-                      <td className="num py-1 text-right">{inr(v.tax / 2)}</td>
-                      <td className="num py-1 text-right">{inr(v.tax / 2)}</td>
+                      <td className="num py-1 pr-2">{pct(r.rate / 2)}</td>
+                      <td className="num py-1 pr-2">{inr(r.cgst)}</td>
+                      <td className="num py-1 pr-2">{pct(r.rate / 2)}</td>
+                      <td className="num py-1 pr-2">{inr(r.sgst)}</td>
                     </>
                   )}
-                  <td className="num py-1 text-right">{inr(v.tax)}</td>
+                  <td className="num py-1">{inr(r.total)}</td>
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="border-t border-slate-400 text-right font-semibold">
+                <td className="py-1 pr-2 text-left">Total</td>
+                <td className="num py-1 pr-2">{inr(hsnTotal.taxable)}</td>
+                {q.isInterState ? (
+                  <>
+                    <td />
+                    <td className="num py-1 pr-2">{inr(hsnTotal.tax)}</td>
+                  </>
+                ) : (
+                  <>
+                    <td />
+                    <td className="num py-1 pr-2">{inr(hsnTotal.cgst)}</td>
+                    <td />
+                    <td className="num py-1 pr-2">{inr(hsnTotal.sgst)}</td>
+                  </>
+                )}
+                <td className="num py-1">{inr(hsnTotal.total)}</td>
+              </tr>
+            </tfoot>
           </table>
-          <p className="mt-3 text-xs">
+        </div>
+      </div>
+
+      {/* Amount in words and notes on the left, the bill totals on the right */}
+      <div className="mt-3 grid grid-cols-1 gap-4 border-t border-slate-300 pt-3 sm:grid-cols-[1fr_240px] print:grid-cols-[1fr_240px]">
+        <div className="min-w-0">
+          <p className="text-xs">
             <span className="text-slate-500">Amount in words: </span>
             <span className="font-semibold">{amountInWords(total)}</span>
           </p>

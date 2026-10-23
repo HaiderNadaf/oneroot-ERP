@@ -1,6 +1,6 @@
 "use client";
 
-import { PackagePlus, Trash2 } from "lucide-react";
+import { Building2, PackagePlus, Trash2, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { GstinField, StateSelect } from "@/components/GstinField";
@@ -10,7 +10,7 @@ import { api } from "@/lib/api";
 import { inr, n, qty, round2, today } from "@/lib/format";
 import { parseGstin, placeOfSupply } from "@/lib/gst";
 import { useApi } from "@/lib/hooks";
-import type { Customer, Product, Quotation, StoreSettings } from "@/lib/types";
+import type { Customer, Product, Quotation, QuotationParty, StoreSettings } from "@/lib/types";
 
 interface Line {
   key: number;
@@ -54,7 +54,10 @@ export function QuotationForm({ quotation }: { quotation?: Quotation }) {
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [customerId, setCustomerId] = useState(quotation?.customerId ?? "");
+  const [party, setParty] = useState<QuotationParty>(quotation?.partyType ?? "CUSTOMER");
+  const business = party === "BUSINESS";
   const [name, setName] = useState(quotation?.customerName ?? "");
+  const [contactPerson, setContactPerson] = useState(quotation?.contactPerson ?? "");
   const [phone, setPhone] = useState(quotation?.customerPhone ?? "");
   const [email, setEmail] = useState(quotation?.customerEmail ?? "");
   const [gstin, setGstin] = useState(quotation?.customerGstin ?? "");
@@ -105,7 +108,8 @@ export function QuotationForm({ quotation }: { quotation?: Quotation }) {
     })),
   );
 
-  const pos = placeOfSupply({ gstin, state }, store);
+  // A customer quote carries no GSTIN; the place of supply then comes from the state alone
+  const pos = placeOfSupply({ gstin: business ? gstin : "", state }, store);
   const interState = interOverride ?? pos.interState ?? false;
 
   function fillFrom(c: Customer | null) {
@@ -116,6 +120,8 @@ export function QuotationForm({ quotation }: { quotation?: Quotation }) {
     setPhone(c.phone ?? "");
     setEmail(c.email ?? "");
     setGstin(c.gstin ?? "");
+    // A registered customer with a GSTIN is a business
+    if (c.gstin) setParty("BUSINESS");
     setAddress([c.village, c.address].filter(Boolean).join(", "));
     setCity(c.city ?? "");
     setState(c.state ?? "");
@@ -167,10 +173,11 @@ export function QuotationForm({ quotation }: { quotation?: Quotation }) {
 
   async function save(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return toast.error("Enter the customer's name");
+    if (!name.trim()) return toast.error(business ? "Enter the business name" : "Enter the customer's name");
+    if (business && !gstin) return toast.error("Enter the business's GSTIN");
     if (phone && !/^[6-9]\d{9}$/.test(phone)) return toast.error("Phone must be 10 digits starting with 6, 7, 8 or 9");
     if (pincode && !/^\d{6}$/.test(pincode)) return toast.error("Pincode must be 6 digits");
-    if (gstin && !parseGstin(gstin).valid) return toast.error("Check the GSTIN — it is not valid");
+    if (business && !parseGstin(gstin).valid) return toast.error("Check the GSTIN — it is not valid");
     if (!lines.length) return toast.error("Add at least one product");
     const bad = lines.find((l) => !(n(l.quantity) > 0));
     if (bad) return toast.error(`Enter a quantity for ${bad.name}`);
@@ -179,10 +186,12 @@ export function QuotationForm({ quotation }: { quotation?: Quotation }) {
     try {
       const body = {
         customerId: customerId || undefined,
+        partyType: party,
         customerName: name.trim(),
+        contactPerson: business ? contactPerson.trim() || undefined : undefined,
         customerPhone: phone || undefined,
         customerEmail: email.trim() || undefined,
-        customerGstin: gstin || undefined,
+        customerGstin: business ? gstin || undefined : undefined,
         customerAddress: address.trim() || undefined,
         customerCity: city.trim() || undefined,
         customerState: state || undefined,
@@ -214,15 +223,55 @@ export function QuotationForm({ quotation }: { quotation?: Quotation }) {
   return (
     <form onSubmit={save}>
       <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
-        <Card title="Customer">
+        <Card title={business ? "Business" : "Customer"}>
           <div className="space-y-3">
+            <div>
+              <p className="mb-1 text-xs font-medium text-slate-600">Quotation For</p>
+              <div role="radiogroup" aria-label="Quotation for" className="grid grid-cols-2 gap-2 sm:w-96">
+                {(
+                  [
+                    ["CUSTOMER", "Customer", "Farmer / walk-in", <User key="c" className="size-4" />],
+                    ["BUSINESS", "Business", "GST-registered firm", <Building2 key="b" className="size-4" />],
+                  ] as const
+                ).map(([value, label, hint, icon]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={party === value}
+                    onClick={() => {
+                      setParty(value);
+                      setInterOverride(null);
+                    }}
+                    className={cx(
+                      "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors",
+                      party === value ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-500/20" : "border-slate-300 text-slate-700 hover:bg-slate-50",
+                    )}
+                  >
+                    {icon}
+                    <span>
+                      <span className="block font-medium">{label}</span>
+                      <span className="block text-xs text-slate-500">{hint}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <Field label="Fill from a registered customer" hint="Optional — or type the details below">
               <CustomerPicker value={customer} onChange={fillFrom} />
             </Field>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Customer Name" required>
-                <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus={!quotation} />
+              <Field label={business ? "Business Name" : "Customer Name"} required>
+                <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus={!quotation} placeholder={business ? "Registered name of the firm" : undefined} />
               </Field>
+              {business && (
+                <GstinField value={gstin} onChange={setGstin} onState={setState} required hint="Printed on the quotation; decides IGST or CGST + SGST" />
+              )}
+              {business && (
+                <Field label="Contact Person">
+                  <Input value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
+                </Field>
+              )}
               <Field label="Phone" hint="10 digits">
                 <Input
                   type="tel"
@@ -236,7 +285,6 @@ export function QuotationForm({ quotation }: { quotation?: Quotation }) {
               <Field label="Email">
                 <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
               </Field>
-              <GstinField value={gstin} onChange={setGstin} onState={setState} hint="Optional — decides IGST or CGST + SGST" />
               <Field label="Address" className="sm:col-span-2">
                 <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Door no, street, village" />
               </Field>
@@ -244,7 +292,7 @@ export function QuotationForm({ quotation }: { quotation?: Quotation }) {
                 <Input value={city} onChange={(e) => setCity(e.target.value)} />
               </Field>
               <div className="grid grid-cols-[1fr_110px] gap-3">
-                <StateSelect value={state} onChange={setState} gstin={gstin} />
+                <StateSelect value={state} onChange={setState} gstin={business ? gstin : ""} />
                 <Field label="Pincode">
                   <Input inputMode="numeric" maxLength={6} value={pincode} onChange={(e) => setPincode(e.target.value.replace(/\D/g, ""))} />
                 </Field>
@@ -290,8 +338,10 @@ export function QuotationForm({ quotation }: { quotation?: Quotation }) {
               <p className="mt-1 text-xs text-slate-400">
                 {interOverride === null
                   ? pos.interState === null
-                    ? "Same state assumed — add the customer's GSTIN or state to check"
-                    : `From the customer's ${gstin ? "GSTIN" : "state"}: ${pos.taxType}`
+                    ? business
+                      ? "Same state assumed — add the GSTIN or state to check"
+                      : "Same state assumed — add the customer's state to check"
+                    : `From the ${business ? "business's" : "customer's"} ${business && gstin ? "GSTIN" : "state"}: ${pos.taxType}`
                   : "Set by hand"}
               </p>
             </div>

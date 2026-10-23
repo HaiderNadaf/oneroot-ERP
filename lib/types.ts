@@ -205,6 +205,65 @@ export interface Scheme {
   notes?: string | null;
   products: { productId: string; product?: { id: string; name: string; sku: string; salePrice: Dec } }[];
   _count?: { saleItems: number };
+  /** Campaign this offer belongs to; it only applies while the campaign runs */
+  campaignId?: string | null;
+  campaign?: Pick<Campaign, "id" | "code" | "name" | "from" | "to" | "isActive"> | null;
+}
+
+export type CampaignStatus = "UPCOMING" | "RUNNING" | "ENDED" | "STOPPED";
+
+/** What a campaign's offers achieved on completed bills */
+export interface CampaignResults {
+  bills: number;
+  units: number;
+  freeUnits: number;
+  sales: number;
+  /** Discount and free goods the campaign's schemes gave (not the cashier's or customer-type discounts) */
+  discount: number;
+}
+
+/** A promotion; its schemes are the offers */
+export interface Campaign {
+  id: string;
+  /** CMP-0001… */
+  code: string;
+  name: string;
+  description?: string | null;
+  from: string;
+  to?: string | null;
+  budget?: Dec | null;
+  isActive: boolean;
+  notes?: string | null;
+  createdAt: string;
+  status: CampaignStatus;
+  results?: CampaignResults;
+  _count?: { schemes: number };
+}
+
+export interface CampaignDetail extends Campaign {
+  schemes: Scheme[];
+  results: CampaignResults & { products: { productId: string; name: string; quantity: number; freeQty: number; sales: number; discount: number }[] };
+  recentBills: { id: string; invoiceNo: string; saleDate: string; customerName?: string | null; customer?: { name: string } | null; totalAmount: Dec; branch?: { name: string } | null }[];
+}
+
+/** One of a vendor's branches / depots we buy from */
+export interface VendorBranch {
+  id: string;
+  vendorId: string;
+  vendor?: { id: string; code?: string | null; name: string };
+  name: string;
+  code?: string | null;
+  contactPerson?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  gstin?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  isActive: boolean;
+  createdAt?: string;
+  _count?: { purchaseOrders: number };
 }
 
 export interface CustomerType {
@@ -771,6 +830,9 @@ export interface PurchaseOrder {
   poNo: string;
   vendorId: string;
   vendor?: Vendor;
+  /** The vendor's branch this PO buys from (its address and GSTIN go on the PO) */
+  vendorBranchId?: string | null;
+  vendorBranch?: VendorBranch | null;
   orderDate: string;
   expectedDate?: string | null;
   /** How many days the PO stays valid (7 or 14); null on older POs */
@@ -878,7 +940,7 @@ export interface GrnItem {
 export interface Grn {
   id: string;
   grnNo: string;
-  po: { id: string; poNo: string; vendorId?: string };
+  po: { id: string; poNo: string; vendorId?: string; vendorBranch?: VendorBranch | null };
   vendor: Vendor | { id: string; name: string };
   receivedAt: string;
   /** Earliest expiry of the stock accepted on this GRN (list only) */
@@ -1363,6 +1425,8 @@ export interface QuotationItem {
 }
 
 /** Price quote for a customer, laid out like a tax invoice; moves no stock and no money */
+export type QuotationParty = "CUSTOMER" | "BUSINESS";
+
 export interface Quotation {
   id: string;
   /** QTN/26-27/00001 */
@@ -1370,7 +1434,12 @@ export interface Quotation {
   branchId?: string | null;
   /** Registered customer the details were filled from, if any */
   customerId?: string | null;
+  /** CUSTOMER: name and contact only; BUSINESS: the firm's details with its GSTIN */
+  partyType: QuotationParty;
+  /** Customer's name, or the business's registered name */
   customerName: string;
+  /** Business quotes: the person it is addressed to */
+  contactPerson?: string | null;
   customerPhone?: string | null;
   customerEmail?: string | null;
   customerGstin?: string | null;

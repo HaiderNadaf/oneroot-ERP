@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { n } from "@/lib/format";
-import type { Vendor } from "@/lib/types";
+import type { StoreSettings, Vendor } from "@/lib/types";
+import { useApi } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 import { parseGstin } from "@/lib/gst";
 import { GstinField, StateSelect } from "./GstinField";
 import { Button, Checkbox, Field, Input, Modal, Textarea, errMsg, useToast } from "./ui";
@@ -56,6 +58,15 @@ export function VendorForm(props: VendorFormProps) {
   return <VendorFormBody key={props.vendor?.id ?? "new"} {...props} />;
 }
 
+/** Shown until the admin saves their own terms; saving replaces it */
+const DEFAULT_VENDOR_TERMS = [
+  "1. The vendor agrees to a 5-year association from the date of registration.",
+  "2. The vendor cannot end the association before 5 years.",
+  "3. The company may end the association early by giving written notice; dues must be settled first.",
+  "4. Payment is made against invoices within the credit days set on this vendor's record.",
+  "5. Bank details must be supplied before the first payment.",
+].join("\n");
+
 /** Saved in capitals; State stays as chosen (GST compares it with the store's state) */
 const UPPER_FIELDS = ["name", "contactPerson", "address", "billingAddress", "shippingAddress", "city", "bankName"] as const;
 
@@ -64,6 +75,27 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
   const [f, setF] = useState<FormState>(() => toForm(vendor));
   const [saving, setSaving] = useState(false);
   const editing = !!vendor;
+  const { can } = useAuth();
+  const { data: settings, setData: setSettings } = useApi<StoreSettings>(editing ? null : "/settings");
+  const [termsDraft, setTermsDraft] = useState<string | null>(null);
+  const [savingTerms, setSavingTerms] = useState(false);
+  const savedTerms = settings ? (settings.vendorTerms ?? DEFAULT_VENDOR_TERMS) : "";
+  const termsValue = termsDraft ?? savedTerms;
+  const termsChanged = termsValue.trim() !== savedTerms.trim();
+
+  async function saveTerms() {
+    setSavingTerms(true);
+    try {
+      const saved = await api.put<StoreSettings>("/settings", { vendorTerms: termsValue.trim() });
+      setSettings(saved);
+      setTermsDraft(null);
+      toast.success("Terms saved");
+    } catch (err) {
+      toast.error(errMsg(err));
+    } finally {
+      setSavingTerms(false);
+    }
+  }
 
   const set = (k: string, v: string | boolean) =>
     setF((s) => {
@@ -205,6 +237,34 @@ function VendorFormBody({ open, vendor, onClose, onSaved }: VendorFormProps) {
           <div className="sm:col-span-3">
             <Checkbox label="Active" checked={!!f.isActive} onChange={(v) => set("isActive", v)} />
           </div>
+        )}
+        {!editing && (
+          <section className="sm:col-span-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <h3 className="text-xs font-medium text-slate-700">Terms &amp; Conditions</h3>
+            {can("settings.edit") ? (
+              <>
+                <Textarea
+                  rows={6}
+                  className="mt-1.5 text-xs"
+                  value={termsValue}
+                  onChange={(e) => setTermsDraft(e.target.value)}
+                  placeholder="Lock-in period, early-exit rules and payment terms, one point per line"
+                  aria-label="Vendor terms"
+                />
+                {termsChanged && (
+                  <div className="mt-1.5">
+                    <Button type="button" size="sm" onClick={saveTerms} loading={savingTerms}>
+                      Save Terms
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : savedTerms.trim() ? (
+              <p className="mt-1.5 max-h-48 overflow-y-auto whitespace-pre-line text-xs text-slate-600">{savedTerms.trim()}</p>
+            ) : (
+              <p className="mt-1.5 text-xs text-slate-500">No terms set yet.</p>
+            )}
+          </section>
         )}
       </form>
     </Modal>

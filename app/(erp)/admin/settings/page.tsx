@@ -32,6 +32,7 @@ const TEXT_FIELDS = [
   "receiptPrefix",
   "invoiceFooter",
   "reminderTemplate",
+  "vendorTerms",
 ] as const;
 
 type TextKey = (typeof TEXT_FIELDS)[number] | "expiryAlertDays" | "reminderGraceDays" | "receiptFormat";
@@ -268,6 +269,17 @@ function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (
                 value={f.invoiceFooter}
                 onChange={(e) => set("invoiceFooter", e.target.value)}
                 placeholder={"Goods once sold will not be taken back.\nRead the label carefully before use.\nThank you for your business!"}
+              />
+            </Field>
+          </Section>
+
+          <Section title="Vendor Terms & Conditions" note="Shown at the bottom of the New Vendor form. Write the lock-in period, early-exit rules and payment terms here, one point per line.">
+            <Field label="Terms Text" className="sm:col-span-2">
+              <Textarea
+                rows={8}
+                value={f.vendorTerms}
+                onChange={(e) => set("vendorTerms", e.target.value)}
+                placeholder={"1. The vendor agrees to a 5-year association from the date of registration.\n2. Early exit is allowed only after written notice and settlement of all dues.\n3. Payment is due within the credit days agreed on this vendor's record."}
               />
             </Field>
           </Section>

@@ -241,6 +241,7 @@ export interface StoreSettings {
   /** Default bill layout */
   receiptFormat: "A4" | "THERMAL_80" | "THERMAL_58";
   reminderTemplate?: string | null;
+  vendorTerms?: string | null;
   reminderGraceDays: number;
   autoReminders: boolean;
   blockOverdueCredit: boolean;

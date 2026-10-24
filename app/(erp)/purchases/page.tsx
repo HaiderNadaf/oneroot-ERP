@@ -1,3 +1,10 @@
+import { notFound } from "next/navigation";
+
+// The Purchase Invoices list is switched off (its sidebar link is commented out too); the old page is kept below
+export default function PurchasesPage() {
+  notFound();
+}
+
 // "use client";
 
 // import { Download, Plus } from "lucide-react";

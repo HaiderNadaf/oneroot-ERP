@@ -7,7 +7,7 @@ import { Fragment, useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { BatchSelect, type BatchPick } from "@/components/BatchSelect";
 import { NotesPanel } from "@/components/NotesPanel";
-import { PendingFiles, uploadAttachments } from "@/components/Attachments";
+// import { PendingFiles, uploadAttachments } from "@/components/Attachments"; -- attachments hidden while goods inward waits for approval
 import { useCounts } from "@/components/Notifications";
 import {
   Badge,
@@ -36,7 +36,7 @@ import { useBranch } from "@/lib/branch";
 import { date, inr, n, qty, round2, today } from "@/lib/format";
 import { clearApiCache, useApi } from "@/lib/hooks";
 import { useScanner } from "@/lib/scanner";
-import type { Grn, NoteSummary, PoItem, PurchaseOrder } from "@/lib/types";
+import type { NoteSummary, PoItem, PurchaseOrder } from "@/lib/types";
 
 /** One batch of a line, entered in the Batch No. popup: its quantity, number and dates */
 interface BatchRow {
@@ -179,7 +179,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   // Supplier invoice scan, delivery challan, photos… uploaded right after the GRN is posted
-  const [files, setFiles] = useState<File[]>([]);
+  // const [files, setFiles] = useState<File[]>([]); -- attachments hidden while goods inward waits for approval
   const [scanned, setScanned] = useState<string | null>(null);
   // Line whose batch popup is open
   const [batchFor, setBatchFor] = useState<string | null>(null);
@@ -229,11 +229,12 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
       ? ` ${shortLines.length} line${shortLines.length === 1 ? "" : "s"} will stay open for the balance, and the shortfall (${qty(shortfall)}) is noted on a draft short-supply debit note.`
       : " The PO will be marked fully received.";
     const invoiceNote = totals.passed > 0 ? ` The purchase invoice will be booked under ${supplierInvoiceNo.trim()}.` : "";
-    if (!(await confirm(`Post goods inward for ${po.poNo}? ${qty(totals.passed)} received into stock.${balance}${invoiceNote}`, { confirmLabel: "Post GRN" }))) return;
+    // Goods inward waits for the PO value's approval chain (L1 → L2 → L3); the GRN is posted on the last approval
+    if (!(await confirm(`Send goods inward for ${po.poNo} for approval? Once approved, ${qty(totals.passed)} is received into stock.${balance}${invoiceNote}`, { confirmLabel: "Send for Approval" }))) return;
 
     setSaving(true);
     try {
-      const grn = await api.post<Grn & { invoiceError?: string | null; shortNoteNo?: string | null }>(`/purchase-orders/${po.id}/grn`, {
+      const res = await api.post<{ approvalId: string; status: "PENDING_APPROVAL"; chain: { title: string }[] }>(`/purchase-orders/${po.id}/grn`, {
         vehicleNo: vehicleNo.trim() || undefined,
         supplierInvoiceNo: supplierInvoiceNo.trim() || undefined,
         receivedAt,
@@ -256,22 +257,11 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
           }));
         }),
       });
-      // The purchase invoice is booked automatically when anything passed inspection
-      toast.success(
-        `${grn.grnNo} posted · stock updated${grn.purchase ? ` · invoice ${grn.purchase.purchaseNo} booked` : ""}`,
-      );
-      if (grn.shortNoteNo) toast.info(`Short supply noted on draft debit note ${grn.shortNoteNo}`);
-      if (grn.invoiceError) toast.warn(`Purchase invoice not booked: ${grn.invoiceError}. Book it from the GRN.`);
-      if (files.length) {
-        await uploadAttachments("GRN", grn.id, files).then(
-          (done) => toast.success(`${done.length} file${done.length === 1 ? "" : "s"} attached to ${grn.grnNo}`),
-          (e) => toast.warn(`${grn.grnNo} posted, but the files were not attached: ${errMsg(e)}. Add them from the GRN.`),
-        );
-      }
+      toast.success(`Goods inward sent for approval · ${res.chain.map((c) => c.title).join(" → ")}`);
+      toast.info("The GRN is posted (stock and purchase invoice) after the last approval");
       counts.refresh();
-      // The PO's received and pending quantities changed
       clearApiCache("/purchase-orders");
-      router.push(`/goods-inward/${grn.id}`);
+      router.push("/purchase-orders/approvals?tab=grn");
     } catch (e) {
       toast.error(errMsg(e));
       setSaving(false);
@@ -537,9 +527,11 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
         </Table>
       </Card>
 
+      {/* Hidden while goods inward waits for approval: files are attached to the GRN once it is posted
       <Card title="Attachments" className="mb-4">
         <PendingFiles files={files} onChange={setFiles} />
       </Card>
+      */}
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -553,7 +545,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
               Cancel
             </Button>
             <Button className="flex-1 sm:flex-none" icon={<PackageCheck className="size-4" />} onClick={submit} loading={saving} disabled={!anyQty || wrongBranch}>
-              Post GRN
+              Send for Approval
             </Button>
           </div>
         </div>

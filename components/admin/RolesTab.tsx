@@ -35,7 +35,7 @@ export function RolesTab({ adding = false, onAddDone }: { adding?: boolean; onAd
   );
 }
 
-/** Department · Role · Edit: each role, and a popup that sets only what it may view / add / edit / delete */
+/** Department · Role · Level · Edit: each role, edited in the same form it was made in */
 function RoleAccessList({ adding, onAddDone }: { adding: boolean; onAddDone: () => void }) {
   const { can } = useAuth();
   const toast = useToast();
@@ -98,7 +98,7 @@ function RoleAccessList({ adding, onAddDone }: { adding: boolean; onAddDone: () 
                     <Badge tone="blue">{t.level ?? "L1"}</Badge>
                   </Td>
                   <ActionsTd>
-                    {can("roles.edit") && canGrantAll(t.permissions) && <RowAction kind="edit" title={`Edit access of ${t.name}`} onClick={() => setEditing(t)} />}
+                    {can("roles.edit") && canGrantAll(t.permissions) && <RowAction kind="edit" title={`Edit ${t.name}`} onClick={() => setEditing(t)} />}
                     {can("roles.delete") && (
                       <RowAction
                         kind="delete"
@@ -126,8 +126,9 @@ function RoleAccessList({ adding, onAddDone }: { adding: boolean; onAddDone: () 
           }}
         />
       )}
+      {/* Edit opens the same form as New Role: name, department, level, description and access */}
       {editing && (
-        <RoleAccessForm
+        <RoleTemplateForm
           template={editing}
           onClose={() => setEditing(null)}
           onSaved={() => {
@@ -137,57 +138,6 @@ function RoleAccessList({ adding, onAddDone }: { adding: boolean; onAddDone: () 
         />
       )}
     </Card>
-  );
-}
-
-/** Only the access grid (View · Add · Edit · Delete per screen); the role's name, department and base role stay as they are */
-function RoleAccessForm({ template, onClose, onSaved }: { template: RoleTemplate; onClose: () => void; onSaved: () => void }) {
-  const toast = useToast();
-  const [permissions, setPermissions] = useState<Permission[]>(() => normalizePermissions(template.permissions));
-  const [saving, setSaving] = useState(false);
-
-  async function save() {
-    if (!permissions.length) return toast.error("Tick at least one thing this role may do");
-    setSaving(true);
-    try {
-      await api.put(`/roles/custom/${template.id}`, {
-        name: template.name,
-        description: template.description ?? undefined,
-        departmentId: template.departmentId,
-        baseRole: template.baseRole,
-        level: template.level,
-        permissions,
-      });
-      clearApiCache("/roles/custom");
-      clearApiCache("/users");
-      toast.success(`${template.name} access saved${template.userCount ? ` for ${template.userCount} user${template.userCount > 1 ? "s" : ""}` : ""}`);
-      onSaved();
-    } catch (e) {
-      toast.error(errMsg(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      size="xl"
-      title={`Access · ${template.department?.name ? `${template.department.name} / ` : ""}${template.name}`}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button icon={<Save className="size-4" />} onClick={() => void save()} loading={saving}>
-            Save Access
-          </Button>
-        </>
-      }
-    >
-      <PermissionPicker value={permissions} onChange={setPermissions} defaults={normalizePermissions(template.permissions)} />
-    </Modal>
   );
 }
 

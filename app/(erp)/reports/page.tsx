@@ -5,6 +5,7 @@ import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { GstReportView, ProfitLossReport } from "@/components/reports/FinancialReports";
 import { DayBookReport, OutstandingReport, StockValuationReport } from "@/components/reports/LedgerReports";
+import { PurchaseByMonthReport, PurchaseByProductReport, PurchaseByVendorReport } from "@/components/reports/PurchaseReports";
 import { ProductSalesReport, PurchaseRegisterReport, SalesRegisterReport } from "@/components/reports/RegisterReports";
 import { RangeBar, defaultRange, type Range } from "@/components/reports/ReportKit";
 import { PageHeader, Tabs, cx } from "@/components/ui";
@@ -17,14 +18,22 @@ const TABS = [
   { value: "daybook", label: "Day Book", group: "finance" },
   { value: "sales", label: "Sales Register", group: "sales" },
   { value: "products", label: "Product-Wise Sales", group: "sales" },
-  { value: "purchases", label: "Purchase Register", group: "purchases" },
+  { value: "po-product", label: "By Product", group: "po" },
+  { value: "po-vendor", label: "By Vendor", group: "po" },
+  { value: "po-month", label: "By Month", group: "po" },
+  { value: "grn-product", label: "By Product", group: "grn" },
+  { value: "grn-vendor", label: "By Vendor", group: "grn" },
+  { value: "grn-month", label: "By Month", group: "grn" },
+  // Purchase invoices are booked from goods received
+  { value: "purchases", label: "Purchase Register", group: "grn" },
   { value: "stock", label: "Stock Valuation", group: "stock" },
 ] as const;
 
 const GROUPS = [
   { value: "finance", label: "Finance" },
   { value: "sales", label: "Sales" },
-  { value: "purchases", label: "Purchases" },
+  { value: "po", label: "PO" },
+  { value: "grn", label: "GRN" },
   { value: "stock", label: "Stock" },
 ] as const;
 
@@ -54,7 +63,7 @@ function Reports() {
 
   return (
     <>
-      <PageHeader title="Reports" subtitle="Profit, GST, registers, stock and outstanding — print or export any report" />
+      <PageHeader title="Reports" subtitle="Profit, GST, registers, purchase orders, goods received, stock and outstanding — print or export any report" />
       <Tabs<Group> tabs={[...GROUPS]} value={group} onChange={(g) => setTab(TABS.find((t) => t.group === g)!.value)} />
       {/* The reports inside the open group (none to pick when it has only one) */}
       {inGroup.length > 1 && (
@@ -79,6 +88,12 @@ function Reports() {
       {tab === "gst" && <GstReportView range={range} rangeBar={rangeBar} />}
       {tab === "sales" && <SalesRegisterReport range={range} rangeBar={rangeBar} />}
       {tab === "purchases" && <PurchaseRegisterReport range={range} rangeBar={rangeBar} />}
+      {tab === "po-product" && <PurchaseByProductReport kind="po" range={range} rangeBar={rangeBar} />}
+      {tab === "po-vendor" && <PurchaseByVendorReport kind="po" range={range} rangeBar={rangeBar} />}
+      {tab === "po-month" && <PurchaseByMonthReport kind="po" />}
+      {tab === "grn-product" && <PurchaseByProductReport kind="grn" range={range} rangeBar={rangeBar} />}
+      {tab === "grn-vendor" && <PurchaseByVendorReport kind="grn" range={range} rangeBar={rangeBar} />}
+      {tab === "grn-month" && <PurchaseByMonthReport kind="grn" />}
       {tab === "products" && <ProductSalesReport range={range} rangeBar={rangeBar} />}
       {tab === "stock" && <StockValuationReport />}
       {tab === "outstanding" && <OutstandingReport />}

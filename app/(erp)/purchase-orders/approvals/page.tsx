@@ -2,9 +2,10 @@
 
 import { CheckCheck, RefreshCw, Repeat, Settings2, UserCheck, Users } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ApprovalChain } from "@/components/ApprovalChain";
+import { GrnApprovals } from "@/components/GrnApprovals";
 import {
   Badge,
   Button,
@@ -16,6 +17,7 @@ import {
   PageHeader,
   StatCard,
   Table,
+  Tabs,
   Td,
   Th,
   errMsg,
@@ -26,7 +28,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { date, dateTime, inr, n } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import type { ApprovalQueue, ChainStep } from "@/lib/types";
+import type { ApprovalQueue, ChainStep, GrnApprovalQueue } from "@/lib/types";
 
 const decisionBadge = (action: string) =>
   action.startsWith("Approved") ? (
@@ -55,6 +57,12 @@ export default function ApprovalsPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const { data, error, loading, reload } = useApi<ApprovalQueue>("/purchase-orders/approvals");
+  const grn = useApi<GrnApprovalQueue>("/purchase-orders/approvals/grn");
+  // Purchase orders or goods inward (?tab=grn, where GRN approval notifications link)
+  const params = useSearchParams();
+  const pathname = usePathname();
+  const tab: "po" | "grn" = params.get("tab") === "grn" ? "grn" : "po";
+  const setTab = (t: "po" | "grn") => router.replace(t === "po" ? pathname : `${pathname}?tab=grn`, { scroll: false });
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [approving, setApproving] = useState(false);
 
@@ -105,11 +113,11 @@ export default function ApprovalsPage() {
   return (
     <>
       <PageHeader
-        title="PO Approvals"
-        subtitle="Purchase orders waiting for a decision, and what was decided recently"
+        title="Approvals"
+        subtitle="Purchase orders and goods inward waiting for a decision, and what was decided recently"
         actions={
           <>
-            <Button variant="secondary" icon={<RefreshCw className="size-4" />} onClick={() => void reload()} loading={loading && !!data}>
+            <Button variant="secondary" icon={<RefreshCw className="size-4" />} onClick={() => void (tab === "grn" ? grn.reload() : reload())} loading={tab === "grn" ? grn.loading && !!grn.data : loading && !!data}>
               Refresh
             </Button>
             {can("admin.approval_rules") && (
@@ -121,13 +129,24 @@ export default function ApprovalsPage() {
         }
       />
 
-      {error && (
+      <Tabs<"po" | "grn">
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { value: "po", label: <>Purchase Orders{data?.mine ? <span className="ml-1.5"><Badge tone="amber">{data.mine}</Badge></span> : null}</> },
+          { value: "grn", label: <>Goods Inward{grn.data?.mine ? <span className="ml-1.5"><Badge tone="amber">{grn.data.mine}</Badge></span> : null}</> },
+        ]}
+      />
+
+      {tab === "grn" && <GrnApprovals data={grn.data} error={grn.error} loading={grn.loading} reload={() => void grn.reload()} />}
+
+      {tab === "po" && error && (
         <div className="mb-4">
           <ErrorBox message={error} onRetry={reload} />
         </div>
       )}
 
-      {data && (
+      {tab === "po" && data && (
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
           {data.byStep.map((s, i) => (
             <StatCard
@@ -150,6 +169,7 @@ export default function ApprovalsPage() {
         </div>
       )}
 
+      {tab === "po" && (
       <Card
         title={
           picked.length ? (
@@ -268,7 +288,9 @@ export default function ApprovalsPage() {
           </tbody>
         </Table>
       </Card>
+      )}
 
+      {tab === "po" && (
       <Card title="Recent Decisions" bodyClassName="p-0">
         <Table>
           <thead>
@@ -313,6 +335,7 @@ export default function ApprovalsPage() {
           </tbody>
         </Table>
       </Card>
+      )}
     </>
   );
 }

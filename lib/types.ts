@@ -109,7 +109,7 @@ export interface User {
   revokedPermissions?: string[];
   /** Custom role (named set of ticks) the user was given, if any */
   roleTemplateId?: string | null;
-  roleTemplate?: { id: string; name: string; baseRole?: Role; department?: { id: string; code?: string; name: string } | null } | null;
+  roleTemplate?: { id: string; name: string; baseRole?: Role; level?: RoleLevel; department?: { id: string; code?: string; name: string } | null } | null;
   isActive: boolean;
   lastLoginAt?: string | null;
   createdAt: string;
@@ -810,6 +810,8 @@ export interface Purchase {
 export interface ChainStep {
   order: number;
   title: string;
+  /** Role level that approves this step (that level or higher); absent on chains saved before levels */
+  level?: RoleLevel;
   approverId: string | null;
   approverName: string | null;
   state: "done" | "current" | "pending" | "rejected";
@@ -912,9 +914,40 @@ export interface ApprovalQueue {
   decisions: (PoHistory & { po: { id: string; poNo: string } })[];
 }
 
+/** The L1 → L2 → L3 chain and the value bands that decide how far up it a PO (and its goods inward) goes */
 export interface ApprovalConfig {
-  steps: { id: string; order: number; title: string; approverId: string | null; approver?: { id: string; name: string; role: Role } | null }[];
-  bands: { id: string; upTo: number | null; steps: number }[];
+  steps: { id: RoleLevel; order: number; title: string; level: RoleLevel; approverId: null; approverName: string }[];
+  /** level: the highest step the band needs (L2 = L1 → L2, L3 = L1 → L2 → L3); steps = how many that is */
+  bands: { id: string; upTo: number | null; steps: number; level: RoleLevel }[];
+}
+
+/** Goods inward waiting for (or decided by) the approval chain; the GRN is posted on the last approval */
+export interface GrnApprovalRow {
+  id: string;
+  poId: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  level: number;
+  createdAt: string;
+  updatedAt: string;
+  requestedById: string;
+  requestedBy: { name: string };
+  po: { id: string; poNo: string; totalAmount: Dec; vendor: { id: string; name: string }; branch?: { name: string } | null };
+  grn?: { id: string; grnNo: string } | null;
+  supplierInvoiceNo?: string | null;
+  vehicleNo?: string | null;
+  receivedAt: string;
+  notes?: string | null;
+  items: { product: string; unit: string; passedQty: number; rejectedQty: number; damagedQty: number; expiredQty: number; batchNo?: string | null }[];
+  chain: ChainStep[];
+  waitingFor: ChainStep | null;
+  canAct: boolean;
+  history: { action: string; by: string; at: string; note?: string | null }[];
+}
+
+export interface GrnApprovalQueue {
+  pending: GrnApprovalRow[];
+  decided: GrnApprovalRow[];
+  mine: number;
 }
 
 export interface PendingInwardPo {

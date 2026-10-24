@@ -518,7 +518,7 @@ const initialsOf = (name: string) =>
     .toUpperCase();
 
 function UserMenu() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const { current, locked } = useBranch();
   const { open, setOpen, toggle, box } = usePanel();
   const confirm = useConfirm();
@@ -568,22 +568,25 @@ function UserMenu() {
               </p>
             </div>
           </div>
-          <div className="overflow-y-auto py-1">
-            {[
-              { href: "/account", label: "My Account", icon: <UserRound /> },
-              { href: "/account", label: "Change Password", icon: <KeyRound /> },
-            ].map((i) => (
-              <Link
-                key={i.label}
-                href={i.href}
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 sm:py-2 [&>svg]:size-4 [&>svg]:text-slate-400"
-              >
-                {i.icon}
-                {i.label}
-              </Link>
-            ))}
-          </div>
+          {/* Administrators only: staff passwords are reset by an administrator from Users */}
+          {isAdmin && (
+            <div className="overflow-y-auto py-1">
+              {[
+                { href: "/account", label: "My Account", icon: <UserRound /> },
+                { href: "/account", label: "Change Password", icon: <KeyRound /> },
+              ].map((i) => (
+                <Link
+                  key={i.label}
+                  href={i.href}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 sm:py-2 [&>svg]:size-4 [&>svg]:text-slate-400"
+                >
+                  {i.icon}
+                  {i.label}
+                </Link>
+              ))}
+            </div>
+          )}
           <button
             onClick={async () => {
               setOpen(false);

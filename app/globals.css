@@ -33,6 +33,9 @@
   --color-line-3: #c9d1c0;
   --color-line-soft: #eef3e6;
   --color-grid: #e6eadf;
+  /* Purchase reports, this month vs last month (validated pair; gold is light, so charts carry a legend + table) */
+  --color-chart-current: #c9932a;
+  --color-chart-previous: #2a78d6;
   --color-ink: #1d2a1f;
   --color-muted: #5f6e60;
   --color-muted-2: #8a9a8b;
@@ -93,6 +96,8 @@
     --color-line-3: #3e4d43;
     --color-line-soft: #223026;
     --color-grid: #243028;
+    --color-chart-current: #b5821c;
+    --color-chart-previous: #3987e5;
     --color-ink: #e6ece6;
     --color-muted: #9aa99c;
     --color-muted-2: #7f8d81;
@@ -196,6 +201,8 @@
     --color-line-3: #c9d1c0;
     --color-line-soft: #eef3e6;
     --color-grid: #e6eadf;
+    --color-chart-current: #c9932a;
+    --color-chart-previous: #2a78d6;
     --color-ink: #1d2a1f;
     --color-muted: #5f6e60;
     --color-muted-2: #8a9a8b;

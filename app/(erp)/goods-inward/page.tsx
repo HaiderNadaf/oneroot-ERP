@@ -177,7 +177,7 @@ function GoodsInward() {
                 <Th>GRN</Th>
                 <Th>PO</Th>
                 <Th>Vendor</Th>
-                <Th>Earliest Expiry</Th>
+                {/* <Th>Earliest Expiry</Th> */}
                 <Th className="hidden md:table-cell">Received By</Th>
                 <Th right>PO Qty</Th>
                 <Th right>Received</Th>
@@ -229,9 +229,9 @@ function GoodsInward() {
                         g.vendor.name
                       )}
                     </Td>
-                    <Td className="whitespace-nowrap">
+                    {/* <Td className="whitespace-nowrap">
                       <ExpiryCell d={g.earliestExpiry} alertDays={alertDays} />
-                    </Td>
+                    </Td> */}
                     <Td className="hidden text-slate-600 md:table-cell">{g.receivedBy?.name ?? "—"}</Td>
                     <Td right className="text-slate-700">
                       {g.poQty !== undefined ? qty(g.poQty) : "—"}

@@ -605,7 +605,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
                       <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
                         <p className="text-xs text-slate-500">Step {i + 1}</p>
                         <p className="text-sm font-medium text-slate-800">{s.title}</p>
-                        <p className="text-xs text-slate-500">{s.approver?.name ?? "Any manager"}</p>
+                        <p className="text-xs text-slate-500">{s.approverName}</p>
                       </div>
                     </li>
                   ))}

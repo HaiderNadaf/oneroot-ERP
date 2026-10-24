@@ -560,7 +560,7 @@ function BranchScope({ children }: { children: ReactNode }) {
   return <Fragment key={version}>{children}</Fragment>;
 }
 
-function NoAccess() {
+export function NoAccess() {
   return (
     <div className="mx-auto mt-20 max-w-md text-center">
       <FileText className="mx-auto size-10 text-slate-300" />

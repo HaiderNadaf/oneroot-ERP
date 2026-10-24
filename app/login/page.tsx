@@ -81,6 +81,7 @@ export default function LoginPage() {
                   required
                 />
               </Field>
+              {/* Hidden for everyone: only an administrator resets or changes passwords (Users → Edit)
               <div className="flex justify-end -mt-2">
                 <button
                   type="button"
@@ -90,6 +91,7 @@ export default function LoginPage() {
                   Forgot Password?
                 </button>
               </div>
+              */}
               {error && (
                 <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
                   {error}

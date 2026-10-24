@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Barcode } from "@/components/Barcode";
+import { BatchDetails } from "@/components/BatchDetails";
 import { BranchCode } from "@/components/BranchNotice";
 import { AttributeList } from "@/components/AttributeFields";
 import { SerialsPanel } from "@/components/SerialsPanel";
-import { ExpiryBadge, MovementBadge, MovementRef, SignedQty, useSeeCostPrice } from "@/components/StockBits";
+import { MovementBadge, MovementRef, SignedQty, useSeeCostPrice } from "@/components/StockBits";
 import {
   Badge,
   Button,
@@ -31,7 +32,7 @@ import {
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
-import { date, dateTime, inr, n, qty, round2 } from "@/lib/format";
+import { dateTime, inr, n, qty, round2 } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { Paged, Product, StockMovement } from "@/lib/types";
 import { LazyLabelPrintModal, LazyProductForm, LazyStockAdjustModal } from "@/components/lazy";
@@ -77,7 +78,6 @@ export default function ProductDetailPage() {
   const totalStock = n(p.totalStock ?? p.stock);
   const branchStock = p.branchStock ?? [];
   const multiBranch = branchStock.length > 1;
-  const batchCols = (allBranches ? 8 : 7) - (showCost ? 0 : 2);
   const moveCols = allBranches ? 8 : 7;
 
   async function remove() {
@@ -286,66 +286,15 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      <Card
-        title={`Batches in stock${current && multiBranch ? ` at ${current.name}` : ""} (${batches.length})`}
-        className="mt-4"
-        bodyClassName="p-0"
-      >
-        <Table>
-          <thead>
-            <tr>
-              <Th>Batch</Th>
-              {allBranches && <Th>Branch</Th>}
-              <Th>Mfg Date</Th>
-              <Th>Expiry</Th>
-              {showCost && <Th right>Cost</Th>}
-              <Th right>MRP</Th>
-              <Th right>Qty</Th>
-              {showCost && <Th right>Value</Th>}
-            </tr>
-          </thead>
-          <tbody>
-            {batches.length === 0 ? (
-              <EmptyRow colSpan={batchCols}>No stock on hand{current && multiBranch ? ` in ${current.name}` : ""}</EmptyRow>
-            ) : (
-              batches.map((b) => (
-                <tr key={b.id} className="hover:bg-slate-50">
-                  <Td className="font-medium text-slate-900">{b.batchNo}</Td>
-                  {allBranches && (
-                    <Td>
-                      <BranchCode code={b.branch?.code} title={b.branch?.name} />
-                    </Td>
-                  )}
-                  <Td>{date(b.mfgDate)}</Td>
-                  <Td>
-                    <span className="mr-2">{date(b.expiryDate)}</span>
-                    <ExpiryBadge expiry={b.expiryDate} />
-                  </Td>
-                  {showCost && <Td right>{inr(b.costPrice)}</Td>}
-                  <Td right className="text-slate-500">
-                    {n(b.mrp) ? inr(b.mrp) : "—"}
-                  </Td>
-                  <Td right className="font-medium">
-                    {qty(b.quantity)} <span className="text-xs font-normal text-slate-500">{p.unit}</span>
-                  </Td>
-                  {showCost && <Td right>{inr(n(b.quantity) * n(b.costPrice))}</Td>}
-                </tr>
-              ))
-            )}
-          </tbody>
-          {batches.length > 1 && (
-            <tfoot>
-              <tr className="bg-slate-50 font-semibold">
-                <Td colSpan={batchCols - (showCost ? 2 : 1)}>Total</Td>
-                <Td right>
-                  {qty(batches.reduce((s, b) => s + n(b.quantity), 0))} <span className="text-xs font-normal text-slate-500">{p.unit}</span>
-                </Td>
-                {showCost && <Td right>{inr(batchValue)}</Td>}
-              </tr>
-            </tfoot>
-          )}
-        </Table>
-      </Card>
+      <BatchDetails
+        productId={p.id}
+        unit={p.unit}
+        productLocation={p.location}
+        allBranches={allBranches}
+        branchName={current && multiBranch ? current.name : undefined}
+        showCost={showCost}
+        canMoves={canMoves}
+      />
 
       {p.trackSerial && (
         <div className="mt-4">

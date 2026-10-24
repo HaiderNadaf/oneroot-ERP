@@ -167,7 +167,7 @@ const GOLD = PURCHASE_COLOR;
 
 function greeting() {
   const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  return h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";
 }
 
 /** Indian cropping season for the subtitle */

@@ -138,7 +138,8 @@ export function ProductPicker({
       autoFocus={autoFocus}
       inputRef={inputRef}
       fetcher={async (q) => {
-        const r = await api.get<Paged<Product>>("/products", { search: q, pageSize: 20, vendorId });
+        // PO items (a vendor given): every product that vendor supplies, so no page size; elsewhere the first 20 matches
+        const r = await api.get<Paged<Product>>("/products", { search: q, vendorId, pageSize: vendorId ? undefined : 20 });
         return inStockOnly ? r.items.filter((p) => n(p.stock) > 0) : r.items;
       }}
       onPick={onPick}

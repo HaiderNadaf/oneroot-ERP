@@ -220,7 +220,7 @@ return (
                   tooShort ||
                   mismatch
                 }
-                block
+                className="w-full"
               >
                 Update Password
               </Button>

@@ -196,7 +196,7 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
   const showCost = useSeeCostPrice();
   // Batches from every branch are listed together while viewing All branches
   const showBranch = useBranch().currentId === "all";
-  const cols = (showBranch ? 10 : 9) - (showCost ? 0 : 2);
+  const cols = (showBranch ? 12 : 11) - (showCost ? 0 : 3);
   // ?status=expiring|expired opens the batch list pre-filtered (used by dashboard shortcuts)
   const initialStatus = useSearchParams().get("status");
   const [status, setStatus] = useState(
@@ -211,8 +211,8 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
 
   async function exportCsv() {
     const all = await api.get<Paged<Batch>>("/inventory/batches", { ...query, pageSize: 500 });
-    const head = ["Branch", "Product", "SKU", "Batch", "Mfg Date", "Expiry Date", "Days to Expiry", "Qty", "Unit", "Cost", "MRP", "Value"];
-    const costCols = new Set(showCost ? [] : [9, 11]);
+    const head = ["Branch", "Product", "SKU", "Batch", "Mfg Date", "Expiry Date", "Days to Expiry", "Qty", "Unit", "Cost", "MRP", "Value", "Wtd. Avg Cost", "Selling Price"];
+    const costCols = new Set(showCost ? [] : [9, 11, 12]);
     downloadCsv(
       "batches.csv",
       head.filter((_, i) => !costCols.has(i)),
@@ -230,6 +230,8 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
           n(b.costPrice),
           n(b.mrp) || "",
           n(b.quantity) * n(b.costPrice),
+          b.avgCost ?? "",
+          b.product ? n(b.product.salePrice) : "",
         ].filter((_, i) => !costCols.has(i)),
       ),
     );
@@ -297,7 +299,9 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
               <Th>Expiry</Th>
               <Th right>Qty</Th>
               {showCost && <Th right className="hidden md:table-cell">Cost</Th>}
+              {showCost && <Th right>Wtd. Avg Cost</Th>}
               {showCost && <Th right>Value</Th>}
+              <Th right>Selling Price</Th>
               <Th />
             </tr>
           </thead>
@@ -344,7 +348,13 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
                       {qty(b.quantity)} <span className="text-xs font-normal text-slate-500">{b.product?.unit}</span>
                     </Td>
                     {showCost && <Td right className="hidden md:table-cell">{inr(b.costPrice)}</Td>}
+                    {showCost && (
+                      <Td right className="text-slate-600">
+                        {b.avgCost != null ? inr(b.avgCost) : "—"}
+                      </Td>
+                    )}
                     {showCost && <Td right>{inr(n(b.quantity) * n(b.costPrice))}</Td>}
+                    <Td right>{b.product ? inr(b.product.salePrice) : "—"}</Td>
                     <Td right>
                       <div className="flex justify-end gap-1.5">
                         {isAdmin && (

@@ -14,7 +14,10 @@ import {
   DateInput,
   EmptyRow,
   ErrorBox,
+  Field,
+  Input,
   LoadingRow,
+  Modal,
   PageHeader,
   Pagination,
   SearchInput,
@@ -25,6 +28,8 @@ import {
   Td,
   Th,
   cx,
+  errMsg,
+  useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -186,7 +191,8 @@ export default function InventoryPage() {
 }
 
 function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: Batch) => void }) {
-  const { can } = useAuth();
+  const { can, isAdmin } = useAuth();
+  const [editBatch, setEditBatch] = useState<Batch | null>(null);
   const showCost = useSeeCostPrice();
   // Batches from every branch are listed together while viewing All branches
   const showBranch = useBranch().currentId === "all";
@@ -340,11 +346,18 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
                     {showCost && <Td right className="hidden md:table-cell">{inr(b.costPrice)}</Td>}
                     {showCost && <Td right>{inr(n(b.quantity) * n(b.costPrice))}</Td>}
                     <Td right>
-                      {isExpired && n(b.quantity) > 0 && can("inventory.adjust") && (
-                        <Button variant="secondary" size="sm" className="text-red-700" onClick={() => onWriteOff(b)}>
-                          Write Off
-                        </Button>
-                      )}
+                      <div className="flex justify-end gap-1.5">
+                        {isAdmin && (
+                          <Button variant="secondary" size="sm" onClick={() => setEditBatch(b)}>
+                            Edit
+                          </Button>
+                        )}
+                        {isExpired && n(b.quantity) > 0 && can("inventory.adjust") && (
+                          <Button variant="secondary" size="sm" className="text-red-700" onClick={() => onWriteOff(b)}>
+                            Write Off
+                          </Button>
+                        )}
+                      </div>
                     </Td>
                   </tr>
                 );
@@ -354,7 +367,77 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
         </Table>
       )}
       {data && <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />}
+      {editBatch && (
+        <EditBatchModal
+          batch={editBatch}
+          onClose={() => setEditBatch(null)}
+          onSaved={() => {
+            setEditBatch(null);
+            void reload();
+          }}
+        />
+      )}
     </Card>
+  );
+}
+
+/** Admin only: corrects a batch's dates and cost; documents already saved (PO, GRN, invoices) keep their old values */
+function EditBatchModal({ batch, onClose, onSaved }: { batch: Batch; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const [mfg, setMfg] = useState(batch.mfgDate?.slice(0, 10) ?? "");
+  const [expiry, setExpiry] = useState(batch.expiryDate?.slice(0, 10) ?? "");
+  const [cost, setCost] = useState(String(n(batch.costPrice)));
+  const [saving, setSaving] = useState(false);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (mfg && expiry && mfg >= expiry) return toast.error("Expiry must be after the Mfg Date");
+    const costPrice = Number(cost);
+    if (cost.trim() === "" || !Number.isFinite(costPrice) || costPrice < 0) return toast.error("Enter a valid cost");
+    setSaving(true);
+    try {
+      await api.patch(`/inventory/batches/${batch.id}`, { mfgDate: mfg || null, expiryDate: expiry || null, costPrice });
+      toast.success(`Batch ${batch.batchNo} updated`);
+      onSaved();
+    } catch (err) {
+      toast.error(errMsg(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Edit Batch ${batch.batchNo}`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="batch-edit-form" loading={saving}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <form id="batch-edit-form" onSubmit={save} className="grid gap-3 sm:grid-cols-3">
+        <Field label="Mfg Date">
+          <DateInput value={mfg} onChange={(e) => setMfg(e.target.value)} aria-label="Mfg date" />
+        </Field>
+        <Field label="Expiry">
+          <DateInput value={expiry} onChange={(e) => setExpiry(e.target.value)} aria-label="Expiry date" />
+        </Field>
+        <Field label="Cost (₹)" required>
+          <Input type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} required />
+        </Field>
+        <p className="text-xs text-slate-500 sm:col-span-3">
+          {batch.product?.name} · POs, GRNs and purchase invoices already saved keep their old values. Only what happens from now on
+          (sales, transfers, write-offs) uses the new ones.
+        </p>
+      </form>
+    </Modal>
   );
 }
 

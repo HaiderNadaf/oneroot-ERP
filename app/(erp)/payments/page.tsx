@@ -4,6 +4,7 @@ import { Download, Plus } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { CASH_MODES, PartyPaymentForm, modeLabel } from "@/components/PartyPaymentForm";
+import { VendorPending } from "@/components/VendorPending";
 import {
   Button,
   Card,
@@ -51,7 +52,9 @@ export default function PaymentsPage() {
   const { can } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
-  const [direction, setDirection] = useState<Direction>("IN");
+  const [tab, setTab] = useState<Direction | "PENDING">("IN");
+  const pendingTab = tab === "PENDING";
+  const direction: Direction = pendingTab ? "OUT" : tab;
   const [from, setFrom] = useState(monthStart());
   const [to, setTo] = useState(today());
   const [mode, setMode] = useState("");
@@ -65,7 +68,7 @@ export default function PaymentsPage() {
   const canPayVendor = can("payments.vendor") && can("vendors.view");
 
   const filters = { direction, from, to, mode };
-  const { data, error, loading, reload } = useApi<Paged<Payment>>("/payments", { ...filters, page, pageSize: 25 });
+  const { data, error, loading, reload } = useApi<Paged<Payment>>(pendingTab ? null : "/payments", { ...filters, page, pageSize: 25 });
   const isIn = direction === "IN";
 
   async function exportCsv() {
@@ -123,9 +126,11 @@ export default function PaymentsPage() {
         subtitle="Money received from customers and paid to vendors"
         actions={
           <>
-            <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv} loading={exporting}>
-              Export
-            </Button>
+            {!pendingTab && (
+              <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv} loading={exporting}>
+                Export
+              </Button>
+            )}
             {(canReceive || canPayVendor) && (
               <Button icon={<Plus className="size-4" />} onClick={() => setFormOpen(true)}>
                 New Payment
@@ -135,18 +140,22 @@ export default function PaymentsPage() {
         }
       />
 
-      <Tabs<Direction>
-        value={direction}
+      <Tabs<Direction | "PENDING">
+        value={tab}
         onChange={(d) => {
-          setDirection(d);
+          setTab(d);
           setPage(1);
         }}
         tabs={[
           { value: "IN", label: "Received (From Customers)" },
           { value: "OUT", label: "Paid (To Vendors)" },
+          { value: "PENDING", label: "Pending (To Vendors)" },
         ]}
       />
 
+      {pendingTab ? (
+        <VendorPending />
+      ) : (
       <Card bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
           <div className="flex w-full items-center gap-1.5 sm:w-auto">
@@ -252,6 +261,7 @@ export default function PaymentsPage() {
         )}
         {data && <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />}
       </Card>
+      )}
 
       <PartyPaymentForm
         open={formOpen}
@@ -259,8 +269,8 @@ export default function PaymentsPage() {
         onClose={() => setFormOpen(false)}
         onSaved={(p) => {
           setFormOpen(false);
-          if (p.direction !== direction) {
-            setDirection(p.direction);
+          if (p.direction !== tab) {
+            setTab(p.direction);
             setPage(1);
           } else void reload();
         }}

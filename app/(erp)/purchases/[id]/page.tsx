@@ -103,8 +103,8 @@ function PurchaseDetail() {
   return (
     <>
       <div className="no-print mb-2">
-        <Link href="/purchases" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
-          <ArrowLeft className="size-4" /> Purchase Invoices
+        <Link href="/goods-inward" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
+          <ArrowLeft className="size-4" /> Goods Inward
         </Link>
       </div>
       <PageHeader

@@ -648,6 +648,10 @@ export interface Payment {
   vendor?: { id: string; name: string } | null;
   sale?: { id: string; invoiceNo: string; customerName?: string | null } | null;
   purchase?: { id: string; purchaseNo: string } | null;
+  /** Advance paid against this PO */
+  po?: { id: string; poNo: string } | null;
+  /** Paid for the goods on this GRN */
+  grn?: { id: string; grnNo: string } | null;
 }
 
 export type SerialStatus = "IN_STOCK" | "SOLD";
@@ -845,10 +849,25 @@ export interface PoHistory {
   at: string;
 }
 
+/** When a PO is paid: after goods inward, 100% advance, or a partial advance (balance after goods inward) */
+export type PoPaymentTerm = "AFTER_GRN" | "ADVANCE_FULL" | "ADVANCE_PARTIAL";
+export const PO_PAYMENT_TERMS: { value: PoPaymentTerm; label: string; hint: string }[] = [
+  { value: "AFTER_GRN", label: "Payment After GRN", hint: "Finance pays against the GRN once the goods are received" },
+  { value: "ADVANCE_FULL", label: "100% Advance", hint: "Finance pays the full PO amount once it is approved" },
+  { value: "ADVANCE_PARTIAL", label: "Partial Advance", hint: "Finance pays the advance once approved; the balance after the GRN" },
+];
+
 export interface PurchaseOrder {
   id: string;
   poNo: string;
   vendorId: string;
+  paymentTerm?: PoPaymentTerm;
+  /** Advance to pay before delivery (PO total for 100% advance) */
+  advanceAmount?: Dec;
+  /** Advance paid so far */
+  advancePaid?: Dec;
+  /** Part of the advance already set against the PO's invoices */
+  advanceApplied?: Dec;
   vendor?: Vendor;
   /** The vendor's branch this PO buys from (its address and GSTIN go on the PO) */
   vendorBranchId?: string | null;
@@ -939,7 +958,18 @@ export interface GrnApprovalRow {
   vehicleNo?: string | null;
   receivedAt: string;
   notes?: string | null;
-  items: { product: string; unit: string; passedQty: number; rejectedQty: number; damagedQty: number; expiredQty: number; batchNo?: string | null }[];
+  items: {
+    product: string;
+    unit: string;
+    passedQty: number;
+    rejectedQty: number;
+    damagedQty: number;
+    expiredQty: number;
+    batchNo?: string | null;
+    /** Why goods on this row were not accepted, and what was wrong */
+    issue?: string | null;
+    issueRemark?: string | null;
+  }[];
   chain: ChainStep[];
   waitingFor: ChainStep | null;
   canAct: boolean;

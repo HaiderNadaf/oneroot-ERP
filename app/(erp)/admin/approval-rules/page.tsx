@@ -47,7 +47,7 @@ function ApprovalRules() {
 
   return (
     <>
-      <PageHeader title="Approval Rules" subtitle="How far up the L1 → L2 → L3 chain a purchase order and its goods inward must go, by value" />
+      <PageHeader title="Approval Rules" subtitle="How far up the L1 → L2 → L3 chain a purchase order must go, by value" />
       {error ? (
         <ErrorBox message={error} onRetry={reload} />
       ) : !config ? (
@@ -191,11 +191,12 @@ function RulesEditor({
         <InfoIcon className="mt-0.5 size-4 shrink-0" />
         <div className="space-y-1">
           <p>
-            Purchase orders and their goods inward go up the same chain: <b className="font-medium">L1 → Manager (L2) → Admin (L3)</b>. The PO&apos;s
+            Purchase orders go up the chain: <b className="font-medium">L1 → Manager (L2) → Admin (L3)</b>. The PO&apos;s
             value (incl. GST) picks its band, and the band decides how far up it goes. Anyone at a step&apos;s level or higher may approve it.
           </p>
           <p className="text-sky-700">
-            Changes apply to POs submitted and goods inward entered from now on; anything already waiting keeps the chain it started with.
+            Changes apply to POs submitted from now on; anything already waiting keeps the chain it started with. Goods inward is posted
+            straight away (no approval for now).
           </p>
         </div>
       </div>
@@ -325,8 +326,7 @@ function RulesEditor({
           ))}
         </ul>
         <p className="mt-2 text-xs text-slate-500">
-          The same chain approves the PO when it is submitted and the goods inward when it is received; the GRN is posted (stock, invoice) only after
-          the last approval.
+          The chain approves the PO when it is submitted. Goods inward against an approved PO is posted straight away (stock, invoice).
         </p>
       </Card>
 

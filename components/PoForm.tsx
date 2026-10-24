@@ -8,6 +8,7 @@ import { useBranchOptions } from "@/components/BranchNotice";
 import { useCounts } from "@/components/Notifications";
 import { ProductPicker, VendorPicker } from "@/components/pickers";
 import { Button, Card, DateInput, Field, Input, Select, Spinner, Table, Td, Textarea, Th, cx, errMsg, useToast } from "@/components/ui";
+import { PO_PAYMENT_TERMS, type PoPaymentTerm } from "@/lib/types";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
@@ -26,6 +27,7 @@ interface LowStockRow {
   name: string;
   sku: string;
   unit: string;
+  packSize: string | null;
   stock: string;
   reorderLevel: string;
   purchasePrice: string;
@@ -38,6 +40,8 @@ interface PoLine {
   name: string;
   sku: string;
   unit: string;
+  /** As entered on the product (e.g. 50 kg); shown on the line, not edited here */
+  packSize?: string | null;
   stock?: number;
   gstRate: number;
   quantity: string;
@@ -102,6 +106,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
       name: i.product.name,
       sku: i.product.sku,
       unit: i.product.unit,
+      packSize: i.product.packSize ?? null,
       gstRate: n(i.gstRate),
       quantity: String(n(i.quantity)),
       rate: String(n(i.rate)),
@@ -109,6 +114,9 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
     })),
   );
   const [notes, setNotes] = useState(po?.notes ?? "");
+  // Payment terms: after GRN (default), 100% advance, or a partial advance in rupees
+  const [paymentTerm, setPaymentTerm] = useState<PoPaymentTerm>(po?.paymentTerm ?? "AFTER_GRN");
+  const [advanceAmount, setAdvanceAmount] = useState(po?.paymentTerm === "ADVANCE_PARTIAL" && n(po.advanceAmount) ? String(n(po.advanceAmount)) : "");
   const [termsOpen, setTermsOpen] = useState(false);
   // An inclusive PO shows the amount as it was entered (value before GST + its GST)
   const [transportCharges, setTransportCharges] = useState(() => {
@@ -172,6 +180,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
           name: p.name,
           sku: p.sku,
           unit: p.unit,
+          packSize: p.packSize ?? null,
           stock: n(p.stock),
           gstRate: n(p.gstRate),
           quantity: "1",
@@ -202,6 +211,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
           name: r.name,
           sku: r.sku,
           unit: r.unit,
+          packSize: r.packSize,
           stock: n(r.stock),
           gstRate: n(r.gstRate),
           quantity: String(Math.ceil(Math.max(n(r.reorderLevel) * 2 - n(r.stock), 1))),
@@ -270,6 +280,8 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
     if (!expectedLocked && expectedDate < orderDate) return toast.error("Expected delivery is before the invoice date");
     if (!expiryDays) return toast.error("Choose the expiry days");
     if (Number(transportCharges) < 0 || Number(otherCharges) < 0) return toast.error("Charges can't be negative");
+    if (paymentTerm === "ADVANCE_PARTIAL" && !(Number(advanceAmount) > 0 && Number(advanceAmount) < total))
+      return toast.error(`Enter the advance: more than ₹0 and less than the PO total of ${inr(total)}`);
     setSaving(submit ? "submit" : "draft");
     const body = {
       vendorId: vendor.id,
@@ -291,6 +303,8 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
       otherCharges: Number(otherCharges) || 0,
       otherChargesGstRate: Number(otherChargesGstRate),
       otherChargesNote: otherChargesNote.trim() || undefined,
+      paymentTerm,
+      advanceAmount: paymentTerm === "ADVANCE_PARTIAL" ? Number(advanceAmount) : undefined,
       submit,
     };
     try {
@@ -482,6 +496,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
               <Th>Product</Th>
               <Th>SKU Code</Th>
               <Th right>In Stock</Th>
+              <Th>Pack Size</Th>
               <Th right>Qty</Th>
               <Th>UOM</Th>
               <Th right>Rate (Excl. GST)</Th>
@@ -494,7 +509,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
           <tbody>
             {!lines.length ? (
               <tr>
-                <td colSpan={10} className="px-3 py-12 text-center text-sm text-slate-400">
+                <td colSpan={11} className="px-3 py-12 text-center text-sm text-slate-400">
                   <PackagePlus className="mx-auto mb-2 size-7 text-slate-300" />
                   Search above to add products, or add everything that&apos;s below its reorder level
                 </td>
@@ -514,6 +529,8 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
                   <Td right className={cx("whitespace-nowrap text-slate-500", l.stock !== undefined && l.stock <= 0 && "text-red-600")}>
                     {l.stock === undefined ? "—" : qty(l.stock)}
                   </Td>
+                  {/* From the product, not editable here */}
+                  <Td className="whitespace-nowrap text-slate-600">{l.packSize || <span className="text-slate-300">—</span>}</Td>
                   <Td right>
                     <Input
                       type="number"
@@ -618,6 +635,32 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
                 </p>
               </>
             )}
+          </Card>
+          <Card title="Payment Terms">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="When Is the Vendor Paid?" required hint={PO_PAYMENT_TERMS.find((t) => t.value === paymentTerm)?.hint}>
+                <Select value={paymentTerm} onChange={(e) => setPaymentTerm(e.target.value as PoPaymentTerm)}>
+                  {PO_PAYMENT_TERMS.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              {paymentTerm === "ADVANCE_PARTIAL" ? (
+                <Field
+                  label="Advance Amount (₹)"
+                  required
+                  hint={Number(advanceAmount) > 0 && Number(advanceAmount) < total ? `Balance ${inr(total - Number(advanceAmount))} after the GRN` : `Less than the PO total of ${inr(total)}`}
+                >
+                  <Input type="number" min="0" step="0.01" className="num" value={advanceAmount} onChange={(e) => setAdvanceAmount(e.target.value)} placeholder="e.g. 50000" />
+                </Field>
+              ) : paymentTerm === "ADVANCE_FULL" ? (
+                <p className="self-end pb-2 text-sm text-slate-600">
+                  Advance: <span className="num font-medium text-slate-900">{inr(total)}</span> (the full PO total)
+                </p>
+              ) : null}
+            </div>
           </Card>
           <Card title="Notes to Approver">
             <Textarea

@@ -23,6 +23,10 @@ export interface FixedParty {
   documentLabel?: string;
   /** Outstanding on that bill */
   due?: number;
+  /** Vendor advance against this PO (before its goods arrive); `due` = advance still to pay */
+  poId?: string;
+  /** Vendor payment for the goods on this GRN (applied to its invoice); `due` = still to pay on it */
+  grnId?: string;
 }
 
 export const CASH_MODES = MONEY_MODES;
@@ -75,9 +79,11 @@ function PartyPaymentFormBody({ open, onClose, onSaved, fixed, defaultType = "CU
       : customer && { id: customer.id, name: customer.name };
   const balance = fixed ? fixed.balance : isVendor ? (vendor ? n(vendor.balance) : undefined) : customer ? n(customer.balance) : undefined;
   const amt = Number(amount) || 0;
-  const limit = fixed?.documentId ? fixed.due : undefined;
+  // Paying one bill, a PO's advance or a GRN: the amount is capped at what is due on it
+  const targeted = !!(fixed?.documentId || fixed?.poId || fixed?.grnId);
+  const limit = targeted ? fixed?.due : undefined;
   const overBill = limit !== undefined && amt > round2(limit) + 0.004;
-  const advance = !fixed?.documentId && balance !== undefined && amt > balance + 0.004;
+  const advance = !targeted && balance !== undefined && amt > balance + 0.004;
 
   function pickParty(p: Customer | Vendor | null, type: PartyType) {
     if (type === "VENDOR") setVendor(p as Vendor | null);
@@ -90,13 +96,15 @@ function PartyPaymentFormBody({ open, onClose, onSaved, fixed, defaultType = "CU
     e.preventDefault();
     if (!party) return toast.error(`Choose a ${isVendor ? "vendor" : "customer"}`);
     if (amt <= 0) return toast.error("Enter an amount greater than zero");
-    if (overBill) return toast.error(`Amount is more than the ${inr(limit)} due on this bill`);
+    if (overBill) return toast.error(`Amount is more than the ${inr(limit)} due on ${fixed?.documentLabel ?? "this bill"}`);
     setSaving(true);
     try {
       const p = await api.post<Payment>("/payments", {
         partyType,
         partyId: party.id,
         documentId: fixed?.documentId,
+        poId: fixed?.poId,
+        grnId: fixed?.grnId,
         amount: round2(amt),
         mode,
         reference: reference.trim() || undefined,
@@ -170,7 +178,7 @@ function PartyPaymentFormBody({ open, onClose, onSaved, fixed, defaultType = "CU
 
         {(fixed || party) && (
           <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm sm:col-span-2">
-            {fixed?.documentId ? (
+            {targeted ? (
               <div className="flex justify-between gap-3">
                 <span className="text-slate-500">Due on {fixed.documentLabel ?? "this bill"}</span>
                 <span className="num font-semibold text-slate-900">{inr(fixed.due)}</span>
@@ -225,7 +233,7 @@ function PartyPaymentFormBody({ open, onClose, onSaved, fixed, defaultType = "CU
             This is more than the current balance — the extra {inr(amt - Math.max(balance ?? 0, 0))} will be kept as an advance.
           </p>
         )}
-        {!fixed?.documentId && party && (
+        {!targeted && party && (
           <p className="text-xs text-slate-500 sm:col-span-2">
             The amount is applied to the oldest unpaid {isVendor ? "bills" : "invoices"} first.
           </p>

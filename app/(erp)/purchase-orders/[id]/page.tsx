@@ -51,7 +51,7 @@ import { useAuth } from "@/lib/auth";
 import { amountInWords, date, dateTime, daysUntil, inr, n, qty, round2 } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { printAs } from "@/lib/print";
-import type { ChainStep, PoHistory, PurchaseOrder, StoreSettings } from "@/lib/types";
+import { PO_PAYMENT_TERMS, type PoHistory, type PurchaseOrder, type StoreSettings } from "@/lib/types";
 
 type Decision = "approve" | "send_back" | "reject";
 
@@ -267,6 +267,23 @@ export default function PurchaseOrderDetailPage() {
                     </dd>
                   </>
                 )}
+                <dt className="text-slate-500">Payment terms</dt>
+                <dd>
+                  {PO_PAYMENT_TERMS.find((t) => t.value === (po.paymentTerm ?? "AFTER_GRN"))?.label}
+                  {po.paymentTerm && po.paymentTerm !== "AFTER_GRN" && (
+                    <span className="block text-xs text-slate-500">
+                      Advance {inr(po.advanceAmount)} ·{" "}
+                      {n(po.advancePaid) >= n(po.advanceAmount) - 0.004 ? (
+                        <span className="font-medium text-brand-700">paid</span>
+                      ) : (
+                        <span className="font-medium text-amber-700">
+                          {n(po.advancePaid) > 0 ? `${inr(po.advancePaid)} paid, ` : ""}
+                          {inr(n(po.advanceAmount) - n(po.advancePaid))} due
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </dd>
                 <dt className="text-slate-500">Raised by</dt>
                 <dd>{po.createdBy?.name ?? "—"}</dd>
                 <dt className="text-slate-500">Approval round</dt>
@@ -388,7 +405,7 @@ export default function PurchaseOrderDetailPage() {
         </Card>
       </div>
 
-      <div className="no-print mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="no-print mb-4 grid grid-cols-1 gap-4">
         <Card
           title={
             <span className="inline-flex items-center gap-1.5">
@@ -422,6 +439,7 @@ export default function PurchaseOrderDetailPage() {
             </ul>
           )}
         </Card>
+        {/* Purchase Invoices removed from the PO (vendor bills are booked from the GRN)
         <Card
           title={
             <span className="inline-flex items-center gap-1.5">
@@ -449,6 +467,7 @@ export default function PurchaseOrderDetailPage() {
             </ul>
           )}
         </Card>
+        */}
       </div>
 
       {showNotes && v && (
@@ -575,44 +594,95 @@ function StatusNotice({ po, lastNote }: { po: PurchaseOrder; lastNote: (prefix: 
   return null;
 }
 
-/** Vertical list of the chain, with who approved each step in the current round */
+/** "Ragul (L1 Approval)" / "Ragul (for Owner)" → "Ragul": the step's title is shown beside it already */
+const approverOnly = (userName: string, title: string) => userName.replace(new RegExp(`\\s*\\((for )?${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\)$`), "");
+
+/**
+ * Every step of the chain in the current round: its level, who may approve it, and what happened there —
+ * approved / rejected / sent back by whom and when (with their comment), waiting since when, or not reached yet.
+ */
 function ApprovalSteps({ po, history }: { po: PurchaseOrder; history: PoHistory[] }) {
-  const approvals = history.filter((h) => h.round === po.round && h.action.startsWith("Approved"));
-  const byLevel = (i: number) => approvals.find((h) => h.action.endsWith(`level ${i + 1}`));
-  const icon = (s: ChainStep) =>
-    s.state === "done" ? (
+  const round = history.filter((h) => h.round === po.round);
+  // The decision recorded at a step: "Approved · level 2", "Rejected · level 2", "Sent back · level 2"
+  const decisionAt = (i: number) => [...round].reverse().find((h) => /^(Approved|Rejected|Sent back) · level \d+$/.test(h.action) && h.action.endsWith(` level ${i + 1}`));
+  const submitted = [...round].reverse().find((h) => /^(Created and submitted|Submitted for approval|Resubmitted)/.test(h.action));
+  const approvedAll = po.chain.length > 0 && po.chain.every((s) => s.state === "done") ? decisionAt(po.chain.length - 1) : undefined;
+
+  const icon = (kind: "approved" | "rejected" | "sent" | "current" | "pending") =>
+    kind === "approved" ? (
       <CheckCircle2 className="size-4 text-brand-600" />
-    ) : s.state === "current" ? (
+    ) : kind === "current" ? (
       <Clock className="size-4 text-amber-600" />
-    ) : s.state === "rejected" ? (
+    ) : kind === "rejected" ? (
       <XCircle className="size-4 text-red-600" />
+    ) : kind === "sent" ? (
+      <CornerUpLeft className="size-4 text-amber-600" />
     ) : (
       <span className="block size-4 rounded-full border-2 border-slate-300" />
     );
+
   return (
     <>
       <ApprovalChain chain={po.chain} className="mb-3" />
-      <ol className="space-y-2.5">
+      {submitted && (
+        <p className="mb-3 text-xs text-slate-500">
+          {submitted.action} by <span className="font-medium text-slate-700">{submitted.userName}</span> · {dateTime(submitted.at)}
+        </p>
+      )}
+      <ol className="space-y-3">
         {po.chain.map((s, i) => {
-          const h = s.state === "done" ? byLevel(i) : undefined;
+          const h = decisionAt(i);
+          const kind =
+            h?.action.startsWith("Approved") || s.state === "done"
+              ? "approved"
+              : h?.action.startsWith("Rejected") || s.state === "rejected"
+                ? "rejected"
+                : h?.action.startsWith("Sent back")
+                  ? "sent"
+                  : s.state === "current"
+                    ? "current"
+                    : "pending";
+          // Waiting since the step before was approved (or since it was submitted, for the first step)
+          const since = kind === "current" ? (i > 0 ? decisionAt(i - 1)?.at : submitted?.at) : undefined;
           return (
             <li key={s.order} className="flex gap-2.5">
-              <span className="mt-0.5 shrink-0">{icon(s)}</span>
-              <div className="min-w-0 text-sm">
-                <p className="font-medium text-slate-800">
-                  {s.title} <span className="font-normal text-slate-500">· {s.approverName ?? "any manager"}</span>
+              <span className="mt-0.5 shrink-0">{icon(kind)}</span>
+              <div className="min-w-0 flex-1 text-sm">
+                <p className="flex flex-wrap items-center gap-1.5 font-medium text-slate-800">
+                  {s.level && <Badge tone={s.level === "L3" ? "violet" : s.level === "L2" ? "blue" : "slate"}>{s.level}</Badge>}
+                  {s.title}
+                  <span className="font-normal text-slate-500">· {s.approverName ?? "any manager"}</span>
                 </p>
-                <p className="text-xs text-slate-500">
-                  {s.state === "done"
-                    ? h
-                      ? `Approved by ${h.userName} · ${dateTime(h.at)}`
-                      : "Approved"
-                    : s.state === "current"
-                      ? "Waiting for a decision"
-                      : s.state === "rejected"
-                        ? "Rejected here"
-                        : "Not reached yet"}
-                </p>
+                {kind === "approved" ? (
+                  <p className="text-xs text-slate-600">
+                    {h ? (
+                      <>
+                        Approved by <span className="font-medium text-slate-800">{approverOnly(h.userName, s.title)}</span> · {dateTime(h.at)}
+                      </>
+                    ) : (
+                      "Approved"
+                    )}
+                  </p>
+                ) : kind === "rejected" ? (
+                  <p className="text-xs text-red-700">
+                    {h ? (
+                      <>
+                        Rejected by <span className="font-medium">{approverOnly(h.userName, s.title)}</span> · {dateTime(h.at)}
+                      </>
+                    ) : (
+                      "Rejected here"
+                    )}
+                  </p>
+                ) : kind === "sent" && h ? (
+                  <p className="text-xs text-amber-800">
+                    Sent back by <span className="font-medium">{approverOnly(h.userName, s.title)}</span> · {dateTime(h.at)}
+                  </p>
+                ) : kind === "current" ? (
+                  <p className="text-xs text-amber-700">Waiting for a decision{since ? ` since ${dateTime(since)}` : ""}</p>
+                ) : (
+                  <p className="text-xs text-slate-400">Not reached yet</p>
+                )}
+                {h?.note && <p className="mt-1 whitespace-pre-line rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-600">&ldquo;{h.note}&rdquo;</p>}
               </div>
             </li>
           );
@@ -620,8 +690,71 @@ function ApprovalSteps({ po, history }: { po: PurchaseOrder; history: PoHistory[
       </ol>
       <p className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-400">
         {po.chain.length} approval{po.chain.length === 1 ? "" : "s"} needed for {inr(po.totalAmount)}
+        {approvedAll && ` · fully approved ${dateTime(approvedAll.at)}`}
       </p>
+      <ApprovedBy po={po} history={history} />
     </>
+  );
+}
+
+/**
+ * Every approval given on this PO, oldest first: the PO's own steps in every round and the goods inward approved
+ * against it — the step, who approved, when and their comment.
+ */
+function ApprovedBy({ po, history }: { po: PurchaseOrder; history: PoHistory[] }) {
+  const rows = history
+    .flatMap((h) => {
+      // PO step: "Approved · level 2", approver recorded as "Name (Step title)" or "Name (for Step title)"
+      const lvl = /^Approved · level (\d+)$/.exec(h.action);
+      if (lvl) {
+        const who = /^(.*?) \((?:for )?(.+)\)$/.exec(h.userName);
+        const step = who?.[2] ?? (h.round === po.round ? po.chain[Number(lvl[1]) - 1]?.title : undefined) ?? `Step ${lvl[1]}`;
+        return [{ id: h.id, what: "PO", step, name: who?.[1] ?? h.userName, at: h.at, note: h.note, round: h.round }];
+      }
+      // Goods inward step: "Goods inward approved · Step title"
+      const grn = /^Goods inward approved · (.+)$/.exec(h.action);
+      if (grn) return [{ id: h.id, what: "Goods Inward", step: grn[1], name: h.userName, at: h.at, note: h.note, round: h.round }];
+      return [];
+    })
+    .sort((x, y) => x.at.localeCompare(y.at));
+  const rounds = new Set(rows.map((r) => r.round)).size > 1;
+
+  return (
+    <div className="mt-4">
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Approved By</p>
+      {!rows.length ? (
+        <p className="text-sm text-slate-400">No approvals yet</p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-slate-100">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs text-slate-500">
+              <tr>
+                {rounds && <th className="px-2.5 py-1.5 font-medium">Round</th>}
+                <th className="px-2.5 py-1.5 font-medium">Step</th>
+                <th className="px-2.5 py-1.5 font-medium">Approved By</th>
+                <th className="px-2.5 py-1.5 font-medium">When</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map((r) => (
+                <tr key={r.id} className="align-top">
+                  {rounds && <td className="px-2.5 py-1.5 text-slate-500">{r.round}</td>}
+                  <td className="px-2.5 py-1.5">
+                    <span className="text-slate-800">{r.step}</span>
+                    {r.what !== "PO" && <p className="text-xs text-slate-500">{r.what}</p>}
+                  </td>
+                  <td className="px-2.5 py-1.5">
+                    <span className="font-medium text-slate-900">{r.name}</span>
+                    {r.note && <p className="whitespace-pre-line text-xs text-slate-500">&ldquo;{r.note}&rdquo;</p>}
+                  </td>
+                  <td className="whitespace-nowrap px-2.5 py-1.5 text-xs text-slate-600">{dateTime(r.at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 

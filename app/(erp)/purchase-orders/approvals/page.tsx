@@ -61,7 +61,9 @@ export default function ApprovalsPage() {
   // Purchase orders or goods inward (?tab=grn, where GRN approval notifications link)
   const params = useSearchParams();
   const pathname = usePathname();
-  const tab: "po" | "grn" = params.get("tab") === "grn" ? "grn" : "po";
+  // GRN approval is switched off for now (goods inward posts straight away): only the PO tab shows
+  const GRN_APPROVAL = false;
+  const tab: "po" | "grn" = GRN_APPROVAL && params.get("tab") === "grn" ? "grn" : "po";
   const setTab = (t: "po" | "grn") => router.replace(t === "po" ? pathname : `${pathname}?tab=grn`, { scroll: false });
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [approving, setApproving] = useState(false);
@@ -134,7 +136,9 @@ export default function ApprovalsPage() {
         onChange={setTab}
         tabs={[
           { value: "po", label: <>Purchase Orders{data?.mine ? <span className="ml-1.5"><Badge tone="amber">{data.mine}</Badge></span> : null}</> },
-          { value: "grn", label: <>Goods Inward{grn.data?.mine ? <span className="ml-1.5"><Badge tone="amber">{grn.data.mine}</Badge></span> : null}</> },
+          ...(GRN_APPROVAL
+            ? [{ value: "grn" as const, label: <>Goods Inward{grn.data?.mine ? <span className="ml-1.5"><Badge tone="amber">{grn.data.mine}</Badge></span> : null}</> }]
+            : []),
         ]}
       />
 

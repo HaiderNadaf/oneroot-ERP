@@ -7,7 +7,7 @@ import { Fragment, useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { BatchSelect, type BatchPick } from "@/components/BatchSelect";
 import { NotesPanel } from "@/components/NotesPanel";
-// import { PendingFiles, uploadAttachments } from "@/components/Attachments"; -- attachments hidden while goods inward waits for approval
+import { PendingFiles, uploadAttachments } from "@/components/Attachments";
 import { useCounts } from "@/components/Notifications";
 import {
   Badge,
@@ -36,7 +36,7 @@ import { useBranch } from "@/lib/branch";
 import { date, inr, n, qty, round2, today } from "@/lib/format";
 import { clearApiCache, useApi } from "@/lib/hooks";
 import { useScanner } from "@/lib/scanner";
-import type { NoteSummary, PoItem, PurchaseOrder } from "@/lib/types";
+import type { Grn, NoteSummary, PoItem, PurchaseOrder } from "@/lib/types";
 
 /** One batch of a line, entered in the Batch No. popup: its quantity, number and dates */
 interface BatchRow {
@@ -47,12 +47,47 @@ interface BatchRow {
   expiryDate: string;
 }
 
+/** Why goods were not accepted at inward (same list as the API) */
+type Issue = "DAMAGED" | "LEAKAGE" | "EXPIRED" | "QUALITY" | "OTHER";
+const ISSUES: { value: Issue; label: string }[] = [
+  { value: "DAMAGED", label: "Damaged in transit" },
+  { value: "LEAKAGE", label: "Leakage" },
+  { value: "EXPIRED", label: "Expired" },
+  { value: "QUALITY", label: "Quality / wrong item" },
+  { value: "OTHER", label: "Other" },
+];
+
 interface Line {
   /** Received (QC passed) stock, batch by batch; the Received Qty is their total */
   batches: BatchRow[];
   /** Multiple batches mode: one batch of 1 per unit */
   multi?: boolean;
+  /**
+   * Delivered but not accepted (damaged, leaking, expired…), one entry per batch and reason: kept out of stock and put
+   * on the GRN's debit note. Serial-numbered items: one unit per entry, its serial matched to the unit rows.
+   */
+  issues?: IssueRow[];
 }
+
+interface IssueRow {
+  key: number;
+  qty: string;
+  reason: Issue;
+  batchNo: string;
+  remark: string;
+}
+
+let issueSeq = 0;
+const blankIssue = (serial: boolean): IssueRow => ({ key: ++issueSeq, qty: serial ? "1" : "", reason: "DAMAGED", batchNo: "", remark: "" });
+const norm = (s: string) => s.trim().toUpperCase();
+/** Serial numbers a multi-unit line has marked not accepted: those unit rows don't count as received */
+const rejectedOf = (l: Line) => new Set(l.multi ? (l.issues ?? []).filter((i) => num(i.qty) > 0 && i.batchNo.trim()).map((i) => norm(i.batchNo)) : []);
+/** Batch rows that count as received: all of them, less the units marked not accepted on a multi-unit line */
+const acceptedRows = (l: Line) => {
+  const rejected = rejectedOf(l);
+  return l.batches.filter((b) => !rejected.has(norm(b.batchNo)));
+};
+const notAcceptedOf = (l: Line) => r3((l.issues ?? []).reduce((s, i) => s + num(i.qty), 0));
 
 let batchSeq = 0;
 const blankBatch = (qtyValue = ""): BatchRow => ({ key: ++batchSeq, qty: qtyValue, batchNo: "", mfgDate: "", expiryDate: "" });
@@ -69,9 +104,43 @@ function startLine(item: PoItem): Line {
 }
 
 const num = (s: string) => Number(s) || 0;
+
+/**
+ * The line's batches resized to a new Received total: one row per unit for serial-tracked products (the rows beyond it
+ * dropped), else the single batch's quantity changed (or, with several batches, the last ones trimmed / the last grown).
+ * Batch numbers and dates already typed are kept.
+ */
+function withReceived(l: Line, received: number, item: PoItem): BatchRow[] {
+  if (l.multi || item.product.trackSerial) {
+    // Units marked not accepted keep their rows (matched by serial). Only blank unit rows are removed to make room —
+    // a unit with a typed serial stays until it is picked as not accepted (or removed by hand), so nothing typed is lost
+    const rejected = rejectedOf(l);
+    const units = Math.max(0, Math.floor(received));
+    const rows = l.batches.map((b) => ({ ...b }));
+    const counted = () => rows.filter((b) => !rejected.has(norm(b.batchNo)) && num(b.qty) > 0).length;
+    for (let i = rows.length - 1; i >= 0 && counted() > units; i--) {
+      if (!rows[i].batchNo.trim() && !rows[i].mfgDate && !rows[i].expiryDate) rows.splice(i, 1);
+    }
+    while (counted() < units) rows.push(blankBatch("1"));
+    // Nothing at all: one empty row stays so the batch popup still opens
+    return rows.length ? rows : [{ ...(l.batches[0] ?? blankBatch()), qty: "" }];
+  }
+  if (l.batches.length <= 1) return [{ ...(l.batches[0] ?? blankBatch()), qty: received > 0 ? String(received) : "" }];
+  // Several batches: take the difference off the last rows (or add it to the last one)
+  let diff = r3(received - l.batches.reduce((s, b) => s + num(b.qty), 0));
+  const rows = l.batches.map((b) => ({ ...b }));
+  for (let i = rows.length - 1; i >= 0 && diff !== 0; i--) {
+    const q = num(rows[i].qty);
+    const next = diff > 0 ? r3(q + diff) : r3(Math.max(0, q + diff));
+    diff = r3(diff - (next - q));
+    rows[i].qty = next > 0 ? String(next) : "";
+    if (diff > 0) break;
+  }
+  return rows;
+}
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
 /** Received Qty of a line: the total of its batch quantities */
-const receivedOf = (l: Line) => r3(l.batches.reduce((s, b) => s + num(b.qty), 0));
+const receivedOf = (l: Line) => r3(acceptedRows(l).reduce((s, b) => s + num(b.qty), 0));
 const pendingOf = (i: PoItem) =>
   i.pendingQty ?? r3(Math.max(0, n(i.quantity) - n(i.passedQty) - n(i.rejectedQty) - n(i.damagedQty) - n(i.expiredQty)));
 
@@ -79,19 +148,40 @@ const pendingOf = (i: PoItem) =>
 function check(item: PoItem, l: Line) {
   const pending = pendingOf(item);
   const passed = receivedOf(l);
-  const total = passed;
-  const errors: Partial<Record<"total" | "batches", { msg: string; required?: boolean }>> = {};
+  // Not accepted counts as delivered on the PO (the line closes), but stays out of stock
+  const notAccepted = notAcceptedOf(l);
+  const total = r3(passed + notAccepted);
+  const errors: Partial<Record<"total" | "batches" | "issue", { msg: string; required?: boolean }>> = {};
   if (total > pending + 0.0005) errors.total = { msg: `${qty(total)} entered — only ${qty(pending)} pending` };
+  // Each not-accepted entry: a quantity, its batch no. (which one was rejected), and a remark for "Other"
+  const issueErrors = (l.issues ?? []).map((i): { msg: string; required?: boolean } | null => {
+    const q = num(i.qty);
+    if (q < 0) return { msg: "Quantity can't be negative" };
+    if (!(q > 0)) return { msg: "Enter the quantity", required: true };
+    if (item.product.trackSerial && q !== 1) return { msg: "One unit per entry for serial-numbered items — add an entry for each" };
+    if (!i.batchNo.trim()) return { msg: `${item.product.trackSerial ? "Batch / serial no." : "Batch no."} is required`, required: true };
+    if (i.reason === "OTHER" && !i.remark.trim()) return { msg: "Say what was wrong", required: true };
+    return null;
+  });
+  const serialsRejected = (l.issues ?? []).map((i) => norm(i.batchNo)).filter(Boolean);
+  const firstIssue = issueErrors.findIndex(Boolean);
+  if (item.product.trackSerial && new Set(serialsRejected).size !== serialsRejected.length)
+    errors.issue = { msg: "The same serial no. is marked not accepted twice" };
+  else if (firstIssue >= 0) errors.issue = { msg: `Not accepted ${firstIssue + 1}: ${issueErrors[firstIssue]!.msg}`, required: issueErrors[firstIssue]!.required };
 
   // Each batch row: the quantity, its batch number, Mfg date and a future expiry
   const serialTracked = !!item.product.trackSerial;
   const numberName = serialTracked ? "Batch / serial no." : "Batch no.";
+  const rejected = rejectedOf(l);
   const rowErrors = l.batches.map((b): { msg: string; required?: boolean } | null => {
+    // A unit marked not accepted doesn't go into stock: no dates needed
+    if (rejected.has(norm(b.batchNo))) return null;
     const q = num(b.qty);
     const used = q > 0;
     if (q < 0) return { msg: "Quantity can't be negative" };
     if (used && serialTracked && q !== 1) return { msg: "Each Batch / Serial No. is one unit — enter 1" };
-    if (!used) return b.batchNo.trim() || b.mfgDate || b.expiryDate ? { msg: "Enter its quantity", required: true } : null;
+    // An empty row is ignored; typed details without a quantity are flagged, unless the goods were not accepted
+    if (!used) return (b.batchNo.trim() || b.mfgDate || b.expiryDate) && !notAccepted ? { msg: "Enter its quantity", required: true } : null;
     if (!b.batchNo.trim()) return { msg: `${numberName} is required`, required: true };
     if (!b.mfgDate) return { msg: "Mfg date is required", required: true };
     if (!b.expiryDate) return { msg: "Expiry date is required", required: true };
@@ -106,7 +196,7 @@ function check(item: PoItem, l: Line) {
     errors.batches = { msg: serialTracked ? "The same Batch / Serial No. is entered twice — each unit needs its own" : "The same batch number is entered twice — put its whole quantity on one row" };
   else if (firstRow >= 0) errors.batches = { msg: `Batch ${firstRow + 1}: ${rowErrors[firstRow]!.msg}`, required: rowErrors[firstRow]!.required };
 
-  return { pending, passed, total, errors, rowErrors };
+  return { pending, passed, notAccepted, total, errors, rowErrors };
 }
 
 export default function NewGrnPage() {
@@ -179,7 +269,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   // Supplier invoice scan, delivery challan, photos… uploaded right after the GRN is posted
-  // const [files, setFiles] = useState<File[]>([]); -- attachments hidden while goods inward waits for approval
+  const [files, setFiles] = useState<File[]>([]);
   const [scanned, setScanned] = useState<string | null>(null);
   // Line whose batch popup is open
   const [batchFor, setBatchFor] = useState<string | null>(null);
@@ -201,10 +291,20 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
   const canSwitch = !locked && branches.some((b) => b.id === poBranchId);
 
   const update = (id: string, patch: Partial<Line>) => setLines((ls) => ({ ...ls, [id]: { ...ls[id], ...patch } }));
+  // Not accepted changed: Received becomes what is due less what was not accepted (0 when everything was rejected)
+  const setIssues = (item: PoItem, issues: IssueRow[] | undefined) =>
+    setLines((ls) => {
+      const l = { ...ls[item.id], issues: issues?.length ? issues : undefined };
+      const accepted = r3(Math.max(0, pendingOf(item) - notAcceptedOf(l)));
+      return { ...ls, [item.id]: { ...l, batches: withReceived(l, accepted, item) } };
+    });
   const open = items.filter((i) => pendingOf(i) > 0);
   const checks = new Map(open.map((i) => [i.id, check(i, lines[i.id])]));
 
-  const totals = { passed: r3(open.reduce((s, i) => s + receivedOf(lines[i.id]), 0)) };
+  const totals = {
+    passed: r3(open.reduce((s, i) => s + receivedOf(lines[i.id]), 0)),
+    notAccepted: r3(open.reduce((s, i) => s + (checks.get(i.id)?.notAccepted ?? 0), 0)),
+  };
   const passedValue = round2(open.reduce((s, i) => s + receivedOf(lines[i.id]) * n(i.rate), 0));
   const shortfall = r3(open.reduce((s, i) => s + Math.max(0, pendingOf(i) - (checks.get(i.id)?.total ?? 0)), 0));
   const anyQty = open.some((i) => (checks.get(i.id)?.total ?? 0) > 0);
@@ -229,39 +329,67 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
       ? ` ${shortLines.length} line${shortLines.length === 1 ? "" : "s"} will stay open for the balance, and the shortfall (${qty(shortfall)}) is noted on a draft short-supply debit note.`
       : " The PO will be marked fully received.";
     const invoiceNote = totals.passed > 0 ? ` The purchase invoice will be booked under ${supplierInvoiceNo.trim()}.` : "";
-    // Goods inward waits for the PO value's approval chain (L1 → L2 → L3); the GRN is posted on the last approval
-    if (!(await confirm(`Send goods inward for ${po.poNo} for approval? Once approved, ${qty(totals.passed)} is received into stock.${balance}${invoiceNote}`, { confirmLabel: "Send for Approval" }))) return;
+    const issueNote = totals.notAccepted > 0 ? ` ${qty(totals.notAccepted)} not accepted stays out of stock and goes on a draft debit note with the reasons.` : "";
+    if (!(await confirm(`Post goods inward for ${po.poNo}? ${qty(totals.passed)} received into stock.${issueNote}${balance}${invoiceNote}`, { confirmLabel: "Post GRN" }))) return;
 
     setSaving(true);
     try {
-      const res = await api.post<{ approvalId: string; status: "PENDING_APPROVAL"; chain: { title: string }[] }>(`/purchase-orders/${po.id}/grn`, {
+      const grn = await api.post<Grn & { invoiceError?: string | null; shortNoteNo?: string | null }>(`/purchase-orders/${po.id}/grn`, {
         vehicleNo: vehicleNo.trim() || undefined,
         supplierInvoiceNo: supplierInvoiceNo.trim() || undefined,
         receivedAt,
         // One row per batch with a quantity; stock goes to the product's usual location
         items: open.flatMap((i) => {
           const l = lines[i.id];
-          const filled = l.batches.filter((b) => num(b.qty) > 0);
+          // Received rows only: units marked not accepted go in their own rows below
+          const filled = acceptedRows(l).filter((b) => num(b.qty) > 0);
           const rows = filled.length ? filled : [l.batches[0]];
-          return rows.map((b) => ({
-            poItemId: i.id,
-            passedQty: num(b.qty),
-            rejectedQty: 0,
-            damagedQty: 0,
-            expiredQty: 0,
-            batchNo: b.batchNo.trim() || undefined,
-            mfgDate: b.mfgDate || undefined,
-            expiryDate: b.expiryDate || undefined,
-            // Serial-tracked: the unit's Batch / Serial No. is also its serial number
-            serialNos: i.product.trackSerial && num(b.qty) > 0 ? [b.batchNo.trim()] : undefined,
-          }));
+          return [
+            ...rows.map((b) => ({
+              poItemId: i.id,
+              passedQty: num(b.qty),
+              rejectedQty: 0,
+              damagedQty: 0,
+              expiredQty: 0,
+              batchNo: b.batchNo.trim() || undefined,
+              mfgDate: b.mfgDate || undefined,
+              expiryDate: b.expiryDate || undefined,
+              // Serial-tracked: the unit's Batch / Serial No. is also its serial number
+              serialNos: i.product.trackSerial && num(b.qty) > 0 ? [b.batchNo.trim()] : undefined,
+            })),
+            // Not accepted: a row per entry, under damaged / expired / rejected by reason, with its batch no. and remark
+            ...(l.issues ?? [])
+              .filter((x) => num(x.qty) > 0)
+              .map((x) => ({
+                poItemId: i.id,
+                passedQty: 0,
+                rejectedQty: x.reason === "QUALITY" || x.reason === "OTHER" ? num(x.qty) : 0,
+                damagedQty: x.reason === "DAMAGED" || x.reason === "LEAKAGE" ? num(x.qty) : 0,
+                expiredQty: x.reason === "EXPIRED" ? num(x.qty) : 0,
+                batchNo: x.batchNo.trim() || undefined,
+                mfgDate: undefined,
+                expiryDate: undefined,
+                serialNos: undefined,
+                issueReason: x.reason,
+                issueRemark: x.remark.trim() || undefined,
+              })),
+          ];
         }),
       });
-      toast.success(`Goods inward sent for approval · ${res.chain.map((c) => c.title).join(" → ")}`);
-      toast.info("The GRN is posted (stock and purchase invoice) after the last approval");
+      // The purchase invoice is booked automatically when anything passed inspection
+      toast.success(`${grn.grnNo} posted · stock updated${grn.purchase ? ` · invoice ${grn.purchase.purchaseNo} booked` : ""}`);
+      if (grn.shortNoteNo) toast.info(`Short supply noted on draft debit note ${grn.shortNoteNo}`);
+      if (grn.invoiceError) toast.warn(`Purchase invoice not booked: ${grn.invoiceError}. Book it from the GRN.`);
+      if (files.length) {
+        await uploadAttachments("GRN", grn.id, files).then(
+          (done) => toast.success(`${done.length} file${done.length === 1 ? "" : "s"} attached to ${grn.grnNo}`),
+          (e) => toast.warn(`${grn.grnNo} posted, but the files were not attached: ${errMsg(e)}. Add them from the GRN.`),
+        );
+      }
       counts.refresh();
+      // The PO's received and pending quantities changed
       clearApiCache("/purchase-orders");
-      router.push("/purchase-orders/approvals?tab=grn");
+      router.push(`/goods-inward/${grn.id}`);
     } catch (e) {
       toast.error(errMsg(e));
       setSaving(false);
@@ -287,6 +415,18 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
         }
         subtitle={`Goods inward against ${po.poNo} · ${po.vendor?.name ?? ""}`}
       />
+
+      {/* Advance terms: receiving isn't blocked (vendors sometimes deliver first), but the unpaid advance is flagged */}
+      {po.paymentTerm && po.paymentTerm !== "AFTER_GRN" && n(po.advancePaid) < n(po.advanceAmount) - 0.004 && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800 sm:px-4">
+          <AlertTriangle className="size-4 shrink-0" />
+          <span>
+            {po.paymentTerm === "ADVANCE_FULL" ? "This PO is on 100% advance" : "This PO has a partial advance"}, and{" "}
+            <strong>{inr(n(po.advanceAmount) - n(po.advancePaid))}</strong> of the {inr(po.advanceAmount)} advance is not paid yet. You can still
+            receive the goods; Finance has been asked to pay it.
+          </span>
+        </div>
+      )}
 
       {wrongBranch && (
         <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800 sm:px-4">
@@ -507,6 +647,120 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                       <p className="text-[11px] text-slate-500">excl. GST</p>
                     </Td>
                   </tr>
+                  {/* Delivered but not accepted: damaged, leaking, expired… — out of stock, onto a debit note with the reason */}
+                  <tr className={cx(over && "bg-red-50/60")}>
+                    <td />
+                    <td colSpan={6} className="px-3 pb-3 pt-0 sm:px-4">
+                      {!l.issues?.length ? (
+                        <button
+                          type="button"
+                          onClick={() => setIssues(item, [blankIssue(!!p.trackSerial)])}
+                          className="text-xs font-medium text-amber-700 hover:text-amber-800 hover:underline"
+                        >
+                          + Not accepted (damaged / leakage / expired…)
+                        </button>
+                      ) : (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-2.5">
+                          {/* The line's batch / serial numbers, offered for the Batch No. of each entry */}
+                          <datalist id={`grn-batches-${item.id}`}>
+                            {[...new Set(l.batches.map((b) => b.batchNo.trim()).filter(Boolean))].map((b) => (
+                              <option key={b} value={b} />
+                            ))}
+                          </datalist>
+                          <div className="space-y-2">
+                            {l.issues.map((x, k) => {
+                              const change = (patch: Partial<IssueRow>) => setIssues(item, l.issues!.map((y) => (y.key === x.key ? { ...y, ...patch } : y)));
+                              return (
+                                <div key={x.key} className="flex flex-wrap items-end gap-2">
+                                  <label className="block">
+                                    <span className="mb-0.5 block text-[11px] font-medium text-amber-900">Qty ({p.unit})</span>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="any"
+                                      className="num h-8 w-20 text-right"
+                                      value={x.qty}
+                                      disabled={!!p.trackSerial}
+                                      title={p.trackSerial ? "One unit per entry — add an entry for each unit" : undefined}
+                                      onChange={(e) => change({ qty: e.target.value })}
+                                      aria-label={`Not accepted ${k + 1}: quantity of ${p.name}`}
+                                    />
+                                  </label>
+                                  <label className="block">
+                                    <span className="mb-0.5 block text-[11px] font-medium text-amber-900">Reason</span>
+                                    <Select
+                                      className="h-8 w-44"
+                                      value={x.reason}
+                                      onChange={(e) => change({ reason: e.target.value as Issue })}
+                                      aria-label={`Not accepted ${k + 1}: why ${p.name} was not accepted`}
+                                    >
+                                      {ISSUES.map((o) => (
+                                        <option key={o.value} value={o.value}>
+                                          {o.label}
+                                        </option>
+                                      ))}
+                                    </Select>
+                                  </label>
+                                  <label className="block">
+                                    <span className="mb-0.5 block text-[11px] font-medium text-amber-900">
+                                      {p.trackSerial ? "Batch / Serial No." : "Batch No."}
+                                      <span className="text-red-500"> *</span>
+                                    </span>
+                                    <Input
+                                      className="h-8 w-40 font-mono"
+                                      list={`grn-batches-${item.id}`}
+                                      value={x.batchNo}
+                                      onChange={(e) => change({ batchNo: e.target.value })}
+                                      placeholder={p.trackSerial ? "Pick the unit" : "Which batch"}
+                                      aria-label={`Not accepted ${k + 1}: batch no. of ${p.name}`}
+                                    />
+                                  </label>
+                                  <label className="block min-w-40 flex-1">
+                                    <span className="mb-0.5 block text-[11px] font-medium text-amber-900">
+                                      Remark{x.reason === "OTHER" ? <span className="text-red-500"> *</span> : " (optional)"}
+                                    </span>
+                                    <Input
+                                      className="h-8"
+                                      maxLength={300}
+                                      value={x.remark}
+                                      onChange={(e) => change({ remark: e.target.value })}
+                                      placeholder="e.g. box crushed, bottle leaking"
+                                      aria-label={`Not accepted ${k + 1}: what was wrong with ${p.name}`}
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => setIssues(item, l.issues!.filter((y) => y.key !== x.key))}
+                                    className="mb-1.5 rounded p-1 text-slate-400 hover:text-slate-700"
+                                    aria-label={`Remove not accepted ${k + 1}`}
+                                    title="Remove"
+                                  >
+                                    <X className="size-4" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <button
+                              type="button"
+                              onClick={() => setIssues(item, [...l.issues!, blankIssue(!!p.trackSerial)])}
+                              className="text-xs font-medium text-amber-800 hover:underline"
+                            >
+                              + Add another
+                            </button>
+                            {c.notAccepted > 0 && (
+                              <span className="text-[11px] text-amber-800">
+                                {qty(c.notAccepted)} {p.unit} not accepted · stays out of stock and goes on the GRN&apos;s debit note (
+                                {inr(round2(c.notAccepted * n(item.rate)))} excl. GST)
+                              </span>
+                            )}
+                          </div>
+                          <FieldError msg={show("issue")} />
+                        </div>
+                      )}
+                    </td>
+                  </tr>
                 </Fragment>
               );
             })}
@@ -527,16 +781,15 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
         </Table>
       </Card>
 
-      {/* Hidden while goods inward waits for approval: files are attached to the GRN once it is posted
       <Card title="Attachments" className="mb-4">
         <PendingFiles files={files} onChange={setFiles} />
       </Card>
-      */}
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
             <Total label="Received" value={qty(totals.passed)} className="text-brand-700" />
+            {totals.notAccepted > 0 && <Total label="Not Accepted" value={qty(totals.notAccepted)} className="text-red-700" />}
             <Total label="Shortfall" value={qty(shortfall)} className={shortfall ? "text-amber-700" : undefined} />
             <Total label="Passed Value (PO Rate)" value={inr(passedValue)} />
           </dl>
@@ -545,7 +798,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
               Cancel
             </Button>
             <Button className="flex-1 sm:flex-none" icon={<PackageCheck className="size-4" />} onClick={submit} loading={saving} disabled={!anyQty || wrongBranch}>
-              Send for Approval
+              Post GRN
             </Button>
           </div>
         </div>

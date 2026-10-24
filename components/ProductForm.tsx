@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import { n } from "@/lib/format";
+import { inclGst, inr, n, round2 } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { GST_RATES, UNITS, type Category, type Paged, type Product, type ProductType, type SubCategory, type Vendor } from "@/lib/types";
 import { validateAttributes, type Attributes } from "@/lib/attributes";
@@ -41,7 +41,8 @@ function toForm(p?: Product | null): FormState {
     packSize: p?.packSize ?? "",
     mrp: p ? String(n(p.mrp)) : "",
     salePrice: p ? String(n(p.salePrice)) : "",
-    purchasePrice: p ? String(n(p.purchasePrice)) : "",
+    // Entered incl. GST; stored excl. GST (the PO rate, opening-stock cost and notes all work excl. GST)
+    purchasePrice: p && n(p.purchasePrice) ? String(inclGst(p.purchasePrice, p.gstRate)) : "",
     reorderLevel: p ? String(n(p.reorderLevel)) : "",
     trackBatch: p?.trackBatch ?? true,
     isSubsidised: p?.isSubsidised ?? false,
@@ -95,6 +96,8 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
 
   const set = (k: string, v: string | boolean) => setF((s) => ({ ...s, [k]: v }));
   const str = (k: string) => String(f[k] ?? "");
+  // The purchase rate is typed incl. GST; the product keeps it excl. GST at the chosen GST rate
+  const purchaseExcl = () => (str("purchasePrice") === "" ? undefined : round2(Number(str("purchasePrice")) / (1 + Number(str("gstRate") || 0) / 100)));
 
   const chosenCategory = categories?.find((c) => c.id === f.category);
   const categoryOptions: DropdownOption[] = (categories ?? []).map((c) => ({ value: c.id, label: c.name }));
@@ -161,7 +164,7 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
       packSize: str("packSize") || undefined,
       mrp: numOrUndef("mrp"),
       salePrice: numOrUndef("salePrice"),
-      purchasePrice: numOrUndef("purchasePrice"),
+      purchasePrice: purchaseExcl(),
       reorderLevel: numOrUndef("reorderLevel"),
       trackBatch: f.trackBatch,
       isSubsidised: !!f.isSubsidised,
@@ -345,7 +348,7 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
           <Input type="number" step="any" min="0" value={str("reorderLevel")} onChange={(e) => set("reorderLevel", e.target.value)} />
         </Field>
         {showCost && (
-          <Field label="Purchase Rate (Excl. GST)">
+          <Field label="Purchase Rate (Incl. GST)" hint={purchaseExcl() !== undefined ? `${inr(purchaseExcl())} excl. GST at ${n(str("gstRate"))}%` : undefined}>
             <Input type="number" step="0.01" min="0" value={str("purchasePrice")} onChange={(e) => set("purchasePrice", e.target.value)} />
           </Field>
         )}

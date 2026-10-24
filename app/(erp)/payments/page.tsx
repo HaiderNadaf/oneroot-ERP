@@ -2,6 +2,7 @@
 
 import { Download, Plus } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { CASH_MODES, PartyPaymentForm, modeLabel } from "@/components/PartyPaymentForm";
 import { VendorPending } from "@/components/VendorPending";
@@ -14,14 +15,12 @@ import {
   LoadingRow,
   PageHeader,
   Pagination,
-  RowAction,
   Select,
   Table,
   Tabs,
   Td,
   Th,
   errMsg,
-  useConfirm,
   useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -44,6 +43,9 @@ function partyOf(p: Payment, can: Can) {
 
 function againstOf(p: Payment, can: Can) {
   if (p.sale) return { label: p.sale.invoiceNo, href: can("sales.view") ? `/sales/${p.sale.id}` : null };
+  // Paid for a GRN's goods / as an advance on a PO: those are what finance paid against
+  if (p.grn) return { label: p.grn.grnNo, href: can("grn.view") ? `/goods-inward/${p.grn.id}` : null };
+  if (p.po) return { label: `Advance · ${p.po.poNo}`, href: can("purchases.view") ? `/purchase-orders/${p.po.id}` : null };
   if (p.purchase) return { label: p.purchase.purchaseNo, href: can("invoices.view") ? `/purchases/${p.purchase.id}` : null };
   return null;
 }
@@ -51,8 +53,9 @@ function againstOf(p: Payment, can: Can) {
 export default function PaymentsPage() {
   const { can } = useAuth();
   const toast = useToast();
-  const confirm = useConfirm();
-  const [tab, setTab] = useState<Direction | "PENDING">("IN");
+  // ?tab=pending opens the vendor to-pay lists (where Finance's payment notifications link)
+  const params = useSearchParams();
+  const [tab, setTab] = useState<Direction | "PENDING">(params.get("tab") === "pending" ? "PENDING" : "IN");
   const pendingTab = tab === "PENDING";
   const direction: Direction = pendingTab ? "OUT" : tab;
   const [from, setFrom] = useState(monthStart());
@@ -61,8 +64,6 @@ export default function PaymentsPage() {
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const canDelete = can("payments.delete");
   // Recording needs the permission plus the party list the form picks from
   const canReceive = can("payments.record") && can("customers.view");
   const canPayVendor = can("payments.vendor") && can("vendors.view");
@@ -96,28 +97,7 @@ export default function PaymentsPage() {
     }
   }
 
-  async function remove(p: Payment) {
-    const party = partyOf(p, can).name;
-    const ok = await confirm(
-      `Delete ${p.paymentNo} (${inr(p.amount)} ${isIn ? "from" : "to"} ${party})? This reverses the payment: ${
-        isIn ? "the customer's balance due" : "the amount payable to the vendor"
-      } goes back up by ${inr(p.amount)} and the linked bill${p.sale || p.purchase ? "" : "s"} become unpaid again.`,
-      { danger: true, confirmLabel: "Delete Payment" },
-    );
-    if (!ok) return;
-    setDeleting(p.id);
-    try {
-      await api.del(`/payments/${p.id}`);
-      toast.success(`${p.paymentNo} deleted · balance reversed`);
-      void reload();
-    } catch (e) {
-      toast.error(errMsg(e));
-    } finally {
-      setDeleting(null);
-    }
-  }
-
-  const cols = canDelete ? 8 : 7;
+  const cols = 7;
 
   return (
     <>
@@ -206,7 +186,6 @@ export default function PaymentsPage() {
                 <Th>Mode</Th>
                 <Th>Reference</Th>
                 <Th right>Amount</Th>
-                {canDelete && <Th />}
               </tr>
             </thead>
             <tbody>
@@ -247,11 +226,6 @@ export default function PaymentsPage() {
                       <Td right className="font-medium text-slate-900">
                         {inr(p.amount)}
                       </Td>
-                      {canDelete && (
-                        <Td right>
-                          <RowAction kind="delete" title={`Delete ${p.paymentNo}`} loading={deleting === p.id} onClick={() => remove(p)} />
-                        </Td>
-                      )}
                     </tr>
                   );
                 })

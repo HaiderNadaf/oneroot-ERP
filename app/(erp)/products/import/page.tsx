@@ -25,7 +25,7 @@ const COLUMNS: { key: string; aliases: string[]; hint: string; required?: boolea
   { key: "unit", aliases: ["Unit", "uom"], hint: "NOS, LTR, KG, GM, PKT, BAG…", width: 9 },
   { key: "hsnCode", aliases: ["HSN Code", "hsn", "hsn_code"], hint: "3808", width: 10 },
   { key: "gstRate", aliases: ["GST %", "gst", "gst rate", "gst_rate", "tax"], hint: "0 / 5 / 12 / 18 / 28", width: 8 },
-  { key: "purchasePrice", aliases: ["Purchase Price", "purchase_price", "cost", "cost price"], hint: "excl. GST", width: 13 },
+  { key: "purchasePrice", aliases: ["Purchase Price", "purchase_price", "cost", "cost price"], hint: "incl. GST", width: 13 },
   { key: "salePrice", aliases: ["Selling Price", "sale price", "sale_price", "price", "rate"], hint: "incl. GST", required: true, width: 12 },
   { key: "mrp", aliases: ["MRP"], hint: "", width: 10 },
   { key: "reorderLevel", aliases: ["Reorder Level", "reorder_level", "min stock", "reorder"], hint: "alert at this stock", width: 12 },

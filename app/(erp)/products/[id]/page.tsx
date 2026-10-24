@@ -32,7 +32,7 @@ import {
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
-import { dateTime, inr, n, qty, round2 } from "@/lib/format";
+import { dateTime, inclGst, inr, n, qty, round2 } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { Paged, Product, StockMovement } from "@/lib/types";
 import { LazyLabelPrintModal, LazyProductForm, LazyStockAdjustModal } from "@/components/lazy";
@@ -199,8 +199,9 @@ export default function ProductDetailPage() {
           <Card title="Pricing">
             <dl className="grid grid-cols-2 gap-4">
               {showCost && (
-                <Info label="Purchase Rate (Excl. GST)">
-                  <span className="num">{inr(p.purchasePrice)}</span>
+                <Info label="Purchase Rate (Incl. GST)">
+                  <span className="num">{inr(inclGst(p.purchasePrice, gst))}</span>
+                  <span className="block text-xs font-normal text-slate-500">{inr(p.purchasePrice)} excl. GST</span>
                 </Info>
               )}
               <Info label="Selling Price (Incl. GST)">

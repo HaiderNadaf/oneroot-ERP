@@ -15,7 +15,6 @@ import {
   Search,
   ShoppingCart,
   Store,
-  Truck,
   UserRound,
   Users,
   X,
@@ -66,7 +65,8 @@ const KINDS = [
   { key: "vendors", label: "Vendors", icon: <Boxes />, perms: ["vendors.view"], hint: "GSTIN" },
   { key: "sales", label: "Sales", icon: <Receipt />, perms: ["sales.view"], hint: "bill number" },
   { key: "purchaseOrders", label: "Purchase Orders", icon: <ClipboardList />, perms: ["purchases.view"], hint: "PO number" },
-  { key: "purchases", label: "Purchase Invoices", icon: <Truck />, perms: ["invoices.view"], hint: "vendor bill number" },
+  // Purchase Invoices removed from search
+  // { key: "purchases", label: "Purchase Invoices", icon: <Truck />, perms: ["invoices.view"], hint: "vendor bill number" },
 ] as const satisfies readonly { key: string; label: string; icon: ReactNode; perms: readonly Permission[]; hint: string }[];
 type Kind = (typeof KINDS)[number]["key"];
 
@@ -143,13 +143,14 @@ function toHits(r: SearchResults, term: string, productPage: boolean): Hit[] {
       sub: `${p.vendor.name} · ${inr(p.totalAmount)} · ${date(p.orderDate)} · ${statusText(p.status)}`,
       href: `/purchase-orders/${p.id}`,
     })),
-    ...r.purchases.map((p) => ({
-      key: "i" + p.id,
-      kind: "purchases" as const,
-      title: `Purchase ${p.purchaseNo}`,
-      sub: `${p.vendor.name}${p.vendorInvoiceNo ? ` · bill ${p.vendorInvoiceNo}` : ""} · ${inr(p.totalAmount)} · ${date(p.purchaseDate)}`,
-      href: `/purchases/${p.id}`,
-    })),
+    // Purchase Invoices removed from search
+    // ...r.purchases.map((p) => ({
+    //   key: "i" + p.id,
+    //   kind: "purchases" as const,
+    //   title: `Purchase ${p.purchaseNo}`,
+    //   sub: `${p.vendor.name}${p.vendorInvoiceNo ? ` · bill ${p.vendorInvoiceNo}` : ""} · ${inr(p.totalAmount)} · ${date(p.purchaseDate)}`,
+    //   href: `/purchases/${p.id}`,
+    // })),
   ];
 }
 

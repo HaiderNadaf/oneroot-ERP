@@ -244,12 +244,20 @@ function GrnDecisionModal({ row, action, onClose, onDone }: { row: GrnApprovalRo
         <div className="col-span-2">
           <p className="text-xs text-slate-500">Received by {row.requestedBy.name}</p>
           <ul className="mt-0.5 space-y-0.5 text-slate-800">
-            {row.items.map((i, k) => (
-              <li key={k}>
-                {i.product}: <span className="num font-medium">{qty(i.passedQty)}</span> {i.unit}
-                {i.batchNo && <span className="text-xs text-slate-500"> · batch {i.batchNo}</span>}
-              </li>
-            ))}
+            {row.items.map((i, k) => {
+              const notOk = i.rejectedQty + i.damagedQty + i.expiredQty;
+              return notOk > 0 ? (
+                <li key={k} className="text-red-700">
+                  {i.product}: <span className="num font-medium">{qty(notOk)}</span> {i.unit} not accepted
+                  <span className="text-xs"> · {i.issue ?? "rejected"}{i.issueRemark ? `: ${i.issueRemark}` : ""}</span>
+                </li>
+              ) : (
+                <li key={k}>
+                  {i.product}: <span className="num font-medium">{qty(i.passedQty)}</span> {i.unit}
+                  {i.batchNo && <span className="text-xs text-slate-500"> · batch {i.batchNo}</span>}
+                </li>
+              );
+            })}
           </ul>
         </div>
         {step && (

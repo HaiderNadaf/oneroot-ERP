@@ -93,3 +93,14 @@ export function downloadCsv(filename: string, headers: string[], rows: (string |
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/**
+ * The incl.-GST price for a rate kept excl. GST (2 decimals). The whole-rupee price is preferred when it converts back
+ * to exactly the same rate, so ₹7,900 typed at 18% (kept as ₹6,694.92) shows as ₹7,900, not ₹7,900.01.
+ */
+export function inclGst(excl: unknown, gstPct: unknown) {
+  const ex = n(excl);
+  const f = 1 + n(gstPct) / 100;
+  const rupees = Math.round(ex * f);
+  return round2(rupees / f) === round2(ex) ? rupees : round2(ex * f);
+}

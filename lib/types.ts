@@ -474,7 +474,9 @@ export interface Batch {
   createdAt: string;
   branchId?: string;
   branch?: BranchRef | null;
-  product?: Pick<Product, "id" | "name" | "sku" | "unit" | "type" | "location">;
+  product?: Pick<Product, "id" | "name" | "sku" | "unit" | "type" | "location" | "salePrice">;
+  /** Weighted average cost of the product's in-stock batches in the branch (batch list only) */
+  avgCost?: number | null;
 }
 
 export interface Product {

@@ -7,20 +7,29 @@ import { GstReportView, ProfitLossReport } from "@/components/reports/FinancialR
 import { DayBookReport, OutstandingReport, StockValuationReport } from "@/components/reports/LedgerReports";
 import { ProductSalesReport, PurchaseRegisterReport, SalesRegisterReport } from "@/components/reports/RegisterReports";
 import { RangeBar, defaultRange, type Range } from "@/components/reports/ReportKit";
-import { PageHeader, Tabs } from "@/components/ui";
+import { PageHeader, Tabs, cx } from "@/components/ui";
 
+/** Each report sits under one group tab; the first of a group is what opening the group shows */
 const TABS = [
-  { value: "pl", label: "Profit & Loss" },
-  { value: "gst", label: "GST Summary" },
-  { value: "sales", label: "Sales Register" },
-  { value: "purchases", label: "Purchase Register" },
-  { value: "products", label: "Product-Wise Sales" },
-  { value: "stock", label: "Stock Valuation" },
-  { value: "outstanding", label: "Outstanding" },
-  { value: "daybook", label: "Day Book" },
+  { value: "pl", label: "Profit & Loss", group: "finance" },
+  { value: "gst", label: "GST Summary", group: "finance" },
+  { value: "outstanding", label: "Outstanding", group: "finance" },
+  { value: "daybook", label: "Day Book", group: "finance" },
+  { value: "sales", label: "Sales Register", group: "sales" },
+  { value: "products", label: "Product-Wise Sales", group: "sales" },
+  { value: "purchases", label: "Purchase Register", group: "purchases" },
+  { value: "stock", label: "Stock Valuation", group: "stock" },
+] as const;
+
+const GROUPS = [
+  { value: "finance", label: "Finance" },
+  { value: "sales", label: "Sales" },
+  { value: "purchases", label: "Purchases" },
+  { value: "stock", label: "Stock" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["value"];
+type Group = (typeof GROUPS)[number]["value"];
 
 export default function ReportsPage() {
   return (
@@ -35,6 +44,8 @@ function Reports() {
   const params = useSearchParams();
   const fromUrl = params.get("tab");
   const tab: Tab = TABS.some((t) => t.value === fromUrl) ? (fromUrl as Tab) : "pl";
+  const group: Group = TABS.find((t) => t.value === tab)!.group;
+  const inGroup = TABS.filter((t) => t.group === group);
   const [range, setRange] = useState<Range>(defaultRange);
 
   // Keep the tab in the URL so a report can be bookmarked or reopened after printing
@@ -44,7 +55,25 @@ function Reports() {
   return (
     <>
       <PageHeader title="Reports" subtitle="Profit, GST, registers, stock and outstanding — print or export any report" />
-      <Tabs<Tab> tabs={[...TABS]} value={tab} onChange={setTab} />
+      <Tabs<Group> tabs={[...GROUPS]} value={group} onChange={(g) => setTab(TABS.find((t) => t.group === g)!.value)} />
+      {/* The reports inside the open group (none to pick when it has only one) */}
+      {inGroup.length > 1 && (
+        <div className="no-print no-scrollbar -mt-1 mb-4 flex gap-2 overflow-x-auto">
+          {inGroup.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setTab(t.value)}
+              className={cx(
+                "whitespace-nowrap rounded-full border px-3 py-1 text-sm font-medium transition-colors",
+                tab === t.value ? "border-brand-200 bg-brand-50 text-brand-700" : "border-slate-200 text-slate-500 hover:text-slate-800",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {tab === "pl" && <ProfitLossReport range={range} rangeBar={rangeBar} />}
       {tab === "gst" && <GstReportView range={range} rangeBar={rangeBar} />}

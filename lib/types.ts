@@ -98,6 +98,8 @@ export interface User {
   name: string;
   email: string;
   phone?: string | null;
+  /** Job title, e.g. Senior Accountant */
+  designation?: string | null;
   role: Role;
   /** What the user may do = their role's permissions + extraPermissions − revokedPermissions (administrators need none) */
   permissions: string[];
@@ -113,17 +115,30 @@ export interface User {
   createdAt: string;
   /** Home branch; null = works across all branches */
   branchId?: string | null;
+  /** Branches the user may work in (the first is the home branch); empty = all branches */
+  branchIds?: string[];
   branch?: BranchRef | null;
   /** Approval PIN is set (managers / owner) */
   hasPin?: boolean;
 }
 
 /** A custom role: a named set of ticks built on a built-in role (which supplies the authority limits) */
+/** Seniority of a role inside its department: L1 (entry) up to L3 (senior) */
+export type RoleLevel = "L1" | "L2" | "L3";
+export const ROLE_LEVELS: RoleLevel[] = ["L1", "L2", "L3"];
+/** Level a role starts at from its name: administrators L3, managers and heads L2, everyone else L1 (same rule as the API) */
+export function levelFromName(name: string): RoleLevel {
+  if (/\badmin(istrator)?\b/i.test(name)) return "L3";
+  if (/\b(manager|head)\b/i.test(name)) return "L2";
+  return "L1";
+}
+
 export interface RoleTemplate {
   id: string;
   name: string;
   description?: string | null;
   baseRole: Role;
+  level: RoleLevel;
   permissions: string[];
   userCount: number;
   departmentId?: string | null;

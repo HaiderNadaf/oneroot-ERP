@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
 import { CHARGES_GST_RATE, gstSlabs, halfRate, placeOfSupply } from "@/lib/gst";
 import { date, inr, inr0, n, qty, round2, today } from "@/lib/format";
-import { useApi } from "@/lib/hooks";
+import { clearApiCache, useApi } from "@/lib/hooks";
 import { GST_RATES } from "@/lib/types";
 import type { ApprovalConfig, Product, PurchaseOrder, StoreSettings, Vendor, VendorBranch, VendorProductLink } from "@/lib/types";
 import { branchAddress, branchLabel } from "@/components/VendorBranches";
@@ -136,6 +136,8 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
 
   const { data: store } = useApi<StoreSettings>("/settings");
   const { data: rules, error: rulesError } = useApi<ApprovalConfig>("/approval-rules");
+  // The number a new PO will get (taken only when it is saved, so every new PO gets the next one)
+  const { data: nextNo } = useApi<{ poNo: string }>(po ? null : "/purchase-orders/next-number");
   // Products the chosen vendor supplies: the item search only offers these
   const { data: vendorProducts, loading: vendorProductsLoading } = useApi<VendorProductLink[]>(vendor ? `/vendors/${vendor.id}/products` : null);
   const supplied = vendorProducts ? new Set(vendorProducts.map((p) => p.id)) : null;
@@ -297,7 +299,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
         : await api.post<PurchaseOrder>("/purchase-orders", body);
       toast.success(
         saved.status === "PENDING_APPROVAL"
-          ? `${saved.poNo} submitted for approval${saved.round > 1 ? ` (round ${saved.round})` : ""}`
+          ? `${saved.poNo} saved and issued for approval${saved.round > 1 ? ` (round ${saved.round})` : ""}`
           : saved.status === "APPROVED"
             ? `${saved.poNo} saved — still approved`
             : `${saved.poNo} saved as draft`,
@@ -308,6 +310,8 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
           (e) => toast.warn(`${saved.poNo} saved, but the files were not attached: ${errMsg(e)}. Add them from the PO page.`),
         );
       }
+      // That number is used now: the next New PO form must fetch the following one
+      clearApiCache("/purchase-orders/next-number");
       refresh();
       router.push(`/purchase-orders/${saved.id}`);
     } catch (e) {
@@ -340,6 +344,11 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
       )}
 
       <Card className="mb-4">
+        <p className="mb-3 flex flex-wrap items-baseline gap-x-2 text-sm">
+          <span className="text-slate-500">PO No.</span>
+          <span className="font-mono font-semibold text-slate-900">{po ? po.poNo : (nextNo?.poNo ?? "…")}</span>
+          {!po && <span className="text-xs text-slate-400">assigned when you save</span>}
+        </p>
         <div className={cx("grid grid-cols-1 gap-3 sm:grid-cols-2", showBranch ? "lg:grid-cols-6" : "lg:grid-cols-5")}>
           <Field label="Vendor" required className="sm:col-span-2">
             <VendorPicker value={vendor} onChange={setVendor} autoFocus={!vendor} />
@@ -702,7 +711,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
               loading={saving === "submit"}
               disabled={!vendor || !lines.length || !!saving}
             >
-              Submit for Approval
+              Save and Issue
             </Button>
             <Button
               variant="secondary"
@@ -712,13 +721,13 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
               loading={saving === "draft"}
               disabled={!vendor || !lines.length || !!saving}
             >
-              Save Draft
+              Save as Draft
             </Button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
             {editing && po?.status === "APPROVED"
               ? "Saving a changed PO as draft takes it out of the approved list until it is submitted again."
-              : "Drafts are not sent to anyone until you submit them."}
+              : "Save and Issue sends the PO for approval; once approved it is issued to the vendor. Drafts are not sent to anyone."}
           </p>
         </Card>
       </div>

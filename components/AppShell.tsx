@@ -2,7 +2,7 @@
 
 import {
   BadgeCheck,
-  BarChart3,
+  TrendingUp,
   Bell,
   BellRing,
   BookOpen,
@@ -32,12 +32,11 @@ import {
   Users,
   Wallet,
   X,
-  Building2,
   ReceiptText,
   Megaphone,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Fragment, Suspense, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { BranchProvider, useBranch } from "@/lib/branch";
@@ -90,15 +89,24 @@ export const NAV: NavGroup[] = [
       },
     ],
   },
-  {
-    section: "Point of Sale",
+    {
+    section: "Inventory",
     items: [
-      {
-        href: "/sales/new",
-        label: "New Sale (POS)",
-        icon: <ShoppingCart />,
-        perms: ["sales.bill"],
-      },
+      { href: "/products", label: "Products", icon: <Package />, perms: ["products.view"] },
+      { href: "/inventory", label: "Stock & Batches", icon: <RotateCcw />, perms: ["inventory.view"] },
+      { href: "/inventory/govt-match", label: "Govt Fertiliser Match", icon: <ShieldCheck />, perms: ["inventory.govt"] },
+    ],
+  },
+
+    {
+    section: "Purchases",
+    items: [
+      { href: "/vendors", label: "Vendors", icon: <Boxes />, perms: ["vendors.view"] },
+      { href: "/vendor-branches", label: "Depot", icon: <Store />, perms: ["vendors.view"] },
+      { href: "/purchase-orders", label: "Purchase Orders", icon: <ClipboardList />, perms: ["purchases.view"] },
+      { href: "/goods-inward", label: "Goods Inward (GRN)", icon: <PackageCheck />, perms: ["grn.view", "purchases.receive"] },
+      // { href: "/purchases", label: "Purchase Invoices", icon: <Truck />, perms: ["invoices.view"] },
+      { href: "/debit-notes", label: "Debit & Credit Notes", icon: <FileMinus />, perms: ["notes.view"] },
     ],
   },
   {
@@ -115,23 +123,15 @@ export const NAV: NavGroup[] = [
       { href: "/campaigns", label: "Campaigns", icon: <Megaphone />, perms: ["admin.schemes"] },
     ],
   },
-  {
-    section: "Purchases",
+    {
+    section: "Point of Sale",
     items: [
-      { href: "/vendors", label: "Vendors", icon: <Boxes />, perms: ["vendors.view"] },
-      { href: "/vendor-branches", label: "Depot", icon: <Store />, perms: ["vendors.view"] },
-      { href: "/purchase-orders", label: "Purchase Orders", icon: <ClipboardList />, perms: ["purchases.view"] },
-      { href: "/goods-inward", label: "Goods Inward (GRN)", icon: <PackageCheck />, perms: ["grn.view", "purchases.receive"] },
-      { href: "/purchases", label: "Purchase Invoices", icon: <Truck />, perms: ["invoices.view"] },
-      { href: "/debit-notes", label: "Debit & Credit Notes", icon: <FileMinus />, perms: ["notes.view"] },
-    ],
-  },
-  {
-    section: "Inventory",
-    items: [
-      { href: "/products", label: "Products", icon: <Package />, perms: ["products.view"] },
-      { href: "/inventory", label: "Stock & Batches", icon: <RotateCcw />, perms: ["inventory.view"] },
-      { href: "/inventory/govt-match", label: "Govt Fertiliser Match", icon: <ShieldCheck />, perms: ["inventory.govt"] },
+      {
+        href: "/sales/new",
+        label: "New Sale (POS)",
+        icon: <ShoppingCart />,
+        perms: ["sales.bill"],
+      },
     ],
   },
   {
@@ -142,29 +142,21 @@ export const NAV: NavGroup[] = [
       { href: "/expenses", label: "Expenses", icon: <Wallet />, perms: ["expenses.view"] },
       { href: "/petty-cash", label: "Petty Cash", icon: <HandCoins />, perms: ["expenses.view"] },
       { href: "/accounts", label: "Accounts", icon: <BookOpen />, perms: ["accounts.view"] },
-      { href: "/reports", label: "Reports", icon: <BarChart3 />, perms: ["reports.view"] },
     ],
   },
   {
-    section: "Management",
+    // One entry: the Reports page, whose tabs (Finance, Sales, Purchases, Stock) switch between the reports
+    section: "Analytics",
+    items: [{ href: "/reports", label: "Reports", icon: <TrendingUp />, perms: ["reports.view"] }],
+  },
+  {
+    section: "Admin",
     items: [
       {
         href: "/admin/users",
         label: "Users",
         icon: <UserCog />,
         perms: ["admin.users"],
-      },
-      {
-        href: "/admin/departments",
-        label: "Departments",
-        icon: <Building2 />,
-        perms: ["admin.roles", "admin.users"],
-      },
-      {
-        href: "/admin/roles",
-        label: "Roles & Limits",
-        icon: <ShieldCheck />,
-        perms: ["admin.roles"],
       },
       {
         href: "/admin/schemes",
@@ -218,20 +210,32 @@ const ROUTE_PERMS: [RegExp, Permission[]][] = [
   [/^\/goods-inward\/[^/]+\/invoice$/, ["invoices.create"]],
 ];
 
-/** Most specific nav item wins, so /sales/new doesn't also light up /sales */
-function activeHref(pathname: string) {
+/**
+ * Most specific nav item wins, so /sales/new doesn't also light up /sales. Items that differ only by their query
+ * (the reports, /reports?tab=…) match on it; with no tab given, the first of them (what the page shows) is active.
+ */
+function activeHref(pathname: string, search = "") {
+  const current = new URLSearchParams(search);
   let best = "";
+  let firstQueried = "";
   for (const g of NAV)
     for (const i of g.items) {
-      const match = pathname === i.href || pathname.startsWith(i.href + "/");
-      if (match && i.href.length > best.length) best = i.href;
+      const [path, query] = i.href.split("?");
+      if (!(pathname === path || pathname.startsWith(path + "/"))) continue;
+      if (query) {
+        if (pathname !== path) continue;
+        firstQueried ||= i.href;
+        const wanted = new URLSearchParams(query);
+        if (![...wanted].every(([k, v]) => current.get(k) === v)) continue;
+      }
+      if (i.href.length > best.length) best = i.href;
     }
-  return best;
+  return best || firstQueried;
 }
 
 /** The accordion section holding the active route */
-function getActiveSection(pathname: string): string {
-  const active = activeHref(pathname);
+function getActiveSection(pathname: string, search = ""): string {
+  const active = activeHref(pathname, search);
   return (
     NAV.find(
       (group) =>
@@ -302,10 +306,11 @@ function NavItemLink({
 /** Sidebar navigation with single-open accordion behaviour */
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const search = useSearchParams().toString();
   const { can } = useAuth();
 
-  const active = activeHref(pathname);
-  const activeSection = getActiveSection(pathname);
+  const active = activeHref(pathname, search);
+  const activeSection = getActiveSection(pathname, search);
 
   const [openSection, setOpenSection] = useState(activeSection);
   const [prevActiveSection, setPrevActiveSection] = useState(activeSection);

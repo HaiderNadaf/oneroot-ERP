@@ -4,11 +4,12 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import { clearApiCache, useApi } from "@/lib/hooks";
 import { normalizePermissions, type Permission } from "@/lib/permissions";
-import type { Department, Role, RoleTemplate } from "@/lib/types";
+import { ROLE_LEVELS, levelFromName, type Department, type Role, type RoleLevel, type RoleTemplate } from "@/lib/types";
 import { PermissionPicker } from "./PermissionPicker";
 import { Button, Field, Input, Modal, Select, errMsg, useToast } from "./ui";
 
 /** Which built-in role's money limits (Roles & Limits) this role shares */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- used by the limits field, hidden for now
 const LIMIT_ROLES: { value: Role; label: string; hint: string }[] = [
   { value: "CASHIER", label: "Cashier Limits", hint: "Smallest discount / refund / adjustment allowed without approval" },
   { value: "ACCOUNTANT", label: "Accountant Limits", hint: "The accountant's discount / refund / adjustment amounts" },
@@ -39,7 +40,11 @@ export function RoleTemplateForm({
   const [name, setName] = useState(template?.name ?? "");
   const [description, setDescription] = useState(template?.description ?? "");
   const [departmentId, setDepartmentId] = useState<string>(template?.departmentId ?? initialDepartmentId ?? "");
-  const [baseRole, setBaseRole] = useState<Role>(template?.baseRole ?? "CASHIER");
+  // The limits field is hidden for now: a new role follows Cashier limits, an existing one keeps its own
+  const [baseRole] = useState<Role>(template?.baseRole ?? "CASHIER");
+  const [level, setLevel] = useState<RoleLevel>(template?.level ?? "L1");
+  // A new role's level follows its name (Manager → L2, Administrator → L3) until it is picked by hand
+  const [levelPicked, setLevelPicked] = useState(editing);
   // A new role starts empty: tick exactly what it may do
   const [permissions, setPermissions] = useState<Permission[]>(() => (template ? normalizePermissions(template.permissions) : []));
   const [saving, setSaving] = useState(false);
@@ -58,6 +63,7 @@ export function RoleTemplateForm({
         description: description.trim() || undefined,
         departmentId,
         baseRole,
+        level,
         permissions,
       };
       const saved = editing ? await api.put<RoleTemplate>(`/roles/custom/${template.id}`, body) : await api.post<RoleTemplate>("/roles/custom", body);
@@ -98,7 +104,16 @@ export function RoleTemplateForm({
     >
       <form id="role-template-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Role Name" required hint="e.g. Category Head, Manager, Intern" className={fixedDepartment ? "sm:col-span-2" : undefined}>
-          <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus minLength={2} />
+          <Input
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (!levelPicked) setLevel(levelFromName(e.target.value));
+            }}
+            required
+            autoFocus
+            minLength={2}
+          />
         </Field>
         {!fixedDepartment && (
           <Field label="Department" required>
@@ -114,10 +129,26 @@ export function RoleTemplateForm({
             </Select>
           </Field>
         )}
-        <Field label="Description" className="sm:col-span-2">
+        <Field label="Level" required hint="L1 staff, L2 managers and heads, L3 administrators" className={fixedDepartment ? "sm:col-span-2" : undefined}>
+          <Select value={level} onChange={(e) => {
+              setLevel(e.target.value as RoleLevel);
+              setLevelPicked(true);
+            }}
+            required
+          >
+            {ROLE_LEVELS.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Description" className={fixedDepartment ? "sm:col-span-2" : undefined}>
           <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What this role does (optional)" />
         </Field>
         <PermissionPicker value={permissions} onChange={setPermissions} defaults={template ? normalizePermissions(template.permissions) : permissions} />
+        {/* Hidden for now: which built-in role's discount / refund / adjustment limits this role follows.
+            A new role keeps the default (Cashier); an existing role keeps the one it has.
         <Field
           label="Discount, Refund and Stock-Adjustment Limits"
           className="sm:col-span-2"
@@ -131,6 +162,7 @@ export function RoleTemplateForm({
             ))}
           </Select>
         </Field>
+        */}
         {editing && inUse && (
           <p className="text-xs text-slate-500 sm:col-span-2">
             The {template.userCount} user{template.userCount > 1 ? "s" : ""} with this role follow the change; anything ticked or unticked for one

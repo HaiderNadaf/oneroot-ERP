@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, FileText, PackageCheck, Truck } from "lucide-react";
+import { AlertTriangle, FileText, PackageCheck, Plus, Truck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -72,8 +72,8 @@ function GoodsInward() {
         subtitle="Count what arrives against approved purchase orders: passed goods go into stock, rejected goods go back to the vendor"
         actions={
           canReceive && (
-            <Button icon={<Truck className="size-4" />} onClick={() => setPicking(true)}>
-              Do GRN
+            <Button icon={<Plus className="size-4" />} onClick={() => setPicking(true)}>
+              Add GRN
             </Button>
           )
         }
@@ -280,7 +280,7 @@ function GoodsInward() {
   );
 }
 
-/** "Do GRN" popup: approved POs with goods still due; picking one opens the receive form */
+/** "Add GRN" popup: approved POs with goods still due; picking one opens the receive form */
 function PendingPosModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const { can } = useAuth();
@@ -376,7 +376,7 @@ function PendingPosModal({ onClose }: { onClose: () => void }) {
                     </Td>
                     <Td right>
                       <Button size="sm" icon={<PackageCheck className="size-4" />} onClick={() => router.push(`/goods-inward/new?po=${po.id}`)}>
-                        Do GRN
+                        Add GRN
                       </Button>
                     </Td>
                   </tr>

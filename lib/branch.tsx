@@ -39,7 +39,7 @@ const BranchContext = createContext<BranchState | null>(null);
  */
 export function BranchProvider({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
   const { user } = useAuth();
-  const [state, setState] = useState<{ branches: BranchLite[]; locked: boolean; currentId: string } | null>(null);
+  const [state, setState] = useState<{ branches: BranchLite[]; locked: boolean; restricted: boolean; currentId: string } | null>(null);
   const [version, setVersion] = useState(0);
   const [reloads, setReloads] = useState(0);
   const refresh = useCallback(() => setReloads((n) => n + 1), []);
@@ -48,11 +48,13 @@ export function BranchProvider({ children, fallback }: { children: ReactNode; fa
     if (!user) return;
     let cancelled = false;
     // cachedGet keeps a copy on the device, so the branch is known even when offline
-    cachedGet<{ locked: boolean; homeBranchId: string | null; branches: BranchLite[] }>("/branches/mine")
+    cachedGet<{ locked: boolean; restricted?: boolean; homeBranchId: string | null; branches: BranchLite[] }>("/branches/mine")
       .then((r) => {
         if (cancelled) return;
         const stored = getBranch();
-        const allowed = (id: string | null) => !!id && (r.branches.some((b) => b.id === id) || (id === "all" && !r.locked));
+        // Users limited to some branches never get "All branches"
+        const restricted = r.restricted ?? r.locked;
+        const allowed = (id: string | null) => !!id && (r.branches.some((b) => b.id === id) || (id === "all" && !restricted));
         // Staff: always their branch. Others: last choice, else home branch, else the first branch.
         const currentId = r.locked
           ? (r.homeBranchId ?? r.branches[0]?.id ?? "all")
@@ -60,9 +62,9 @@ export function BranchProvider({ children, fallback }: { children: ReactNode; fa
             ? stored!
             : (r.homeBranchId ?? r.branches[0]?.id ?? "all");
         setBranchId(currentId);
-        setState({ branches: r.branches, locked: r.locked, currentId });
+        setState({ branches: r.branches, locked: r.locked, restricted, currentId });
       })
-      .catch(() => !cancelled && setState({ branches: [], locked: false, currentId: "all" }));
+      .catch(() => !cancelled && setState({ branches: [], locked: false, restricted: false, currentId: "all" }));
     return () => {
       cancelled = true;
     };
@@ -85,7 +87,7 @@ export function BranchProvider({ children, fallback }: { children: ReactNode; fa
         currentId: state.currentId,
         current,
         locked: state.locked,
-        canViewAll: !state.locked && state.branches.length > 1,
+        canViewAll: !state.restricted && state.branches.length > 1,
         setBranch,
         refresh,
         version,

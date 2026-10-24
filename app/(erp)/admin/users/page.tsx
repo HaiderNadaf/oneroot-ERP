@@ -1,10 +1,13 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { BranchCode, useBranchOptions } from "@/components/BranchNotice";
-import { DepartmentsPanel } from "@/components/DepartmentsPanel";
+// import { DepartmentsPanel } from "@/components/DepartmentsPanel"; // panel hidden from the User tab
+import { DepartmentsTab } from "@/components/admin/DepartmentsTab";
+import { RolesTab } from "@/components/admin/RolesTab";
 import { PermissionPicker, useCanGrantAll } from "@/components/PermissionPicker";
 import { RoleTemplateForm } from "@/components/RoleTemplateForm";
 import {
@@ -14,6 +17,7 @@ import {
   Button,
   Card,
   Checkbox,
+  Dropdown,
   EmptyRow,
   ErrorBox,
   Field,
@@ -25,10 +29,12 @@ import {
   Select,
   StatusBadge,
   Table,
+  Tabs,
   Td,
   Th,
   cx,
   errMsg,
+  useConfirm,
   useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -67,11 +73,45 @@ function Users() {
   const templates = useApi<RoleTemplate[]>("/roles/custom");
   const builtIns = useApi<BuiltInRole[]>("/roles/built-in");
   const departments = useApi<Department[]>("/departments");
+  // Codes of all branches, to show a user's several branches in the list
+  const { branches: branchList } = useBranchOptions();
+  const branchCodes = new Map(branchList.map((b) => [b.id, b.code]));
   // "" = everyone, "none" = users on a built-in role, otherwise a department id
   const [deptFilter, setDeptFilter] = useState("");
   const [editing, setEditing] = useState<User | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [roleForm, setRoleForm] = useState<{ template: RoleTemplate | null; departmentId: string | null } | null>(null);
+  type Filter = "department" | "role" | "user";
+  // The tab is kept in the address (?tab=department|role|user), so the old Departments / Roles links land on theirs
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const canRoles = can("admin.roles");
+  const wanted = params.get("tab");
+  const filter: Filter = wanted === "department" || (wanted === "role" && canRoles) ? wanted : "user";
+  // The page's add button for the Department / Role tab was pressed
+  const [adding, setAdding] = useState(false);
+  const setFilter = (t: Filter) => {
+    setAdding(false);
+    router.replace(t === "user" ? pathname : `${pathname}?tab=${t}`, { scroll: false });
+  };
+
+  const [picking, setPicking] = useState(false);
+  const [page, setPage] = useState(1);
+
+  const toast = useToast();
+  const confirm = useConfirm();
+  async function removeUser(u: User) {
+    if (!(await confirm(`Delete ${u.name}? If they have already used the ERP they are made inactive instead, so their history keeps their name.`, { danger: true, confirmLabel: "Delete" })))
+      return;
+    try {
+      const r = await api.del<{ deleted: boolean }>(`/users/${u.id}`);
+      toast.success(r.deleted ? `${u.name} deleted` : `${u.name} made inactive (they have history) — they can no longer sign in`);
+      void reload();
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+  }
 
   const open = (u: User | null) => {
     setEditing(u);
@@ -89,21 +129,49 @@ function Users() {
         title="Users"
         subtitle="Staff who can sign in, what each of them may do, and which branch they work in"
         actions={
-          <>
-            {can("roles.create") && (
-              <Button variant="secondary" icon={<Plus className="size-4" />} onClick={() => setRoleForm({ template: null, departmentId: null })}>
+          // One add button, in the same place, for whichever tab is open
+          filter === "department" ? (
+            can("roles.create") && (
+              <Button icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
+                New Department
+              </Button>
+            )
+          ) : filter === "role" ? (
+            can("roles.create") && (
+              <Button icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
                 New Role
               </Button>
-            )}
-            {can("users.create") && (
+            )
+          ) : (
+            can("users.create") && (
               <Button icon={<Plus className="size-4" />} onClick={() => open(null)}>
                 New User
               </Button>
-            )}
-          </>
+            )
+          )
         }
       />
 
+        <div className="px-3 pt-2">
+          <Tabs<Filter>
+            value={filter}
+            onChange={(v) => {
+              setFilter(v);
+              setPage(1);
+            }}
+            tabs={[
+              { value: "department", label: "Department" },
+              ...(canRoles ? [{ value: "role" as Filter, label: "Role" }] : []),
+              { value: "user", label: "User" },
+            ]}
+          />
+        </div>
+
+      {filter === "department" && <DepartmentsTab adding={adding} onAddDone={() => setAdding(false)} />}
+      {filter === "role" && <RolesTab adding={adding} onAddDone={() => setAdding(false)} />}
+
+      {filter === "user" && (
+      <>
       <Card bodyClassName="p-0">
         <div className="border-b border-slate-100 p-3">
           <Select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="w-full sm:w-64" aria-label="Department">
@@ -125,6 +193,7 @@ function Users() {
             <thead>
               <tr>
                 <Th>Name</Th>
+                <Th>Designation</Th>
                 <Th>Department</Th>
                 <Th>Role</Th>
                 <Th>Access</Th>
@@ -137,9 +206,9 @@ function Users() {
             </thead>
             <tbody>
               {loading && !data ? (
-                <LoadingRow colSpan={9} />
+                <LoadingRow colSpan={10} />
               ) : !rows.length ? (
-                <EmptyRow colSpan={9}>{deptFilter ? "No users in this department" : "No users"}</EmptyRow>
+                <EmptyRow colSpan={10}>{deptFilter ? "No users in this department" : "No users"}</EmptyRow>
               ) : (
                 rows.map((u) => (
                   <tr key={u.id} className={cx("hover:bg-slate-50", !u.isActive && "text-slate-400")}>
@@ -152,6 +221,7 @@ function Users() {
                       )}
                       <p className="text-xs text-slate-500">{u.email}</p>
                     </Td>
+                    <Td className="text-sm">{u.designation || <span className="text-xs text-slate-400">—</span>}</Td>
                     <Td>
                       {u.roleTemplate?.department ? (
                         <>
@@ -176,7 +246,13 @@ function Users() {
                       <AccessSummary user={u} />
                     </Td>
                     <Td className="whitespace-nowrap">
-                      {u.branch ? (
+                      {(u.branchIds?.length ?? 0) > 1 ? (
+                        <span className="inline-flex flex-wrap items-center gap-1" title={`${u.branchIds!.length} branches`}>
+                          {u.branchIds!.map((id) => (
+                            <BranchCode key={id} code={branchCodes.get(id) ?? "?"} />
+                          ))}
+                        </span>
+                      ) : u.branch ? (
                         <span className="inline-flex items-center gap-1.5">
                           <BranchCode code={u.branch.code} />
                           <span className="text-sm">{u.branch.name}</span>
@@ -187,10 +263,13 @@ function Users() {
                     </Td>
                     <Td className="hidden md:table-cell">{u.phone || "—"}</Td>
                     <Td className="hidden text-xs md:table-cell">{u.lastLoginAt ? dateTime(u.lastLoginAt) : "Never"}</Td>
-                    <Td>{u.isActive ? <Badge tone="green">Active</Badge> : <Badge>Disabled</Badge>}</Td>
+                    <Td>{u.isActive ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}</Td>
                     <ActionsTd>
                       {/* Only an administrator can edit an administrator */}
                       {can("users.edit") && (isAdmin || u.role !== "ADMIN") && <RowAction kind="edit" title={`Edit ${u.name}`} onClick={() => open(u)} />}
+                      {can("users.delete") && u.id !== me?.id && (isAdmin || u.role !== "ADMIN") && (
+                        <RowAction kind="delete" title={`Delete ${u.name}`} onClick={() => void removeUser(u)} />
+                      )}
                     </ActionsTd>
                   </tr>
                 ))
@@ -200,6 +279,7 @@ function Users() {
         )}
       </Card>
 
+      {/* Departments and their roles are managed on the Department and Role tabs now
       <DepartmentsPanel
         templates={templates.data ?? []}
         canCreate={can("roles.create")}
@@ -209,6 +289,7 @@ function Users() {
         onEditRole={(t) => setRoleForm({ template: t, departmentId: t.departmentId ?? null })}
         onChanged={() => void templates.reload()}
       />
+      */}
 
       <Card title="Roles & Permissions" className="mt-4">
         <dl className="grid gap-3 sm:grid-cols-2">
@@ -231,6 +312,8 @@ function Users() {
           switch between branches from the top bar (an administrator&apos;s home branch is just the one selected when they sign in).
         </p>
       </Card>
+      </>
+      )}
 
       {formOpen && (
         <UserForm
@@ -356,10 +439,13 @@ function DepartmentRolePicker({
   );
 }
 
+/** The "All Branches" row of the user's Branches dropdown (stands for an empty branch list) */
+const ALL_BRANCHES = "__all";
+
 function UserForm({
   user,
   isSelf,
-  templates,
+  templates: loadedTemplates,
   builtIns,
   onTemplatesChanged,
   onClose,
@@ -379,17 +465,25 @@ function UserForm({
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
+  const [designation, setDesignation] = useState(user?.designation ?? "");
   const [role, setRole] = useState<Role>(user?.role ?? "CASHIER");
   const [templateId, setTemplateId] = useState<string | null>(user?.roleTemplateId ?? null);
   const [departmentId, setDepartmentId] = useState(user?.role === "ADMIN" ? "admin" : (user?.roleTemplate?.department?.id ?? ""));
   const [isActive, setIsActive] = useState(user?.isActive ?? true);
-  const [branchId, setBranchId] = useState(user?.branchId ?? user?.branch?.id ?? "");
+  // Branches the user may work in. The first ticked is their home branch
+  const [branchIds, setBranchIds] = useState<string[]>(user?.branchIds?.length ? user.branchIds : user?.branchId ? [user.branchId] : []);
+  // "All Branches" ticked: saved as an empty branch list
+  const [allBranches, setAllBranches] = useState(!branchIds.length);
   const { branches, loading: branchesLoading } = useBranchOptions();
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
   const [clearPin, setClearPin] = useState(false);
   const [saving, setSaving] = useState(false);
   const [newRole, setNewRole] = useState(false);
+  // A role just made from here, shown until the reloaded list has it
+  const [createdTemplate, setCreatedTemplate] = useState<RoleTemplate | null>(null);
+  const templates =
+    createdTemplate && !loadedTemplates.some((t) => t.id === createdTemplate.id) ? [...loadedTemplates, createdTemplate] : loadedTemplates;
 
   // Someone holding permissions you don't have keeps their role and ticks; only an administrator can change those
   const canGrantAll = useCanGrantAll();
@@ -422,11 +516,12 @@ function UserForm({
     if (pin && !/^\d{4,6}$/.test(pin)) return toast.error("Approval PIN must be 4 to 6 digits");
     if (!departmentId) return toast.error("Choose the user's department");
     if (departmentId !== "admin" && !templateId) return toast.error("Choose the user's role in the department");
+    if (!allBranches && !branchIds.length) return toast.error("Choose the user's branches, or All Branches");
     setSaving(true);
     try {
       const access = { role, roleTemplateId: role === "ADMIN" ? null : templateId };
       if (editing) {
-        const body: Record<string, unknown> = { name: name.trim(), phone: phone.trim(), branchId };
+        const body: Record<string, unknown> = { name: name.trim(), phone: phone.trim(), designation: designation.trim(), branchIds: allBranches ? [] : branchIds };
         if (!isSelf) Object.assign(body, outranks ? {} : access, { isActive });
         if (password) body.password = password;
         if (clearPin) body.pin = "";
@@ -434,9 +529,13 @@ function UserForm({
         await api.patch(`/users/${user.id}`, body);
         toast.success(password ? "User updated and password reset" : "User updated");
       } else {
-        const created = await api.post<User>("/users", { name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, password, branchId, ...access });
+        const created = await api.post<User>("/users", { name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, designation: designation.trim() || undefined, password, branchIds: allBranches ? [] : branchIds, ...access, isActive });
         if (pin) await api.patch(`/users/${created.id}`, { pin });
-        toast.success(`${name.trim()} can now sign in as ${template?.name ?? role.toLowerCase()}`);
+        toast.success(
+          isActive
+            ? `${name.trim()} can now sign in as ${template?.name ?? role.toLowerCase()}`
+            : `${name.trim()} added as inactive — set them Active to let them sign in`,
+        );
       }
       onSaved();
     } catch (err) {
@@ -469,6 +568,9 @@ function UserForm({
         </Field>
         <Field label="Phone">
           <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </Field>
+        <Field label="Designation" hint="Job title, e.g. Senior Accountant" className="sm:col-span-2">
+          <Input value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="Optional" />
         </Field>
         <Field label="Email (Used to Sign In)" required={!editing} hint={editing ? "Email cannot be changed" : undefined}>
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required={!editing} disabled={editing} />
@@ -504,31 +606,51 @@ function UserForm({
         {(role === "ADMIN" || template) && (
           <PermissionPicker value={permissions} onChange={() => {}} defaults={permissions} disabled admin={role === "ADMIN"} />
         )}
-        <Field
-          label="Home Branch"
-          className="sm:col-span-2"
-          hint={
-            branchId
-              ? role === "ADMIN"
-                ? "Administrators can still switch branches; this is just where they start"
-                : "Locked to this branch — they only see and work in it"
-              : "Can switch between all branches from the top bar"
-          }
-        >
-          <Select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-            <option value="">All Branches (Owner / Admin)</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name} ({b.code})
-              </option>
-            ))}
-            {branchId && !branches.some((b) => b.id === branchId) && (
-              <option value={branchId}>
-                {user?.branch ? `${user.branch.name} (${user.branch.code})${branchesLoading ? "" : " — inactive"}` : branchId}
-              </option>
-            )}
-          </Select>
-        </Field>
+        {/* A group, not a Field: Field is a <label>, and checkboxes inside one would toggle the wrong box */}
+        <div role="group" aria-label="Branches" className="sm:col-span-2">
+          <p className="mb-1 text-xs font-medium text-slate-600">Branches</p>
+          <Dropdown
+            multiple
+            isSearch={branches.length > 8}
+            searchPlaceholder="Search branches…"
+            placeholder="Choose branches"
+            aria-label="Branches"
+            options={[
+              { value: ALL_BRANCHES, label: "All Branches" },
+              ...branches.map((b) => ({ value: b.id, label: b.name, hint: b.code })),
+              // A branch the user still has but that is now inactive
+              ...branchIds
+                .filter((id) => !branches.some((b) => b.id === id))
+                .map((id) => ({
+                  value: id,
+                  label: user?.branch?.id === id ? user.branch.name : branchesLoading ? "Loading…" : "Inactive branch",
+                  hint: user?.branch?.id === id && !branchesLoading ? `${user.branch.code} · inactive` : undefined,
+                })),
+            ]}
+            values={allBranches ? [ALL_BRANCHES, ...branches.map((b) => b.id)] : branchIds}
+            onValuesChange={(next) => {
+              // "All Branches" ticks every branch; unticking it clears them all, unticking one branch keeps the rest
+              const all = next.includes(ALL_BRANCHES);
+              if (!allBranches && all) {
+                setAllBranches(true);
+                return setBranchIds([]);
+              }
+              setAllBranches(false);
+              setBranchIds(allBranches && !all ? [] : next.filter((v) => v !== ALL_BRANCHES));
+            }}
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            {allBranches
+              ? "Can switch between all branches from the top bar"
+              : role === "ADMIN"
+                ? "Administrators can still switch to any branch; the first ticked is where they start"
+                : !branchIds.length
+                ? "Tick the branches they may work in"
+                : branchIds.length === 1
+                  ? "Locked to this branch — they only see and work in it"
+                  : "Can switch between these branches only; the first ticked is where they start"}
+          </p>
+        </div>
         {approver && (
           <Field
             label={user?.hasPin ? "Change Approval PIN" : "Approval PIN"}
@@ -542,10 +664,13 @@ function UserForm({
             </div>
           </Field>
         )}
-        {editing && !isSelf && (
-          <div className="sm:col-span-2">
-            <Checkbox label="Active — Can Sign In" checked={isActive} onChange={setIsActive} />
-          </div>
+        {!isSelf && (
+          <Field label="Status" required hint="Only active users can sign in">
+            <Select value={isActive ? "active" : "inactive"} onChange={(e) => setIsActive(e.target.value === "active")} aria-label="Status">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </Select>
+          </Field>
         )}
       </form>
       {newRole && (
@@ -555,6 +680,7 @@ function UserForm({
           onClose={() => setNewRole(false)}
           onSaved={(t) => {
             setNewRole(false);
+            setCreatedTemplate(t);
             onTemplatesChanged();
             setDepartmentId(t.departmentId ?? "");
             pick(t.baseRole, t);

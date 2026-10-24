@@ -671,14 +671,18 @@ export interface DropdownOption {
 const LAYOUT_CLASS = /^(?:[a-z0-9]+:)*!?(?:(?:min-|max-)?w-|col-span|row-span|-?m[trblxy]?-|flex-|shrink|grow|basis-|self-|order-)/;
 
 /**
- * Styled single-choice dropdown. `isSearch` adds a filter box at the top of the list.
+ * Styled dropdown: single choice, or with `multiple` a checkbox on every row (values / onValuesChange; the list
+ * stays open while ticking). `isSearch` adds a filter box at the top of the list.
  * The list opens in a layer above the page, so modals and scrolling tables don't clip it.
  * A value missing from `options` (e.g. a legacy one) still shows as the selection.
  */
 export function Dropdown({
   options,
-  value,
+  value = "",
   onChange,
+  multiple = false,
+  values = [],
+  onValuesChange,
   placeholder = "Select…",
   isSearch = false,
   searchPlaceholder = "Search…",
@@ -693,8 +697,13 @@ export function Dropdown({
   "aria-label": ariaLabel,
 }: {
   options: DropdownOption[];
-  value: string;
-  onChange: (value: string) => void;
+  value?: string;
+  onChange?: (value: string) => void;
+  /** Checkbox on every row: any number can be ticked */
+  multiple?: boolean;
+  /** Ticked values (with `multiple`) */
+  values?: string[];
+  onValuesChange?: (values: string[]) => void;
   placeholder?: string;
   isSearch?: boolean;
   searchPlaceholder?: string;
@@ -736,7 +745,10 @@ export function Dropdown({
       )
     : options;
   const rows: DropdownOption[] = allowClear && !q ? [{ value: "", label: "None" }, ...matches] : matches;
-  const selected = options.find((o) => o.value === value);
+  const selected = multiple ? undefined : options.find((o) => o.value === value);
+  const isOn = (v: string) => (multiple ? values.includes(v) : v === value);
+  // With `multiple`, the button lists what is ticked
+  const tickedLabels = multiple ? options.filter((o) => values.includes(o.value)).map((o) => o.label) : [];
 
   // Keep the list pinned right under the button (or `anchor`), exactly as wide as it
   useLayoutEffect(() => {
@@ -775,7 +787,7 @@ export function Dropdown({
     setQuery("");
     setPos(null);
     const all = allowClear ? [{ value: "" }, ...options] : options;
-    setActive(Math.max(0, all.findIndex((o) => o.value === value)));
+    setActive(Math.max(0, all.findIndex((o) => isOn(o.value))));
     setOpen(true);
   }
 
@@ -785,7 +797,12 @@ export function Dropdown({
   }
 
   function pick(o: DropdownOption) {
-    if (o.value !== value) onChange(o.value);
+    if (multiple) {
+      // Tick / untick and keep the list open for more
+      onValuesChange?.(values.includes(o.value) ? values.filter((v) => v !== o.value) : [...values, o.value]);
+      return;
+    }
+    if (o.value !== value) onChange?.(o.value);
     close();
   }
 
@@ -837,8 +854,8 @@ export function Dropdown({
           inner,
         )}
       >
-        <span className={cx("min-w-0 flex-1 truncate", !selected && !value && "text-slate-400")}>
-          {selected?.label ?? (value || placeholder)}
+        <span className={cx("min-w-0 flex-1 truncate", (multiple ? !tickedLabels.length : !selected && !value) && "text-slate-400")}>
+          {multiple ? tickedLabels.join(", ") || placeholder : (selected?.label ?? (value || placeholder))}
           {selected?.hint && <span className="ml-1.5 text-xs text-slate-400">{selected.hint}</span>}
         </span>
         <ChevronDown className={cx("size-4 shrink-0 text-slate-400 transition-transform", open && "rotate-180")} />
@@ -880,7 +897,7 @@ export function Dropdown({
                     type="button"
                     role="option"
                     data-index={i}
-                    aria-selected={o.value === value}
+                    aria-selected={isOn(o.value)}
                     onMouseEnter={() => setActive(i)}
                     onClick={() => pick(o)}
                     className={cx(
@@ -890,12 +907,15 @@ export function Dropdown({
                       !o.value && "text-slate-500",
                     )}
                   >
+                    {multiple && (
+                      <input type="checkbox" checked={isOn(o.value)} readOnly tabIndex={-1} aria-hidden className="pointer-events-none size-4 shrink-0 rounded border-slate-300 accent-brand-600" />
+                    )}
                     <span className="min-w-0 flex-1 truncate">
                       {o.label}
                       {o.hint && <span className="ml-1.5 text-xs text-slate-400">{o.hint}</span>}
                       {o.detail && <span className="block truncate font-mono text-xs text-slate-500">{o.detail}</span>}
                     </span>
-                    {o.value === value && <Check className="size-4 shrink-0 text-brand-600" />}
+                    {!multiple && o.value === value && <Check className="size-4 shrink-0 text-brand-600" />}
                   </button>
                 </Fragment>
               ))}

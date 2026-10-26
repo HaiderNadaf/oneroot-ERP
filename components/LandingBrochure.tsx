@@ -54,11 +54,11 @@ const FACTS: [string, string][] = [
 function BrochureBody() {
   return (
     <>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {FACTS.map(([value, label]) => (
-          <div key={label} className="rounded-lg bg-brand-50 px-3 py-3 text-center">
-            <p className="font-display text-2xl font-bold text-brand-700">{value}</p>
-            <p className="text-xs text-muted">{label}</p>
+          <div key={label} className="rounded-lg bg-brand-50 px-2 py-3 text-center sm:px-3">
+            <p className="font-display text-xl font-bold text-brand-700 sm:text-2xl">{value}</p>
+            <p className="text-[11px] leading-snug text-muted sm:text-xs">{label}</p>
           </div>
         ))}
       </div>
@@ -85,17 +85,17 @@ function BrochureBody() {
 export function LandingBrochure() {
   return (
     <>
-      <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8">
+      <div className="rounded-2xl border border-line bg-surface p-4 shadow-sm sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">Product brochure</p>
-            <h3 className="mt-1 font-display text-2xl font-bold text-slate-900">OneRoot ERP for agri-input stores</h3>
+            <h3 className="mt-1 font-display text-xl font-bold text-slate-900 sm:text-2xl">OneRoot ERP for agri-input stores</h3>
             <p className="mt-1 text-sm text-muted">Billing, stock, purchasing and accounts in one system.</p>
           </div>
           <button
             type="button"
             onClick={() => printAs("sheet", "size: A4; margin: 0;", "OneRoot-ERP-Brochure")}
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-700"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 sm:w-auto"
           >
             <Download className="size-4" />
             Download Brochure (PDF)

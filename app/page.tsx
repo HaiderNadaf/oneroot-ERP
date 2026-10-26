@@ -272,7 +272,7 @@ const STEPS: { icon: ReactNode; title: string; text: string }[] = [
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
 /** Sections sit under the sticky header: taller on phones, where the menu has its own row */
-const ANCHOR = "scroll-mt-28 md:scroll-mt-20";
+const ANCHOR = "scroll-mt-28 lg:scroll-mt-24";
 
 export default function LandingPage() {
   return (
@@ -298,7 +298,7 @@ export default function LandingPage() {
 function SiteHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-line/70 bg-surface/85 shadow-[0_1px_12px_rgba(18,53,36,0.06)] backdrop-blur-md">
-      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-4 px-4">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:h-20 sm:px-6">
         <Link
           href="/"
           aria-label="OneRoot.farm ERP home"
@@ -310,14 +310,14 @@ function SiteHeader() {
             width={1630}
             height={840}
             priority
-            className="h-14 w-auto sm:h-18"
+            className="h-10 w-auto sm:h-14 lg:h-16"
           />
-          <span className="font-display text-3xl font-bold leading-none text-brand-800 sm:text-4xl">
+          <span className="font-display text-2xl font-bold leading-none text-brand-800 sm:text-3xl lg:text-4xl">
             ERP
           </span>
         </Link>
         <nav
-          className="hidden items-center gap-1 rounded-full border border-line bg-paper-2/80 p-1 text-sm font-medium text-muted md:flex"
+          className="hidden items-center gap-1 rounded-full border border-line bg-paper-2/80 p-1 text-sm font-medium text-muted lg:flex"
           aria-label="Sections"
         >
           {NAV.map((n) => (
@@ -332,9 +332,9 @@ function SiteHeader() {
         </nav>
         <LandingCta />
       </div>
-      {/* Phones: the menu scrolls sideways under the logo */}
+      {/* Phones and tablets: the menu sits under the logo (scrolls sideways if it doesn't fit) */}
       <nav
-        className="no-scrollbar flex gap-2 overflow-x-auto border-t border-line-soft px-4 py-2 text-sm font-medium text-muted md:hidden"
+        className="no-scrollbar flex gap-2 overflow-x-auto border-t border-line-soft px-4 py-2 text-sm font-medium text-muted sm:justify-center sm:px-6 lg:hidden"
         aria-label="Sections"
       >
         {NAV.map((n) => (
@@ -367,35 +367,36 @@ function DarkBackdrop() {
 
 function Hero() {
   return (
-    <section className="relative overflow-hidden bg-forest-900 pb-28 text-white sm:pb-32">
+    <section className="relative overflow-hidden bg-forest-900 pb-24 text-white sm:pb-32">
       <DarkBackdrop />
-      <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pt-16 sm:pt-20 lg:grid-cols-[1.05fr_1fr]">
-        <div>
+      <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 pt-10 sm:gap-12 sm:px-6 sm:pt-16 lg:grid-cols-[1.05fr_1fr] lg:pt-20">
+        <div className="min-w-0">
           <p className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-mint-100 ring-1 ring-white/20 backdrop-blur">
             <Sprout className="size-3.5" /> ERP for agri-input stores
           </p>
-          <h1 className="mt-5 font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
+          <h1 className="mt-5 font-display text-[2rem] font-bold leading-[1.1] tracking-tight sm:text-5xl sm:leading-[1.05] lg:text-6xl">
             Billing, stock and accounts for your agri store,{" "}
             <span className="bg-gradient-to-r from-gold-500 via-[#f0c766] to-[#9be3b8] bg-clip-text text-transparent">
               in one place
             </span>
           </h1>
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-white/75 sm:text-lg">
+          <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-white/75 sm:mt-5 sm:text-lg">
             OneRoot ERP runs the whole day of a seed, fertiliser and pesticide
             business: GST billing at the counter, quotations, batch-wise stock
             with expiry, purchase orders and goods inward, vendor notes, farmer
             credit and the books.
           </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <LandingCta size="lg" />
+          {/* Phones: full-width stacked buttons, easy to tap */}
+          <div className="mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:flex-wrap sm:items-center">
+            <LandingCta size="lg" className="w-full sm:w-auto" />
             <a
               href="#modules"
-              className="inline-flex h-12 items-center gap-2 rounded-lg px-6 text-base font-semibold text-white ring-1 ring-white/30 transition-colors hover:bg-white/10"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg px-6 text-base font-semibold text-white ring-1 ring-white/30 transition-colors hover:bg-white/10 sm:w-auto"
             >
               See What It Does <ArrowRight className="size-4" />
             </a>
           </div>
-          <ul className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm text-white/80">
+          <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm text-white/80 sm:mt-8">
             {["GST tax invoices", "Offline POS", "Tally export"].map((t) => (
               <li key={t} className="flex items-center gap-1.5">
                 <CheckCircle2 className="size-4 text-gold-500" /> {t}
@@ -415,29 +416,29 @@ function HeroPreview() {
   return (
     <div aria-hidden className="relative mx-auto w-full max-w-lg lg:max-w-none">
       <div className="absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-white/15 to-white/0 blur-sm" />
-      <div className="relative rounded-2xl bg-surface p-5 text-ink shadow-2xl shadow-black/40 ring-1 ring-white/20">
+      <div className="relative rounded-2xl bg-surface p-4 text-ink shadow-2xl shadow-black/40 ring-1 ring-white/20 sm:p-5">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
+          <div className="flex min-w-0 items-center gap-1.5">
             <span className="size-2.5 rounded-full bg-red-400" />
             <span className="size-2.5 rounded-full bg-amber-400" />
             <span className="size-2.5 rounded-full bg-emerald-500" />
-            <p className="ml-2 text-sm font-semibold text-slate-800">
+            <p className="ml-2 truncate text-sm font-semibold text-slate-800">
               Today at the counter
             </p>
           </div>
-          <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
+          <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
             Main Branch
           </span>
         </div>
-        <div className="mt-4 grid grid-cols-3 gap-3">
+        <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
           {[
             ["Sales", "₹48,250", "+12%"],
             ["Bills", "37", "+5"],
             ["Collected", "₹12,400", "+8%"],
           ].map(([label, value, delta]) => (
-            <div key={label} className="rounded-xl bg-paper-2 p-3">
+            <div key={label} className="min-w-0 rounded-xl bg-paper-2 p-2.5 sm:p-3">
               <p className="text-[11px] text-muted">{label}</p>
-              <p className="mt-0.5 font-display text-lg font-semibold text-slate-900">
+              <p className="mt-0.5 truncate font-display text-base font-semibold text-slate-900 sm:text-lg">
                 {value}
               </p>
               <p className="text-[11px] font-semibold text-emerald-600">
@@ -446,7 +447,7 @@ function HeroPreview() {
             </div>
           ))}
         </div>
-        <div className="mt-4 flex h-32 items-end gap-2 rounded-xl bg-gradient-to-b from-paper-2 to-brand-50 p-3">
+        <div className="mt-4 flex h-24 items-end gap-1.5 rounded-xl bg-gradient-to-b from-paper-2 to-brand-50 p-3 sm:h-32 sm:gap-2">
           {bars.map((h, i) => (
             <div
               key={i}
@@ -489,7 +490,7 @@ function HeroPreview() {
       </div>
 
       {/* Floating cards */}
-      <div className="absolute -left-4 top-24 hidden w-56 -rotate-3 rounded-xl bg-surface p-3 text-ink shadow-xl shadow-black/30 ring-1 ring-line sm:block lg:-left-10">
+      <div className="absolute -left-4 top-44 hidden w-56 -rotate-3 rounded-xl bg-surface p-3 text-ink shadow-xl shadow-black/30 ring-1 ring-line lg:block lg:-left-10">
         <div className="flex items-center gap-2">
           <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
             <ReceiptText className="size-4" />
@@ -502,7 +503,7 @@ function HeroPreview() {
           </div>
         </div>
       </div>
-      <div className="absolute -bottom-6 -right-3 hidden w-60 rotate-2 rounded-xl bg-surface p-3 text-ink shadow-xl shadow-black/30 ring-1 ring-line sm:block">
+      <div className="absolute -bottom-6 -right-3 hidden w-60 rotate-2 rounded-xl bg-surface p-3 text-ink shadow-xl shadow-black/30 ring-1 ring-line lg:block">
         <div className="flex items-center gap-2">
           <span className="flex size-8 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
             <PackageCheck className="size-4" />
@@ -524,10 +525,10 @@ function HeroPreview() {
 /** Four highlights on a card that overlaps the bottom of the hero */
 function Highlights() {
   return (
-    <section className="relative z-10 -mt-16 px-4">
+    <section className="relative z-10 -mt-14 px-4 sm:-mt-16 sm:px-6">
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-px overflow-hidden rounded-2xl bg-line shadow-xl shadow-forest-900/10 ring-1 ring-line sm:grid-cols-2 lg:grid-cols-4">
         {HIGHLIGHTS.map((h) => (
-          <div key={h.title} className="flex items-start gap-3 bg-surface p-5">
+          <div key={h.title} className="flex items-start gap-3 bg-surface p-4 sm:p-5">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm [&>svg]:size-5">
               {h.icon}
             </span>
@@ -546,7 +547,7 @@ function BuiltFor() {
   // Listed twice so the strip loops without a gap
   const items = [...BUILT_FOR, ...BUILT_FOR];
   return (
-    <section aria-label="Built for" className="py-10">
+    <section aria-label="Built for" className="py-8 sm:py-10">
       <p className="text-center text-xs font-semibold uppercase tracking-[0.18em] text-muted">
         Built for
       </p>
@@ -597,7 +598,7 @@ function SectionTitle({
       </p>
       <h2
         className={cx(
-          "mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl",
+          "mt-3 font-display text-[1.75rem] font-bold leading-tight tracking-tight sm:text-4xl",
           dark ? "text-white" : "text-slate-900",
         )}
       >
@@ -605,7 +606,7 @@ function SectionTitle({
       </h2>
       <p
         className={cx(
-          "mt-3 leading-relaxed",
+          "mt-3 text-[15px] leading-relaxed sm:text-base",
           dark ? "text-white/70" : "text-muted",
         )}
       >
@@ -633,8 +634,8 @@ const outLink =
 
 function About() {
   return (
-    <section id="about" className={cx(ANCHOR, "py-16 sm:py-24")}>
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 lg:grid-cols-[1.15fr_1fr] lg:gap-14">
+    <section id="about" className={cx(ANCHOR, "py-12 sm:py-16 lg:py-24")}>
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 sm:px-6 lg:grid-cols-[1.15fr_1fr] lg:gap-14">
         <div>
           <SectionTitle
             align="left"
@@ -690,7 +691,7 @@ function About() {
         </div>
 
         {/* At-a-glance card: dark, so it reads as a panel beside the story */}
-        <aside className="relative overflow-hidden rounded-3xl bg-forest-800 p-6 text-white shadow-xl sm:p-8">
+        <aside className="relative overflow-hidden rounded-2xl bg-forest-800 p-5 text-white shadow-xl sm:rounded-3xl sm:p-8">
           <DarkBackdrop />
           <div className="relative space-y-7">
             <div>
@@ -735,7 +736,7 @@ function About() {
               <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-gold-500">
                 Explore OneRoot
               </h3>
-              <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <ul className="mt-3 grid grid-cols-1 gap-x-4 gap-y-2 text-sm min-[400px]:grid-cols-2">
                 {SITE_LINKS.map(([label, href]) => (
                   <li key={label}>
                     <a
@@ -792,20 +793,20 @@ function Modules() {
   return (
     <section
       id="modules"
-      className={cx(ANCHOR, "border-y border-line bg-surface py-16 sm:py-24")}
+      className={cx(ANCHOR, "border-y border-line bg-surface py-12 sm:py-16 lg:py-24")}
     >
-      <div className="mx-auto max-w-6xl px-4">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionTitle
           eyebrow="Modules"
           title="Everything the store runs on"
           text="From the first purchase order to the last rupee collected, every step is in the same system and talks to the next."
         />
         {/* Bento: the two counter modules lead, the rest follow in a grid */}
-        <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-8 grid grid-cols-1 gap-4 sm:mt-12 sm:grid-cols-2 lg:grid-cols-4">
           {[first, second].map((m) => (
             <article
               key={m.title}
-              className="relative overflow-hidden rounded-2xl bg-forest-800 p-6 text-white shadow-lg sm:col-span-1 lg:col-span-2"
+              className="relative overflow-hidden rounded-2xl bg-forest-800 p-5 text-white shadow-lg sm:col-span-1 sm:p-6 lg:col-span-2"
             >
               <div
                 aria-hidden
@@ -846,14 +847,14 @@ function Modules() {
 
 function HowItWorks() {
   return (
-    <section id="how-it-works" className={cx(ANCHOR, "py-16 sm:py-24")}>
-      <div className="mx-auto max-w-6xl px-4">
+    <section id="how-it-works" className={cx(ANCHOR, "py-12 sm:py-16 lg:py-24")}>
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionTitle
           eyebrow="How it works"
           title="One flow, no double entry"
           text="Each document carries on from the one before it, so stock, dues and the books always agree."
         />
-        <div className="relative mt-14">
+        <div className="relative mt-10 sm:mt-14">
           {/* The line joining the steps on wide screens */}
           <div
             aria-hidden
@@ -887,9 +888,9 @@ function Catalogue() {
   return (
     <section
       id="catalogue"
-      className={cx(ANCHOR, "border-y border-line bg-surface py-16 sm:py-24")}
+      className={cx(ANCHOR, "border-y border-line bg-surface py-12 sm:py-16 lg:py-24")}
     >
-      <div className="mx-auto max-w-6xl px-4">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <SectionTitle
             align="left"
@@ -901,7 +902,7 @@ function Catalogue() {
             <Zap className="size-4" /> 24–72 h delivery across India
           </p>
         </div>
-        <div className="mt-10 grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="mt-8 grid grid-cols-1 gap-5 sm:mt-10 md:grid-cols-2 lg:grid-cols-3">
           {CATALOGUE.map((c) => (
             <article
               key={c.group}
@@ -965,18 +966,18 @@ function Catalogue() {
 
 function Brochure() {
   return (
-    <section id="brochure" className={cx(ANCHOR, "py-16 sm:py-24")}>
-      <div className="mx-auto max-w-5xl px-4">
+    <section id="brochure" className={cx(ANCHOR, "py-12 sm:py-16 lg:py-24")}>
+      <div className="mx-auto max-w-5xl px-4 sm:px-6">
         <SectionTitle
           eyebrow="Brochure"
           title="OneRoot ERP at a glance"
           text="Everything in the ERP on one page — download it to share with your team or partners."
         />
-        <div className="relative mt-12">
+        <div className="relative mt-8 sm:mt-12">
           {/* A second sheet peeking out behind the brochure */}
           <div
             aria-hidden
-            className="absolute inset-x-6 -top-3 bottom-3 -rotate-1 rounded-2xl bg-brand-100/70 ring-1 ring-brand-200"
+            className="absolute inset-x-3 -top-3 bottom-3 -rotate-1 rounded-2xl bg-brand-100/70 ring-1 ring-brand-200 sm:inset-x-6"
           />
           <div className="relative">
             <LandingBrochure />
@@ -1011,9 +1012,9 @@ function Contact() {
   return (
     <section
       id="contact"
-      className={cx(ANCHOR, "border-t border-line bg-surface py-16 sm:py-24")}
+      className={cx(ANCHOR, "border-t border-line bg-surface py-12 sm:py-16 lg:py-24")}
     >
-      <div className="mx-auto grid max-w-6xl items-start gap-10 px-4 lg:grid-cols-[1fr_1.1fr]">
+      <div className="mx-auto grid max-w-6xl items-start gap-8 px-4 sm:gap-10 sm:px-6 lg:grid-cols-[1fr_1.1fr]">
         <div>
           <SectionTitle
             align="left"
@@ -1021,16 +1022,16 @@ function Contact() {
             title="Talk to us"
             text="For procurement, partnerships or an ERP demo, write or call and the team will get back to you."
           />
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:mt-8 sm:flex sm:flex-wrap">
             <a
               href={`mailto:${CONTACT.email}`}
-              className="inline-flex h-11 items-center gap-2 rounded-lg bg-brand-600 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-600 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
             >
               <Mail className="size-4" /> Email Procurement
             </a>
             <a
               href={CONTACT.phoneHref}
-              className="inline-flex h-11 items-center gap-2 rounded-lg border border-line-2 bg-surface px-5 text-sm font-semibold text-slate-800 transition-colors hover:border-brand-300 hover:text-brand-700"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-line-2 bg-surface px-5 text-sm font-semibold text-slate-800 transition-colors hover:border-brand-300 hover:text-brand-700"
             >
               <Phone className="size-4" /> Call Us
             </a>
@@ -1040,9 +1041,9 @@ function Contact() {
           {cards.map((c) => (
             <div
               key={c.label}
-              className="flex gap-4 rounded-2xl border border-line bg-paper-2 p-5 transition-colors hover:border-brand-200"
+              className="flex gap-3 rounded-2xl border border-line bg-paper-2 p-4 transition-colors hover:border-brand-200 sm:gap-4 sm:p-5"
             >
-              <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm [&>svg]:size-5">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm sm:size-12 [&>svg]:size-5">
                 {c.icon}
               </span>
               <div className="min-w-0">
@@ -1052,7 +1053,7 @@ function Contact() {
                 {c.href ? (
                   <a
                     href={c.href}
-                    className="mt-0.5 block break-words text-lg font-semibold text-slate-900 hover:text-brand-700"
+                    className="mt-0.5 block text-base font-semibold text-slate-900 [overflow-wrap:anywhere] hover:text-brand-700 sm:text-lg"
                   >
                     {c.value}
                   </a>
@@ -1072,18 +1073,18 @@ function Contact() {
 
 function ClosingCta() {
   return (
-    <section className="px-4 py-16 sm:py-24">
-      <div className="relative mx-auto max-w-5xl overflow-hidden rounded-3xl bg-forest-800 px-6 py-14 text-center shadow-2xl shadow-forest-900/30 sm:px-12">
+    <section className="px-4 py-12 sm:px-6 sm:py-16 lg:py-24">
+      <div className="relative mx-auto max-w-5xl overflow-hidden rounded-2xl bg-forest-800 px-5 py-10 text-center shadow-2xl shadow-forest-900/30 sm:rounded-3xl sm:px-12 sm:py-14">
         <DarkBackdrop />
         <div className="relative">
-          <h2 className="font-display text-3xl font-bold text-white sm:text-4xl">
+          <h2 className="font-display text-[1.75rem] font-bold leading-tight text-white sm:text-4xl">
             Ready for today&apos;s counter?
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-sidebar-text">
             Sign in with the account your administrator gave you to start
             billing, receiving and reporting.
           </p>
-          <LandingCta size="lg" tone="ash" className="mt-8" />
+          <LandingCta size="lg" tone="ash" className="mt-7 w-full sm:mt-8 sm:w-auto" />
         </div>
       </div>
     </section>
@@ -1132,8 +1133,8 @@ function SiteFooter() {
   return (
     <footer className="relative overflow-hidden bg-forest-900 text-white">
       <DarkBackdrop />
-      <div className="relative mx-auto grid max-w-6xl grid-cols-1 gap-10 px-4 py-14 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1.3fr]">
-        <div>
+      <div className="relative mx-auto grid max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-4 py-10 sm:px-6 sm:py-14 lg:grid-cols-[1.6fr_1fr_1fr_1.3fr]">
+        <div className="col-span-2 lg:col-span-1">
           <Logo framed imageClassName="w-[92px]" textClassName="text-2xl" />
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/65">
             Inventory, billing, purchasing and accounts for agri-input stores —
@@ -1161,15 +1162,15 @@ function SiteFooter() {
             { label: "LinkedIn", href: LINKEDIN, external: true },
           ]}
         />
-        <div>
+        <div className="col-span-2 min-w-0 lg:col-span-1">
           <p className="text-sm font-semibold text-white">Contact</p>
           <ul className="mt-4 space-y-3 text-sm text-white/65">
             <li>
               <a
                 href={`mailto:${CONTACT.email}`}
-                className="inline-flex items-center gap-2 transition-colors hover:text-white"
+                className="inline-flex items-start gap-2 [overflow-wrap:anywhere] transition-colors hover:text-white"
               >
-                <Mail className="size-4 text-gold-500" /> {CONTACT.email}
+                <Mail className="mt-0.5 size-4 shrink-0 text-gold-500" /> {CONTACT.email}
               </a>
             </li>
             <li>
@@ -1188,7 +1189,7 @@ function SiteFooter() {
         </div>
       </div>
       <div className="relative border-t border-white/10">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-5 text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-5 text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>
             © <CurrentYear /> ENP Farms Private Limited (OneRoot). All rights
             reserved.

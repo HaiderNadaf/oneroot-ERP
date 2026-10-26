@@ -17,7 +17,7 @@ export function LandingCta({ size = "md", tone = "brand", className }: { size?: 
     <Link
       href={signedIn ? "/dashboard" : "/login"}
       className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2",
+        "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2",
         tone === "ash"
           ? "bg-[#d1d1d1] text-[#1f2421] hover:bg-[#c2c2c2] focus-visible:ring-white/50"
           : "bg-brand-600 text-white hover:bg-brand-700 focus-visible:ring-brand-500/40",
@@ -25,8 +25,15 @@ export function LandingCta({ size = "md", tone = "brand", className }: { size?: 
         className,
       )}
     >
-      {signedIn ? <LayoutDashboard className="size-4" /> : <LogIn className="size-4" />}
-      {signedIn ? "Open Dashboard" : "Sign In"}
+      {signedIn ? <LayoutDashboard className="size-4 shrink-0" /> : <LogIn className="size-4 shrink-0" />}
+      {signedIn ? (
+        <span>
+          {/* Small header button on phones: just "Dashboard", so it stays on one line beside the logo */}
+          <span className={size === "md" ? "hidden min-[400px]:inline" : undefined}>Open </span>Dashboard
+        </span>
+      ) : (
+        "Sign In"
+      )}
     </Link>
   );
 }

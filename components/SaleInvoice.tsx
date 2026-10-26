@@ -109,7 +109,6 @@ export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSet
             <th className="py-1.5 pr-1">Product</th>
             <th className="py-1.5 pr-1">HSN</th>
             <th className="py-1.5 pr-1">Batch</th>
-            <th className="py-1.5 pr-1">Expiry</th>
             <th className="py-1.5 pr-1 text-right">Qty</th>
             <th className="py-1.5 pr-1 text-right">Rate</th>
             <th className="py-1.5 pr-1 text-right">Disc%</th>
@@ -139,7 +138,6 @@ export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSet
               </td>
               <td className="py-1.5 pr-1">{i.hsnCode || "—"}</td>
               <td className="py-1.5 pr-1">{i.batchNo || "—"}</td>
-              <td className="py-1.5 pr-1 whitespace-nowrap">{i.expiryDate ? date(i.expiryDate) : "—"}</td>
               <td className="num py-1.5 pr-1 text-right whitespace-nowrap">
                 {qty(i.quantity)} {i.unit}
               </td>
@@ -153,7 +151,7 @@ export function SaleInvoice({ sale, settings }: { sale: Sale; settings: StoreSet
         </tbody>
         <tfoot>
           <tr className="border-b border-slate-800 font-semibold">
-            <td className="py-1.5" colSpan={5}>
+            <td className="py-1.5" colSpan={4}>
               Total ({items.length} item{items.length === 1 ? "" : "s"})
             </td>
             <td className="num py-1.5 pr-1 text-right">{qty(totalQty)}</td>

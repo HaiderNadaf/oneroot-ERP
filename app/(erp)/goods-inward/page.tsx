@@ -294,6 +294,8 @@ function PendingPosModal({ onClose }: { onClose: () => void }) {
       open
       onClose={onClose}
       size="xl"
+      centered
+      className="sm:-translate-y-[6vh]"
       title={
         <span className="flex items-center gap-2">
           Approved POs waiting for goods
@@ -307,16 +309,18 @@ function PendingPosModal({ onClose }: { onClose: () => void }) {
             <ErrorBox message={pending.error} onRetry={pending.reload} />
           </div>
         ) : (
-          <Table>
+          <Table className="[&>table]:table-fixed">
             <thead>
               <tr>
-                <Th>PO</Th>
-                <Th>Vendor</Th>
+                <Th className="w-40 pl-4 sm:pl-5">PO</Th>
+                <Th className="w-44">Vendor</Th>
                 <Th className="hidden md:table-cell">Products</Th>
-                <Th>Expected</Th>
-                <Th right>PO Qty</Th>
-                <Th className="min-w-36">Received</Th>
-                <Th />
+                <Th className="w-28">Expected</Th>
+                <Th right className="w-24">
+                  PO Qty
+                </Th>
+                <Th className="w-36">Received</Th>
+                <Th className="w-32 pr-4 sm:pr-5" />
               </tr>
             </thead>
             <tbody>
@@ -326,56 +330,63 @@ function PendingPosModal({ onClose }: { onClose: () => void }) {
                 <EmptyRow colSpan={7}>No approved purchase orders are waiting for goods.</EmptyRow>
               ) : (
                 pending.data.map((po) => (
-                  <tr key={po.id} className="hover:bg-slate-50">
+                  <tr key={po.id} className="align-middle hover:bg-slate-50">
+                    <Td className="pl-4 sm:pl-5">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate font-medium text-slate-900" title={po.poNo}>
+                          {po.poNo}
+                        </span>
+                        {showBranch && po.branch && <BranchCode code={po.branch.code} title={`Deliver to ${po.branch.name}`} />}
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-slate-500">Ordered {date(po.orderDate)}</p>
+                    </Td>
                     <Td>
-                      <span className="whitespace-nowrap font-medium text-slate-900">{po.poNo}</span>
-                      {showBranch && po.branch && (
-                        <span className="ml-1.5">
-                          <BranchCode code={po.branch.code} title={`Deliver to ${po.branch.name}`} />
-                        </span>
-                      )}
-                      <p className="text-xs text-slate-500">Ordered {date(po.orderDate)}</p>
-                    </Td>
-                    <Td className="min-w-36">
-                      {canVendors ? (
-                        <Link href={`/vendors/${po.vendor.id}`} className="hover:text-brand-700">
-                          {po.vendor.name}
-                        </Link>
-                      ) : (
-                        po.vendor.name
-                      )}
-                    </Td>
-                    <Td className="hidden max-w-80 md:table-cell">
-                      <p className="truncate text-slate-700" title={po.products.join(", ")}>
-                        {po.products.slice(0, 3).join(", ")}
+                      <p className="truncate font-medium text-slate-800" title={po.vendor.name}>
+                        {canVendors ? (
+                          <Link href={`/vendors/${po.vendor.id}`} className="hover:text-brand-700">
+                            {po.vendor.name}
+                          </Link>
+                        ) : (
+                          po.vendor.name
+                        )}
                       </p>
-                      {po.products.length > 3 && <p className="text-xs text-slate-500">+{po.products.length - 3} more</p>}
                     </Td>
-                    <Td className="whitespace-nowrap">
-                      {po.expectedDate ? date(po.expectedDate) : <span className="text-slate-400">—</span>}
+                    <Td className="hidden md:table-cell">
+                      <p className="truncate text-slate-700" title={po.products.join(", ")}>
+                        {po.products.join(", ")}
+                      </p>
+                      {po.products.length > 1 && <p className="mt-0.5 truncate text-xs text-slate-500">{po.products.length} products</p>}
+                    </Td>
+                    <Td>
+                      <p className="truncate">{po.expectedDate ? date(po.expectedDate) : <span className="text-slate-400">—</span>}</p>
                       {po.late && (
-                        <span className="ml-1.5">
+                        <div className="mt-0.5">
                           <Badge tone="red">Late</Badge>
-                        </span>
+                        </div>
                       )}
                     </Td>
-                    <Td right className="num whitespace-nowrap text-slate-700">
+                    <Td right className="num truncate font-medium text-slate-800">
                       {qty(po.poQty)}
                     </Td>
                     <Td>
                       <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-100">
                           <div
                             className={cx("h-full rounded-full", po.receivedPct > 0 ? "bg-violet-500" : "bg-slate-300")}
                             style={{ width: `${po.receivedPct}%` }}
                           />
                         </div>
-                        <span className="num text-xs text-slate-600">{po.receivedPct}%</span>
+                        <span className="num w-9 shrink-0 text-right text-xs text-slate-600">{po.receivedPct}%</span>
                       </div>
-                      {po.status === "PARTIALLY_RECEIVED" && <p className="mt-0.5 text-xs text-violet-700">Balance open</p>}
+                      {po.status === "PARTIALLY_RECEIVED" && <p className="mt-0.5 truncate text-xs text-violet-700">Balance open</p>}
                     </Td>
-                    <Td right>
-                      <Button size="sm" icon={<PackageCheck className="size-4" />} onClick={() => router.push(`/goods-inward/new?po=${po.id}`)}>
+                    <Td right className="whitespace-nowrap pr-4 sm:pr-5">
+                      <Button
+                        size="sm"
+                        className="whitespace-nowrap"
+                        icon={<PackageCheck className="size-4 shrink-0" />}
+                        onClick={() => router.push(`/goods-inward/new?po=${po.id}`)}
+                      >
                         Add GRN
                       </Button>
                     </Td>

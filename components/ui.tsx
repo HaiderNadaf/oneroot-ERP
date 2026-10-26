@@ -1438,6 +1438,8 @@ export function Modal({
   footer,
   size = "md",
   centered = false,
+  className,
+  scrollBody = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -1447,6 +1449,10 @@ export function Modal({
   size?: "sm" | "md" | "lg" | "xl";
   /** Wider screens: sit in the middle of the screen instead of near the top */
   centered?: boolean;
+  /** Extra classes for the dialog box */
+  className?: string;
+  /** false: a fixed-height dialog whose body doesn't scroll; the content lays out (and scrolls) its own parts, e.g. only a list */
+  scrollBody?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -1471,11 +1477,14 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         className={cx(
-          "relative flex h-[100dvh] w-full flex-col bg-surface shadow-xl sm:h-auto sm:rounded-xl",
+          "relative flex h-[100dvh] w-full flex-col bg-surface shadow-xl sm:rounded-xl",
+          // Fixed-height layout (scrollBody off): the dialog keeps its height and the content scrolls its own parts
+          scrollBody ? "sm:h-auto" : "sm:h-[88vh]",
           // my-auto centres it while it fits and still lets a taller one scroll from its top
           centered && "sm:my-auto",
           widths[size],
           "max-sm:max-w-none",
+          className,
         )}
       >
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5 sm:py-3.5">
@@ -1484,7 +1493,14 @@ export function Modal({
             <X className="size-5 sm:size-4" />
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:max-h-[70vh] sm:flex-none sm:px-5">{children}</div>
+        <div
+          className={cx(
+            "min-h-0 flex-1 px-4 py-4 sm:px-5",
+            scrollBody ? "overflow-y-auto sm:max-h-[70vh] sm:flex-none" : "flex flex-col overflow-hidden",
+          )}
+        >
+          {children}
+        </div>
         {footer && (
           <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-100 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:pb-3 [&>*]:max-sm:flex-1">
             {footer}

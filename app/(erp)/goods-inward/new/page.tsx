@@ -14,6 +14,7 @@ import {
   Button,
   Card,
   DateInput,
+  Dropdown,
   ErrorBox,
   Field,
   Info,
@@ -330,20 +331,19 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
       : " The PO will be marked fully received.";
     const invoiceNote = totals.passed > 0 ? ` The purchase invoice will be booked under ${supplierInvoiceNo.trim()}.` : "";
     const issueNote = totals.notAccepted > 0 ? ` ${qty(totals.notAccepted)} not accepted stays out of stock and goes on a draft debit note with the reasons.` : "";
-    if (!(await confirm(`Post goods inward for ${po.poNo}? ${qty(totals.passed)} received into stock.${issueNote}${balance}${invoiceNote}`, { confirmLabel: "Post GRN" }))) return;
+    if (!(await confirm(`Post goods inward for ${po.poNo}? ${qty(totals.passed)} received into stock.${issueNote}${balance}`, { confirmLabel: "Post GRN" }))) return;
 
     setSaving(true);
     try {
-      const grn = await api.post<Grn & { invoiceError?: string | null; shortNoteNo?: string | null }>(`/purchase-orders/${po.id}/grn`, {
+      const grn = await api.post<Grn & { invoiceError?: string | null; shortNoteNo?: string | null; issueNoteNo?: string | null }>(`/purchase-orders/${po.id}/grn`, {
         vehicleNo: vehicleNo.trim() || undefined,
         supplierInvoiceNo: supplierInvoiceNo.trim() || undefined,
         receivedAt,
         // One row per batch with a quantity; stock goes to the product's usual location
         items: open.flatMap((i) => {
           const l = lines[i.id];
-          // Received rows only: units marked not accepted go in their own rows below
-          const filled = acceptedRows(l).filter((b) => num(b.qty) > 0);
-          const rows = filled.length ? filled : [l.batches[0]];
+          // Received rows only (none when everything on the line was not accepted); not-accepted entries go in their own rows below
+          const rows = acceptedRows(l).filter((b) => num(b.qty) > 0);
           return [
             ...rows.map((b) => ({
               poItemId: i.id,
@@ -379,6 +379,7 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
       // The purchase invoice is booked automatically when anything passed inspection
       toast.success(`${grn.grnNo} posted · stock updated${grn.purchase ? ` · invoice ${grn.purchase.purchaseNo} booked` : ""}`);
       if (grn.shortNoteNo) toast.info(`Short supply noted on draft debit note ${grn.shortNoteNo}`);
+      if (grn.issueNoteNo) toast.info(`Goods not accepted noted on draft debit note ${grn.issueNoteNo}`);
       if (grn.invoiceError) toast.warn(`Purchase invoice not booked: ${grn.invoiceError}. Book it from the GRN.`);
       if (files.length) {
         await uploadAttachments("GRN", grn.id, files).then(
@@ -661,14 +662,10 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                         </button>
                       ) : (
                         <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-2.5">
-                          {/* The line's batch / serial numbers, offered for the Batch No. of each entry */}
-                          <datalist id={`grn-batches-${item.id}`}>
-                            {[...new Set(l.batches.map((b) => b.batchNo.trim()).filter(Boolean))].map((b) => (
-                              <option key={b} value={b} />
-                            ))}
-                          </datalist>
                           <div className="space-y-2">
                             {l.issues.map((x, k) => {
+                              // The line's batch / serial numbers, offered for the Batch No. of each entry
+                              const batchOptions = [...new Set(l.batches.map((b) => b.batchNo.trim()).filter(Boolean))].map((b) => ({ value: b, label: b }));
                               const change = (patch: Partial<IssueRow>) => setIssues(item, l.issues!.map((y) => (y.key === x.key ? { ...y, ...patch } : y)));
                               return (
                                 <div key={x.key} className="flex flex-wrap items-end gap-2">
@@ -706,11 +703,14 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
                                       {p.trackSerial ? "Batch / Serial No." : "Batch No."}
                                       <span className="text-red-500"> *</span>
                                     </span>
-                                    <Input
-                                      className="h-8 w-40 font-mono"
-                                      list={`grn-batches-${item.id}`}
+                                    <Dropdown
+                                      className="h-8 w-44 font-mono"
+                                      options={batchOptions}
                                       value={x.batchNo}
-                                      onChange={(e) => change({ batchNo: e.target.value })}
+                                      onChange={(v) => change({ batchNo: v })}
+                                      isSearch={batchOptions.length > 6}
+                                      searchPlaceholder={p.trackSerial ? "Search serial no." : "Search batch"}
+                                      emptyText={p.trackSerial ? "Enter the units' Batch / Serial No. above first" : "Enter the batch numbers above first"}
                                       placeholder={p.trackSerial ? "Pick the unit" : "Which batch"}
                                       aria-label={`Not accepted ${k + 1}: batch no. of ${p.name}`}
                                     />

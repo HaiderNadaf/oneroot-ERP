@@ -64,5 +64,5 @@ export function useScanner(
 export const isTypingTarget = (t: HTMLElement | null) =>
   !!t && (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement || t.isContentEditable);
 
-/** True when this browser can read barcodes from the camera (Chrome / Edge, Android Chrome) */
-export const cameraScanSupported = () => typeof window !== "undefined" && "BarcodeDetector" in window && !!navigator.mediaDevices?.getUserMedia;
+/** True when this browser can read barcodes from the camera: any browser with camera access on a secure page (ZXing decodes where BarcodeDetector is missing) */
+export const cameraScanSupported = () => typeof window !== "undefined" && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;

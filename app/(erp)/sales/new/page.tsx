@@ -17,7 +17,6 @@ import {
   ScanLine,
   ShieldCheck,
   ShoppingCart,
-  Split,
   Trash2,
   UserPlus,
   WifiOff,
@@ -32,7 +31,7 @@ import { CustomerPicker } from "@/components/pickers";
 import { PrintPortal } from "@/components/PrintPortal";
 import { SerialSelect } from "@/components/SerialPicker";
 import { ThermalReceipt, receiptFromSale, type ReceiptData } from "@/components/ThermalReceipt";
-import { Button, Checkbox, Dropdown, Input, Modal, Select, Spinner, Textarea, cx, errMsg, useConfirm, useToast, type DropdownOption } from "@/components/ui";
+import { Button, Checkbox, Dropdown, Input, Modal, Select, Spinner, Table, Td, Textarea, Th, cx, errMsg, useConfirm, useToast, type DropdownOption } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
@@ -89,7 +88,7 @@ interface HoldPayload {
   walkinName: string;
   phone: string;
   billDiscount: string;
-  mode: PaymentMode;
+  mode: PaymentMode | "";
   reference: string;
   notes: string;
   interState: boolean;
@@ -130,7 +129,7 @@ export default function PosPage() {
   const { current } = useBranch();
   const needBranch = useNeedBranch("bill from it");
   const searchRef = useRef<HTMLInputElement>(null);
-  const billRef = useRef<HTMLElement>(null);
+  const [cartOpen, setCartOpen] = useState(false);
   const keySeq = useRef(0);
   const online = useOnline();
   const queue = useQueue();
@@ -184,7 +183,7 @@ export default function PosPage() {
   const [walkinName, setWalkinName] = useState("");
   const [quickAdd, setQuickAdd] = useState(false);
   const [billDiscount, setBillDiscount] = useState("");
-  const [mode, setMode] = useState<PaymentMode>("CASH");
+  const [mode, setMode] = useState<PaymentMode | "">("");
   const [received, setReceived] = useState<string | null>(null);
   const [reference, setReference] = useState("");
   // Split payment: several modes on one bill (cash + UPI, credit note + cash…)
@@ -195,7 +194,6 @@ export default function PosPage() {
   // Agent who brought the sale in: saved with the sale for internal reference, never printed on the bill
   const [agentId, setAgentId] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
-  const [editing, setEditing] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [overLimit, setOverLimit] = useState<string | null>(null);
   const [done, setDone] = useState<Done | null>(null);
@@ -223,7 +221,7 @@ export default function PosPage() {
       setInterState(c ? placeOfSupply(c, store).interState === true : false);
       setReceived(null);
       if (c?.phone) setPhone(c.phone);
-      if (!c && mode === "CREDIT") setMode("CASH");
+      if (!c && mode === "CREDIT") setMode("");
       // Credit position (overdue dues, hold) comes from the detail endpoint
       if (c) api.get<Customer>(`/customers/${c.id}`).then(setCredit).catch(() => {});
     },
@@ -305,17 +303,20 @@ export default function PosPage() {
   const inCart = (productId: string) => lines.filter((l) => l.product.id === productId).reduce((s, l) => s + n(l.quantity), 0);
 
   // ── Cart ──
-  function addProduct(p: PosProduct) {
-    if (needBranch.blocked) return toast.error("Pick a branch in the top bar to bill from");
+  /** Adds one unit; `quiet` skips the toasts (the camera scanner shows the result itself) */
+  function addProduct(p: PosProduct, quiet = false): { ok: boolean; message: string } {
+    const fail = (message: string) => {
+      if (!quiet) toast.error(message);
+      return { ok: false, message };
+    };
+    if (needBranch.blocked) return fail("Pick a branch in the top bar to bill from");
     const left = sellableOf(p) - inCart(p.id);
-    if (left < 1) {
-      toast.error(sellableOf(p) > 0 ? `No more sellable stock of ${p.name}` : `${p.name} is out of stock here`);
-      return;
-    }
+    if (left < 1) return fail(sellableOf(p) > 0 ? `No more sellable stock of ${p.name}` : `${p.name} is out of stock here`);
+    const added = { ok: true, message: `Added ${p.name} · ${qty(inCart(p.id) + 1)} in cart` };
     const existing = lines.find((l) => l.product.id === p.id && !l.batchId);
     if (existing) {
       setLines((ls) => ls.map((l) => (l.key === existing.key ? { ...l, quantity: String(round2(n(l.quantity) + 1)) } : l)));
-      return;
+      return added;
     }
     const key = ++keySeq.current;
     setLines((ls) => [...ls, { key, product: p, batches: null, batchId: "", quantity: "1", rate: String(n(p.salePrice)), discountPct: "", serialNos: [] }]);
@@ -324,19 +325,21 @@ export default function PosPage() {
       .get<Product>(`/products/${p.id}`)
       .then((full) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, batches: full.batches ?? [] } : l))))
       .catch(() => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, batches: [] } : l))));
+    return added;
   }
 
-  /** Barcode from a USB/Bluetooth scanner or the camera */
-  function scanCode(code: string) {
+  /** Barcode from a USB/Bluetooth scanner or the camera (`quiet`: the camera shows the result, no toast) */
+  function scanCode(code: string, quiet = false): { ok: boolean; message: string } | undefined {
     const q = code.trim().toLowerCase();
     if (!q) return;
     const hit = products.find((p) => p.barcode?.toLowerCase() === q || p.sku.toLowerCase() === q);
     if (!hit) {
-      toast.error(`No product with barcode ${code} — add it to the product first`);
-      return;
+      const message = catalogue.loading && !catalogue.data ? "Products are still loading — scan again in a moment" : `No product with barcode ${code} — add it to the product first`;
+      if (!quiet) toast.error(message);
+      return { ok: false, message };
     }
-    addProduct(hit);
     setSearch("");
+    return addProduct(hit, quiet);
   }
   // Off while a dialog takes its own scans (serial numbers, approvals, holds)
   useScanner(scanCode, !done && !camOpen && !quickAdd && !need && holdLabel === null && !holdsOpen);
@@ -447,6 +450,15 @@ export default function PosPage() {
     }
   }
 
+  const paymentOptions: DropdownOption[] = [
+    ...MODES.filter((m) => m.mode !== "CREDIT" || (customer && !creditHold)).map((m) => ({
+      value: m.mode,
+      label: m.label,
+      hint: m.mode === "KCC" ? "Kisan Credit Card" : m.mode === "CREDIT" ? "added to dues" : undefined,
+    })),
+    { value: "SPLIT", label: "Split Payment", hint: "more than one mode / credit note" },
+  ];
+
   function chooseMode(m: PaymentMode) {
     setMode(m);
     setSplit(false);
@@ -486,6 +498,7 @@ export default function PosPage() {
     }
     if (summary.total <= 0) return "Bill total must be more than zero";
     if (!agentId) return "Choose the agent for this bill";
+    if (!split && !mode) return "Choose the payment type";
     if (!customer && due > 0) return "Credit needs a registered customer — pick or add the farmer first";
     if (due > 0 && creditHold) return `Credit is on hold for ${customer?.name} — collect the dues first or ask a manager to lift the hold`;
     if (phone && phone.length !== 10) return "Enter a valid 10-digit mobile number";
@@ -520,7 +533,7 @@ export default function PosPage() {
       roundOff: summary.roundOff,
       total: summary.total,
       paid: paidAmount,
-      paymentMode: split ? "Split" : modeLabel(mode),
+      paymentMode: split ? "Split" : mode ? modeLabel(mode) : "",
       payments: split ? parts.map((p) => ({ mode: modeLabel(p.mode), amount: n(p.amount), reference: p.reference.trim() || null })) : undefined,
       notes: notes.trim() || null,
       govtReceiptNo: govtReceipt.trim() || null,
@@ -556,6 +569,7 @@ export default function PosPage() {
         : d,
     );
     setOverLimit(null);
+    setCartOpen(false);
     setDone({ sale: null, receipt, queued: true });
     toast.success("No connection — bill saved on this device; it will sync automatically");
   }
@@ -588,7 +602,7 @@ export default function PosPage() {
       }),
       discount: summary.discount || undefined,
       paidAmount,
-      paymentMode: split ? undefined : mode,
+      paymentMode: split || !mode ? undefined : mode,
       paymentReference: split ? undefined : reference.trim() || undefined,
       payments: split ? parts.map((p) => ({ mode: p.mode, amount: n(p.amount), reference: p.reference.trim() || undefined })) : undefined,
       isInterState: interState,
@@ -609,6 +623,7 @@ export default function PosPage() {
       const sale = await api.post<Sale>("/sales", body);
       setOverLimit(null);
       setNeed(null);
+      setCartOpen(false);
       setDone({ sale, receipt: receiptFromSale(sale), queued: false });
       void catalogue.reload();
       if (vanTripId) void vanQ.reload();
@@ -642,11 +657,10 @@ export default function PosPage() {
     setPhone("");
     setCustomer(null);
     setCredit(null);
-    setMode("CASH");
+    setMode("");
     setSplit(false);
     setParts([]);
     setInterState(false);
-    setEditing(null);
     setGovtReceipt("");
     setAadhaar(false);
     setTimeout(() => searchRef.current?.focus(), 0);
@@ -723,7 +737,7 @@ export default function PosPage() {
       setPhone(p.phone ?? "");
     }
     setBillDiscount(p.billDiscount ?? "");
-    setMode(p.mode ?? "CASH");
+    setMode(p.mode ?? "");
     setReference(p.reference ?? "");
     setNotes(p.notes ?? "");
     setAgentId(p.agentId ?? "");
@@ -762,6 +776,7 @@ export default function PosPage() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "F2") {
         e.preventDefault();
+        setCartOpen(false);
         searchRef.current?.focus();
       } else if (e.key === "F9" || (e.key === "Enter" && (e.ctrlKey || e.metaKey))) {
         e.preventDefault();
@@ -782,7 +797,7 @@ export default function PosPage() {
   const waPhone = done ? (customer?.phone ?? phone) : "";
 
   return (
-    <div className="pb-20 xl:pb-0">
+    <div className="pb-24">
       {/* Heading */}
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
@@ -876,222 +891,249 @@ export default function PosPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
-        {/* ── Products ── */}
-        <div className="flex min-w-0 flex-col gap-3">
-          <div className="flex gap-2">
-            <div className="relative min-w-0 flex-1">
-              <ScanLine className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-              <input
-                ref={searchRef}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={onSearchKey}
-                autoFocus
-                placeholder="Scan barcode or search product"
-                aria-label="Scan barcode or search product"
-                className="h-11 w-full rounded-[10px] border border-line bg-surface pl-9 pr-9 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-              />
-              {search && (
-                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700" aria-label="Clear search">
-                  <X className="size-4" />
-                </button>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setCamOpen(true)}
-              className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-[10px] border border-line bg-surface px-3 text-sm font-medium text-ink hover:border-brand-500"
-              title="Scan with the camera"
-            >
-              <Camera className="size-4" />
-              <span className="hidden sm:inline">Camera</span>
-            </button>
-          </div>
-
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {[{ id: "", name: "All" }, ...usedCategories].map((c) => (
-              <button
-                key={c.id || "all"}
-                type="button"
-                onClick={() => setCategory(c.id)}
-                className={cx(
-                  "shrink-0 rounded-full border px-4 py-1.5 text-[13.5px] font-medium transition-colors",
-                  category === c.id ? "border-brand-600 bg-brand-600 text-white" : "border-line bg-surface text-ink hover:border-brand-500",
-                )}
-              >
-                {c.name}
+      {/* ── Products ── */}
+      <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex gap-2">
+          <div className="relative min-w-0 flex-1">
+            <ScanLine className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <input
+              ref={searchRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={onSearchKey}
+              autoFocus
+              placeholder="Scan barcode or search product"
+              aria-label="Scan barcode or search product"
+              className="h-11 w-full rounded-[10px] border border-line bg-surface pl-9 pr-9 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700" aria-label="Clear search">
+                <X className="size-4" />
               </button>
-            ))}
+            )}
           </div>
-
-          {needBranch.blocked ? null : catalogue.loading && !catalogue.data ? (
-            <Spinner />
-          ) : catalogue.error && !catalogue.data ? (
-            <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-10 text-center text-sm text-amber-800">
-              <b className="block">Could not load the catalogue</b>
-              {online ? catalogue.error : "You are offline and this device has no saved copy yet. Open the POS once while online."}
-            </div>
-          ) : visible.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-line-2 bg-surface px-4 py-16 text-center text-sm text-slate-500">
-              <b className="block text-slate-700">No products found</b>
-              Try another name or barcode.
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
-              {visible.map((p) => {
-                const sellable = sellableOf(p);
-                const total = n(p.stock);
-                const left = sellable - inCart(p.id);
-                const expiresIn = p.nextExpiry ? daysUntil(p.nextExpiry) : null;
-                const expiring = expiresIn !== null && expiresIn <= alertDays;
-                const blocked = left < 1;
-                const count = inCart(p.id);
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => addProduct(p)}
-                    disabled={sellable <= 0}
-                    className={cx(
-                      "relative flex min-h-[148px] flex-col rounded-[10px] border bg-surface p-3.5 text-left transition-colors",
-                      sellable <= 0 ? "cursor-not-allowed border-line opacity-55" : "border-line hover:border-brand-500 hover:shadow-sm",
-                      count > 0 && "border-brand-500 ring-1 ring-brand-500/30",
-                    )}
-                  >
-                    <span className="flex items-start justify-between gap-2">
-                      <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted">
-                        {p.category?.name ?? p.type.toLowerCase()}
-                      </span>
-                      {expiring && sellable > 0 && (
-                        <span
-                          className="shrink-0 rounded-full bg-rust-100 px-2 py-0.5 text-[11px] font-semibold text-rust-600"
-                          title={`Earliest Batch Expires ${date(p.nextExpiry)}`}
-                        >
-                          Expiring
-                        </span>
-                      )}
-                    </span>
-                    <b className="mt-1 line-clamp-2 text-[15px] font-bold leading-snug text-ink">{p.name}</b>
-                    <span className="text-[13px] text-muted">{p.packSize || p.unit}</span>
-                    <span className="num mt-auto pt-2 text-[17px] font-bold text-ink">{inr(p.salePrice)}</span>
-                    <span className={cx("text-[12.5px]", sellable <= 0 || blocked ? "text-rust-600" : "text-muted")}>
-                      {sellable <= 0
-                        ? total > 0
-                          ? "Only Expired Stock · Blocked"
-                          : "Out of Stock"
-                        : `${qty(sellable)} in Stock`}
-                    </span>
-                    {count > 0 && (
-                      <span className="num absolute -right-1.5 -top-1.5 flex size-6 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white shadow">
-                        {qty(count)}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => setCamOpen(true)}
+            className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-[10px] border border-line bg-surface px-3 text-sm font-medium text-ink hover:border-brand-500"
+            title="Scan with the camera"
+          >
+            <Camera className="size-4" />
+            <span className="hidden sm:inline">Camera</span>
+          </button>
         </div>
 
-        {/* ── Bill ── */}
-        <aside
-          ref={billRef}
-          aria-label="Bill"
-          className="flex h-fit flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm xl:sticky xl:top-0"
-        >
-          <header className="flex items-center justify-between border-b border-line px-4 py-3">
-            <h2 className="text-base font-bold text-ink">Bill</h2>
-            <span className="text-[13px] text-muted">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {[{ id: "", name: "All" }, ...usedCategories].map((c) => (
+            <button
+              key={c.id || "all"}
+              type="button"
+              onClick={() => setCategory(c.id)}
+              className={cx(
+                "shrink-0 rounded-full border px-4 py-1.5 text-[13.5px] font-medium transition-colors",
+                category === c.id ? "border-brand-600 bg-brand-600 text-white" : "border-line bg-surface text-ink hover:border-brand-500",
+              )}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+
+        {needBranch.blocked ? null : catalogue.loading && !catalogue.data ? (
+          <Spinner />
+        ) : catalogue.error && !catalogue.data ? (
+          <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-10 text-center text-sm text-amber-800">
+            <b className="block">Could not load the catalogue</b>
+            {online ? catalogue.error : "You are offline and this device has no saved copy yet. Open the POS once while online."}
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-line-2 bg-surface px-4 py-16 text-center text-sm text-slate-500">
+            <b className="block text-slate-700">No products found</b>
+            Try another name or barcode.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+            {visible.map((p) => {
+              const sellable = sellableOf(p);
+              const total = n(p.stock);
+              const left = sellable - inCart(p.id);
+              const expiresIn = p.nextExpiry ? daysUntil(p.nextExpiry) : null;
+              const expiring = expiresIn !== null && expiresIn <= alertDays;
+              const blocked = left < 1;
+              const count = inCart(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => addProduct(p)}
+                  disabled={sellable <= 0}
+                  className={cx(
+                    "relative flex min-h-[148px] flex-col rounded-[10px] border bg-surface p-3.5 text-left transition-colors",
+                    sellable <= 0 ? "cursor-not-allowed border-line opacity-55" : "border-line hover:border-brand-500 hover:shadow-sm",
+                    count > 0 && "border-brand-500 ring-1 ring-brand-500/30",
+                  )}
+                >
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted">
+                      {p.category?.name ?? p.type.toLowerCase()}
+                    </span>
+                    {expiring && sellable > 0 && (
+                      <span
+                        className="shrink-0 rounded-full bg-rust-100 px-2 py-0.5 text-[11px] font-semibold text-rust-600"
+                        title={`Earliest Batch Expires ${date(p.nextExpiry)}`}
+                      >
+                        Expiring
+                      </span>
+                    )}
+                  </span>
+                  <b className="mt-1 line-clamp-2 text-[15px] font-bold leading-snug text-ink">{p.name}</b>
+                  <span className="text-[13px] text-muted">{p.packSize || p.unit}</span>
+                  <span className="num mt-auto pt-2 text-[17px] font-bold text-ink">{inr(p.salePrice)}</span>
+                  <span className={cx("text-[12.5px]", sellable <= 0 || blocked ? "text-rust-600" : "text-muted")}>
+                    {sellable <= 0
+                      ? total > 0
+                        ? "Only Expired Stock · Blocked"
+                        : "Out of Stock"
+                      : `${qty(sellable)} in Stock`}
+                  </span>
+                  {count > 0 && (
+                    <span className="num absolute -right-1.5 -top-1.5 flex size-6 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white shadow">
+                      {qty(count)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Bill: opened from the cart button ── */}
+      <Modal
+        open={cartOpen}
+        onClose={() => setCartOpen(false)}
+        size="xl"
+        centered
+        scrollBody={false}
+        className="sm:max-w-[80vw] lg:w-[78vw]"
+        title={
+          <span className="flex items-center gap-2">
+            <ReceiptText className="size-4 text-brand-700" />
+            Bill
+            <span className="rounded-full bg-paper-2 px-2 py-0.5 text-xs font-medium text-muted">
               {qty(summary.count)} item{summary.count === 1 ? "" : "s"}
             </span>
-          </header>
-
-          {/* Customer */}
-          <div className="space-y-2 border-b border-line p-4">
-            <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
-              <Input
-                type="tel"
-                inputMode="numeric"
-                value={phone}
-                onChange={(e) => void changePhone(e.target.value)}
-                placeholder="Farmer mobile no."
-                aria-label="Farmer mobile number"
-                className="h-11"
-              />
-              {customer ? (
-                <div className="flex h-11 items-center justify-between gap-1 rounded-lg border border-brand-300 bg-brand-50 px-2.5">
-                  <span className="truncate text-sm font-semibold text-slate-800">{customer.name}</span>
-                  <button onClick={() => pickCustomer(null)} className="shrink-0 text-slate-400 hover:text-slate-700" aria-label="Back to walk-in">
-                    <X className="size-4" />
-                  </button>
-                </div>
-              ) : (
+          </span>
+        }
+      >
+        {/* One grid, so the column split lines up on every row: farmer | agent · products | totals · total | actions.
+            The page behind never scrolls; on wide screens only the product list does (phones: the whole bill stacks and scrolls) */}
+        <div className="-mx-4 -my-4 grid min-h-0 flex-1 grid-cols-1 overflow-y-auto sm:-mx-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:grid-rows-[auto_minmax(0,1fr)_auto] lg:overflow-hidden">
+          {/* Row 1 · Farmer */}
+          <div className="min-w-0 border-b border-line lg:border-r">
+            {/* Customer */}
+            <section className="min-w-0 space-y-2 p-4">
+              <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
                 <Input
-                  value={walkinName}
-                  onChange={(e) => setWalkinName(e.target.value)}
-                  placeholder="Walk-in farmer"
-                  aria-label="Walk-in name"
+                  type="tel"
+                  inputMode="numeric"
+                  value={phone}
+                  onChange={(e) => void changePhone(e.target.value)}
+                  placeholder="Farmer mobile no."
+                  aria-label="Farmer mobile number"
                   className="h-11"
                 />
-              )}
-            </div>
-            {!customer && can("customers.view", "customers.create") && (
-              <div className="flex items-center gap-2">
-                {can("customers.view") && (
-                  <div className="min-w-0 flex-1">
-                    <CustomerPicker value={null} onChange={pickCustomer} />
+                {customer ? (
+                  <div className="flex h-11 items-center justify-between gap-1 rounded-lg border border-brand-300 bg-brand-50 px-2.5">
+                    <span className="truncate text-sm font-semibold text-slate-800">{customer.name}</span>
+                    <button onClick={() => pickCustomer(null)} className="shrink-0 text-slate-400 hover:text-slate-700" aria-label="Back to walk-in">
+                      <X className="size-4" />
+                    </button>
                   </div>
-                )}
-                {can("customers.create") && (
-                  <Button variant="secondary" size="sm" className="h-9" icon={<UserPlus className="size-4" />} onClick={() => setQuickAdd(true)}>
-                    New
-                  </Button>
+                ) : (
+                  <Input
+                    value={walkinName}
+                    onChange={(e) => setWalkinName(e.target.value)}
+                    placeholder="Walk-in farmer"
+                    aria-label="Walk-in name"
+                    className="h-11"
+                  />
                 )}
               </div>
-            )}
-            {customer && (
-              <p className="text-xs text-muted">
-                {[customer.village, customer.gstin && `GSTIN ${customer.gstin}`, customer.customerType?.name && `${customer.customerType.name} · ${n(customer.customerType.discountPct)}% off`].filter(Boolean).join(" · ") || "Registered customer"}
-                {" · "}
-                <span className={n(customer.balance) > 0 ? "font-semibold text-rust-600" : ""}>due {inr(customer.balance)}</span>
-                {n(customer.creditLimit) > 0 && ` · limit ${inr0(customer.creditLimit)}`}
-                {customer.creditDays > 0 && ` · ${customer.creditDays} days credit`}
-              </p>
-            )}
-            {customer && availableCredit > 0 && (
-              <p className="flex items-center justify-between gap-2 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-800">
-                <span>
-                  Credit note available: <b className="num">{inr(availableCredit)}</b>
-                </span>
-                {lines.length > 0 && creditNoteUsed === 0 && (
-                  <button type="button" className="font-semibold underline" onClick={() => startSplit(true)}>
-                    Apply to This Bill
-                  </button>
-                )}
-              </p>
-            )}
-            {customer && creditHold && (
-              <p className="flex items-start gap-1 rounded-lg bg-rust-100 px-2.5 py-1.5 text-xs font-semibold text-rust-600">
-                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> Credit is on hold for this customer — cash, UPI or card only.
-              </p>
-            )}
-            {customer && !creditHold && overdue && overdue.amount > 0 && (
-              <p className="flex items-start gap-1 text-xs font-medium text-rust-600">
-                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                {inr(overdue.amount)} overdue by {overdue.days} days — collect it with this bill.
-              </p>
-            )}
-            {overCredit && (
-              <p className="flex items-start gap-1 text-xs font-medium text-rust-600">
-                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                This bill takes the balance to {inr(projectedBalance)}, over the credit limit.
-              </p>
+              {!customer && can("customers.view", "customers.create") && (
+                <div className="flex items-center gap-2">
+                  {can("customers.view") && (
+                    <div className="min-w-0 flex-1">
+                      <CustomerPicker value={null} onChange={pickCustomer} />
+                    </div>
+                  )}
+                  {can("customers.create") && (
+                    <Button variant="secondary" size="sm" className="h-9" icon={<UserPlus className="size-4" />} onClick={() => setQuickAdd(true)}>
+                      New
+                    </Button>
+                  )}
+                </div>
+              )}
+              {customer && (
+                <p className="text-xs text-muted">
+                  {[customer.village, customer.gstin && `GSTIN ${customer.gstin}`, customer.customerType?.name && `${customer.customerType.name} · ${n(customer.customerType.discountPct)}% off`].filter(Boolean).join(" · ") || "Registered customer"}
+                  {" · "}
+                  <span className={n(customer.balance) > 0 ? "font-semibold text-rust-600" : ""}>due {inr(customer.balance)}</span>
+                  {n(customer.creditLimit) > 0 && ` · limit ${inr0(customer.creditLimit)}`}
+                  {customer.creditDays > 0 && ` · ${customer.creditDays} days credit`}
+                </p>
+              )}
+              {customer && availableCredit > 0 && (
+                <p className="flex items-center justify-between gap-2 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-800">
+                  <span>
+                    Credit note available: <b className="num">{inr(availableCredit)}</b>
+                  </span>
+                  {lines.length > 0 && creditNoteUsed === 0 && (
+                    <button type="button" className="font-semibold underline" onClick={() => startSplit(true)}>
+                      Apply to This Bill
+                    </button>
+                  )}
+                </p>
+              )}
+              {customer && creditHold && (
+                <p className="flex items-start gap-1 rounded-lg bg-rust-100 px-2.5 py-1.5 text-xs font-semibold text-rust-600">
+                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0" /> Credit is on hold for this customer — cash, UPI or card only.
+                </p>
+              )}
+              {customer && !creditHold && overdue && overdue.amount > 0 && (
+                <p className="flex items-start gap-1 text-xs font-medium text-rust-600">
+                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                  {inr(overdue.amount)} overdue by {overdue.days} days — collect it with this bill.
+                </p>
+              )}
+              {overCredit && (
+                <p className="flex items-start gap-1 text-xs font-medium text-rust-600">
+                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                  This bill takes the balance to {inr(projectedBalance)}, over the credit limit.
+                </p>
+              )}
+            </section>
+            {/* Government fertiliser POS — subsidised lines are sold on the govt device first */}
+            {needsGovt && (
+              <div className={cx("space-y-2 border-t p-4", govtMissing ? "border-rust-200 bg-rust-50" : "border-line bg-leaf-50")}>
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-ink">
+                  <ShieldCheck className={cx("size-4", govtMissing ? "text-rust-600" : "text-brand-700")} />
+                  Subsidised fertiliser: {subsidisedLines.map((l) => l.product.name).join(", ")}
+                </p>
+                <Input
+                  value={govtReceipt}
+                  onChange={(e) => setGovtReceipt(e.target.value.toUpperCase())}
+                  placeholder="Govt fertiliser POS receipt no. (required)"
+                  aria-label="Govt fertiliser POS receipt no."
+                  className={cx("h-10 font-mono", govtMissing && "border-rust-300")}
+                />
+                <Checkbox label="Aadhaar Verified on the Govt Device" checked={aadhaar} onChange={setAadhaar} />
+                {govtMissing && <p className="text-xs text-rust-600">Can&apos;t complete until the govt POS receipt no. is entered.</p>}
+              </div>
             )}
           </div>
-
-          {/* Agent (required) — internal reference only: shown in sales lists and details, not on the printed bill */}
-          <div className="border-b border-line px-4 py-3">
+          {/* Row 1 · Agent (required) — internal reference only: shown in sales lists and details, not on the printed bill */}
+          <section className="min-w-0 border-b border-line p-4">
             <p className="mb-1 text-xs font-medium text-slate-600">
               Agent<span className="text-red-500"> *</span>
             </p>
@@ -1106,53 +1148,69 @@ export default function PosPage() {
               allowClear
               aria-label="Agent"
             />
-          </div>
+          </section>
 
-          {/* Government fertiliser POS — subsidised lines are sold on the govt device first */}
-          {needsGovt && (
-            <div className={cx("space-y-2 border-b p-4", govtMissing ? "border-rust-200 bg-rust-50" : "border-line bg-leaf-50")}>
-              <p className="flex items-center gap-1.5 text-xs font-semibold text-ink">
-                <ShieldCheck className={cx("size-4", govtMissing ? "text-rust-600" : "text-brand-700")} />
-                Subsidised fertiliser: {subsidisedLines.map((l) => l.product.name).join(", ")}
-              </p>
-              <Input
-                value={govtReceipt}
-                onChange={(e) => setGovtReceipt(e.target.value.toUpperCase())}
-                placeholder="Govt fertiliser POS receipt no. (required)"
-                aria-label="Govt fertiliser POS receipt no."
-                className={cx("h-10 font-mono", govtMissing && "border-rust-300")}
-              />
-              <Checkbox label="Aadhaar Verified on the Govt Device" checked={aadhaar} onChange={setAadhaar} />
-              {govtMissing && <p className="text-xs text-rust-600">Can&apos;t complete until the govt POS receipt no. is entered.</p>}
-            </div>
-          )}
-
-          {/* Lines */}
-          <div className="max-h-[42vh] overflow-y-auto">
+          {/* Row 2 · Products: the only part that scrolls, under a sticky header */}
+          <div className="flex min-w-0 flex-col border-b border-line lg:min-h-0 lg:border-b-0 lg:border-r">
             {lines.length === 0 ? (
-              <div className="px-4 py-10 text-center">
-                <ShoppingCart className="mx-auto size-7 text-slate-300" />
+              <div className="px-4 py-16 text-center">
+                <ShoppingCart className="mx-auto size-8 text-slate-300" />
                 <b className="mt-2 block text-[15px] text-ink">Cart is empty</b>
                 <span className="text-[13px] text-muted">Tap a product or scan its barcode.</span>
               </div>
             ) : (
-              <ul className="divide-y divide-paper-3">
-                {lines.map((l) => {
-                  const sellable = l.batches?.filter((b) => !isExpired(b)) ?? [];
-                  const chosen = sellable.find((b) => b.id === l.batchId);
-                  const open = editing === l.key;
-                  return (
-                    <li key={l.key} className="px-4 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <b className="block truncate text-sm text-ink">{l.product.name}</b>
-                          <span className="text-xs text-muted">
-                            {l.product.packSize || l.product.unit}
-                            {" · "}
-                            {chosen ? `Batch ${chosen.batchNo}` : "Batch auto (earliest expiry)"}
-                            {(chosen?.location ?? l.product.location) && ` · ${chosen?.location ?? l.product.location}`}
-                            {n(l.discountPct) > 0 && ` · ${n(l.discountPct)}% off`}
+              <Table className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto [&>table]:min-w-[680px] [&>table]:table-fixed [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10">
+                <thead>
+                  <tr>
+                    <Th className="w-10 pl-4 sm:pl-5">#</Th>
+                    <Th>Product</Th>
+                    <Th center className="w-32">
+                      Qty
+                    </Th>
+                    <Th right className="w-28">
+                      <span title="Rate including GST">Rate ₹</span>
+                    </Th>
+                    <Th right className="w-20">
+                      Disc %
+                    </Th>
+                    <Th right className="w-28">
+                      Amount
+                    </Th>
+                    <Th className="w-12 pr-4 sm:pr-5" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((l, i) => {
+                    const sellable = l.batches?.filter((b) => !isExpired(b)) ?? [];
+                    const location = sellable.find((b) => b.id === l.batchId)?.location ?? l.product.location;
+                    return (
+                      <tr key={l.key} className="align-top hover:bg-paper-2/60">
+                        <Td className="num pl-4 pt-3.5 text-xs text-muted sm:pl-5">{i + 1}</Td>
+                        <Td>
+                          <b className="block truncate text-sm text-ink" title={l.product.name}>
+                            {l.product.name}
+                          </b>
+                          <span className="block truncate text-xs text-muted">
+                            {[l.product.packSize && !/^\d+(\.\d+)?$/.test(l.product.packSize.trim()) ? l.product.packSize : l.product.unit, location]
+                              .filter(Boolean)
+                              .join(" · ")}
                           </span>
+                          {!l.product.trackSerial && (
+                            <Select
+                              value={l.batchId}
+                              onChange={(e) => update(l.key, { batchId: e.target.value })}
+                              disabled={l.batches === null}
+                              className="mt-1.5 h-7 max-w-full text-xs"
+                              aria-label={`Batch of ${l.product.name}`}
+                            >
+                              <option value="">{l.batches === null ? "Loading…" : "Batch: Auto (Earliest Expiry)"}</option>
+                              {sellable.map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.batchNo} · {b.expiryDate ? `exp ${date(b.expiryDate)}` : "no expiry"} · {qty(b.quantity)}
+                                </option>
+                              ))}
+                            </Select>
+                          )}
                           <LinePricing p={pricing.byKey.get(l.key)} unit={l.product.unit} />
                           {l.product.trackSerial && (
                             <SerialSelect
@@ -1162,306 +1220,279 @@ export default function PosPage() {
                               onChange={(serialNos, serialBatches) => update(l.key, { serialNos, serialBatches })}
                             />
                           )}
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <b className="num block text-sm">{inr(lineGross(l, pricing.byKey.get(l.key)))}</b>
-                          <span className="num text-xs text-muted">
-                            {qty(l.quantity)} × {inr(l.rate)}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="mt-2 flex items-center justify-between gap-2">
-                        <div className="inline-flex items-center rounded-lg border border-line">
-                          <button onClick={() => step(l.key, -1)} className="flex size-10 items-center sm:size-8 justify-center text-slate-600 hover:bg-slate-50" aria-label="Less">
-                            <Minus className="size-3.5" />
-                          </button>
-                          <input
-                            value={l.quantity}
-                            onChange={(e) => update(l.key, { quantity: e.target.value.replace(/[^\d.]/g, "") })}
-                            inputMode="decimal"
-                            className="num h-10 w-12 border-x border-line text-center text-sm outline-none sm:h-8"
-                            aria-label={`Quantity of ${l.product.name}`}
+                        </Td>
+                        <Td center>
+                          <div className="inline-flex items-center rounded-lg border border-line bg-surface">
+                            <button onClick={() => step(l.key, -1)} className="flex size-8 items-center justify-center text-slate-600 hover:bg-slate-50" aria-label="Less">
+                              <Minus className="size-3.5" />
+                            </button>
+                            <input
+                              value={l.quantity}
+                              onChange={(e) => update(l.key, { quantity: e.target.value.replace(/[^\d.]/g, "") })}
+                              inputMode="decimal"
+                              className="num h-8 w-12 border-x border-line bg-transparent text-center text-sm outline-none"
+                              aria-label={`Quantity of ${l.product.name}`}
+                            />
+                            <button onClick={() => step(l.key, 1)} className="flex size-8 items-center justify-center text-slate-600 hover:bg-slate-50" aria-label="More">
+                              <Plus className="size-3.5" />
+                            </button>
+                          </div>
+                        </Td>
+                        <Td right>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={l.rate}
+                            onChange={(e) => update(l.key, { rate: e.target.value })}
+                            onFocus={(e) => e.target.select()}
+                            className="num h-8 text-right"
+                            aria-label={`Rate of ${l.product.name}`}
                           />
-                          <button onClick={() => step(l.key, 1)} className="flex size-10 items-center sm:size-8 justify-center text-slate-600 hover:bg-slate-50" aria-label="More">
-                            <Plus className="size-3.5" />
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setEditing(open ? null : l.key)}
-                            className="rounded-md px-3 py-2.5 text-xs font-medium text-brand-700 hover:bg-brand-50 sm:px-2 sm:py-1"
-                          >
-                            {open ? "Done" : "Edit"}
-                          </button>
-                          <button onClick={() => remove(l.key)} className="rounded-md p-2.5 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:p-1.5" aria-label={`Remove ${l.product.name}`}>
+                          {n(l.product.mrp) > 0 && n(l.rate) > n(l.product.mrp) && (
+                            <p className="mt-0.5 text-[11px] font-medium text-amber-700">Above MRP {inr(l.product.mrp)}</p>
+                          )}
+                        </Td>
+                        <Td right>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            value={l.discountPct}
+                            placeholder="0"
+                            onChange={(e) => update(l.key, { discountPct: e.target.value })}
+                            onFocus={(e) => e.target.select()}
+                            className="num h-8 text-right"
+                            aria-label={`Discount % of ${l.product.name}`}
+                          />
+                        </Td>
+                        <Td right className="pt-3.5">
+                          <b className="num block truncate text-sm text-ink">{inr(lineGross(l, pricing.byKey.get(l.key)))}</b>
+                        </Td>
+                        <Td className="pr-4 pt-2.5 sm:pr-5">
+                          <button onClick={() => remove(l.key)} className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Remove ${l.product.name}`} title="Remove">
                             <Trash2 className="size-4" />
                           </button>
-                        </div>
-                      </div>
-                      {open && (
-                        <div className="mt-2 grid grid-cols-3 gap-2 rounded-lg bg-paper-2 p-2">
-                          <label className="col-span-3 text-xs text-muted">
-                            Batch
-                            <Select value={l.batchId} onChange={(e) => update(l.key, { batchId: e.target.value })} disabled={l.batches === null} className="mt-0.5 h-8 text-xs">
-                              <option value="">{l.batches === null ? "Loading…" : "Auto (Earliest Expiry)"}</option>
-                              {sellable.map((b) => (
-                                <option key={b.id} value={b.id}>
-                                  {b.batchNo} · {b.expiryDate ? `exp ${date(b.expiryDate)}` : "no expiry"} · {qty(b.quantity)}
-                                </option>
-                              ))}
-                            </Select>
-                          </label>
-                          <label className="col-span-2 text-xs text-muted">
-                            Rate (Incl. GST)
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={l.rate}
-                              onChange={(e) => update(l.key, { rate: e.target.value })}
-                              className="num mt-0.5 h-8 text-right"
-                            />
-                          </label>
-                          <label className="text-xs text-muted">
-                            Disc %
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              max="100"
-                              value={l.discountPct}
-                              placeholder="0"
-                              onChange={(e) => update(l.key, { discountPct: e.target.value })}
-                              className="num mt-0.5 h-8 text-right"
-                            />
-                          </label>
-                          {n(l.product.mrp) > 0 && n(l.rate) > n(l.product.mrp) && (
-                            <p className="col-span-3 text-xs font-medium text-amber-700">Rate is above MRP ({inr(l.product.mrp)})</p>
-                          )}
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+                        </Td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
             )}
           </div>
 
-          {/* Totals + payment */}
-          <div className="space-y-3 border-t border-line p-4">
+          {/* Row 2 · Totals and payment: sized to fit; scrolls only if it can't (e.g. a long split) */}
+          <div className="min-w-0 bg-paper-2/40 lg:min-h-0 lg:overflow-y-auto">
+            {/* Totals */}
             {lines.length > 0 && (
-              <dl className="space-y-1 text-sm">
-                <Row label="Items Total" value={inr(summary.itemsTotal)} />
-                <div className="flex items-center justify-between gap-3">
-                  <dt className="text-muted">Discount (₹)</dt>
-                  <dd>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={billDiscount}
-                      placeholder="0"
-                      onChange={(e) => {
-                        setBillDiscount(e.target.value);
-                        setReceived(null);
-                      }}
-                      className="num h-7 w-24 text-right"
-                      aria-label="Bill discount"
-                    />
-                  </dd>
-                </div>
-                {aboveLimit && (
-                  <p className="text-xs font-medium text-amber-700">
-                    {summary.manualMax}% is above your {n(limits?.maxDiscountPct)}% limit — a manager&apos;s PIN or approval will be asked on completing the sale
-                  </p>
-                )}
-                {pricing.typeName && <Row label={`${pricing.typeName} Price`} value={pricing.typeApplied ? "applied" : `from ${inr0(pricing.minBill)}`} muted />}
-                <Row label="Taxable Value" value={inr(summary.taxable)} muted />
-                {interState ? (
-                  <Row label="IGST" value={inr(summary.tax)} muted />
-                ) : (
-                  <>
-                    <Row label="CGST" value={inr(summary.tax / 2)} muted />
-                    <Row label="SGST" value={inr(summary.tax / 2)} muted />
-                  </>
-                )}
-                {summary.roundOff !== 0 && <Row label="Round Off" value={inr(summary.roundOff)} muted />}
-                <div className="flex items-baseline justify-between border-t border-line pt-2">
-                  <dt className="font-semibold text-ink">Total</dt>
-                  <dd className="num font-display text-2xl font-bold text-ink">{inr(summary.total)}</dd>
-                </div>
-              </dl>
+              <section className="border-b border-line p-4">
+                <dl className="space-y-1 text-sm">
+                  <Row label="Items Total" value={inr(summary.itemsTotal)} />
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-muted">Discount (₹)</dt>
+                    <dd>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={billDiscount}
+                        placeholder="0"
+                        onChange={(e) => {
+                          setBillDiscount(e.target.value);
+                          setReceived(null);
+                        }}
+                        className="num h-7 w-24 text-right"
+                        aria-label="Bill discount"
+                      />
+                    </dd>
+                  </div>
+                  {aboveLimit && (
+                    <p className="text-xs font-medium text-amber-700">
+                      {summary.manualMax}% is above your {n(limits?.maxDiscountPct)}% limit — a manager&apos;s PIN or approval will be asked on completing the sale
+                    </p>
+                  )}
+                  {pricing.typeName && <Row label={`${pricing.typeName} Price`} value={pricing.typeApplied ? "applied" : `from ${inr0(pricing.minBill)}`} muted />}
+                  <Row label="Taxable Value" value={inr(summary.taxable)} muted />
+                  {interState ? (
+                    <Row label="IGST" value={inr(summary.tax)} muted />
+                  ) : (
+                    <>
+                      <Row label="CGST" value={inr(summary.tax / 2)} muted />
+                      <Row label="SGST" value={inr(summary.tax / 2)} muted />
+                    </>
+                  )}
+                  {summary.roundOff !== 0 && <Row label="Round Off" value={inr(summary.roundOff)} muted />}
+                  <div className="flex items-baseline justify-between border-t border-line pt-2">
+                    <dt className="font-semibold text-ink">Total</dt>
+                    <dd className="num font-display text-2xl font-bold text-ink">{inr(summary.total)}</dd>
+                  </div>
+                </dl>
+              </section>
             )}
 
-            <div className="grid grid-cols-4 gap-2">
-              {MODES.map((m) => {
-                const disabled = m.mode === "CREDIT" && (!customer || creditHold);
-                return (
-                  <button
-                    key={m.mode}
-                    type="button"
-                    disabled={disabled}
-                    title={disabled ? (creditHold ? "Credit is on hold" : "Credit needs a registered customer") : m.mode === "KCC" ? "Kisan Credit Card (settles to the bank)" : undefined}
-                    onClick={() => chooseMode(m.mode)}
-                    className={cx(
-                      "h-11 rounded-lg border text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40",
-                      !split && mode === m.mode ? "border-brand-500 bg-leaf-100 text-brand-700" : "border-line bg-surface text-ink hover:border-brand-500",
-                    )}
-                  >
-                    {m.label}
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={() => (split ? setSplit(false) : startSplit(false))}
-                title="Pay with more than one mode, e.g. part cash + part UPI, or apply a credit note"
-                className={cx(
-                  "inline-flex h-11 items-center justify-center gap-1 rounded-lg border text-sm font-semibold transition-colors",
-                  split ? "border-brand-500 bg-leaf-100 text-brand-700" : "border-line bg-surface text-ink hover:border-brand-500",
-                )}
-              >
-                <Split className="size-4" /> Split
-              </button>
-            </div>
+            {/* Payment */}
+            <section className="space-y-3 p-4">
+              <div>
+                <p className="mb-1 text-xs font-medium text-slate-600">
+                  Payment Type<span className="text-red-500"> *</span>
+                </p>
+                <Dropdown
+                  options={paymentOptions}
+                  value={split ? "SPLIT" : mode}
+                  onChange={(v) => (v === "SPLIT" ? startSplit(false) : chooseMode(v as PaymentMode))}
+                  placeholder="Choose Payment Type"
+                  className={cx(!split && !mode && lines.length > 0 && "border-amber-400")}
+                  aria-label="Payment type"
+                />
+              </div>
+              {mode === "CREDIT" && !customer && (
+                <p className="flex items-center gap-1.5 rounded-lg bg-ochre-100 px-3 py-2 text-xs text-ochre-800">
+                  <AlertTriangle className="size-3.5" /> Credit needs a registered customer.
+                </p>
+              )}
 
-            {mode === "CREDIT" && !customer && (
-              <p className="flex items-center gap-1.5 rounded-lg bg-ochre-100 px-3 py-2 text-xs text-ochre-800">
-                <AlertTriangle className="size-3.5" /> Credit needs a registered customer.
-              </p>
-            )}
-
-            {lines.length > 0 && split && (
-              <div className="space-y-2 rounded-lg bg-paper-2 p-2">
-                {parts.map((p) => (
-                  <div key={p.key} className="flex items-center gap-1.5">
-                    <Select value={p.mode} onChange={(e) => updatePart(p.key, { mode: e.target.value as PaymentMode, reference: "" })} className="h-8 w-28 shrink-0 text-xs sm:w-32" aria-label="Payment mode">
-                      {MONEY_MODES.map((m) => (
-                        <option key={m} value={m}>
-                          {modeLabel(m)}
-                        </option>
-                      ))}
-                      {customer && availableCredit > 0 && <option value="CREDIT_NOTE">Credit Note</option>}
-                    </Select>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={p.amount}
-                      onChange={(e) => updatePart(p.key, { amount: e.target.value })}
-                      onFocus={(e) => e.target.select()}
-                      className="num h-8 w-20 shrink-0 text-right sm:w-24"
-                      aria-label="Amount"
-                    />
-                    {p.mode !== "CASH" && p.mode !== "CREDIT_NOTE" ? (
-                      <Input value={p.reference} onChange={(e) => updatePart(p.key, { reference: e.target.value })} placeholder={p.mode === "CHEQUE" ? "Cheque no." : p.mode === "UPI" ? "UTR" : "Ref"} className="h-8 min-w-0 flex-1 text-xs" />
-                    ) : (
-                      <span className="min-w-0 flex-1 truncate text-[11px] text-muted">{p.mode === "CREDIT_NOTE" ? `of ${inr(availableCredit)} available` : ""}</span>
-                    )}
-                    <button type="button" onClick={() => removePart(p.key)} className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove payment line">
-                      <X className="size-4" />
+              {lines.length > 0 && split && (
+                <div className="space-y-2 rounded-lg bg-paper-2 p-2">
+                  {parts.map((p) => (
+                    <div key={p.key} className="flex items-center gap-1.5">
+                      <Select value={p.mode} onChange={(e) => updatePart(p.key, { mode: e.target.value as PaymentMode, reference: "" })} className="h-8 w-28 shrink-0 text-xs sm:w-32" aria-label="Payment mode">
+                        {MONEY_MODES.map((m) => (
+                          <option key={m} value={m}>
+                            {modeLabel(m)}
+                          </option>
+                        ))}
+                        {customer && availableCredit > 0 && <option value="CREDIT_NOTE">Credit Note</option>}
+                      </Select>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={p.amount}
+                        onChange={(e) => updatePart(p.key, { amount: e.target.value })}
+                        onFocus={(e) => e.target.select()}
+                        className="num h-8 w-20 shrink-0 text-right sm:w-24"
+                        aria-label="Amount"
+                      />
+                      {p.mode !== "CASH" && p.mode !== "CREDIT_NOTE" ? (
+                        <Input value={p.reference} onChange={(e) => updatePart(p.key, { reference: e.target.value })} placeholder={p.mode === "CHEQUE" ? "Cheque no." : p.mode === "UPI" ? "UTR" : "Ref"} className="h-8 min-w-0 flex-1 text-xs" />
+                      ) : (
+                        <span className="min-w-0 flex-1 truncate text-[11px] text-muted">{p.mode === "CREDIT_NOTE" ? `of ${inr(availableCredit)} available` : ""}</span>
+                      )}
+                      <button type="button" onClick={() => removePart(p.key)} className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove payment line">
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between text-xs">
+                    <button type="button" onClick={addPart} className="font-semibold text-brand-700 hover:underline">
+                      + Add payment line
                     </button>
+                    <span className={cx("num font-semibold", partsTotal > summary.total + 0.004 ? "text-red-600" : due > 0 ? "text-ochre-600" : "text-brand-700")}>
+                      {partsTotal > summary.total + 0.004 ? `Over by ${inr(partsTotal - summary.total)}` : due > 0 ? `${inr(due)} left${customer ? " → added to dues" : " (needs a customer)"}` : "Fully paid"}
+                    </span>
                   </div>
-                ))}
-                <div className="flex items-center justify-between text-xs">
-                  <button type="button" onClick={addPart} className="font-semibold text-brand-700 hover:underline">
-                    + Add payment line
-                  </button>
-                  <span className={cx("num font-semibold", partsTotal > summary.total + 0.004 ? "text-red-600" : due > 0 ? "text-ochre-600" : "text-brand-700")}>
-                    {partsTotal > summary.total + 0.004 ? `Over by ${inr(partsTotal - summary.total)}` : due > 0 ? `${inr(due)} left${customer ? " → added to dues" : " (needs a customer)"}` : "Fully paid"}
-                  </span>
                 </div>
-              </div>
-            )}
+              )}
 
-            {lines.length > 0 && !split && (
-              <div className="grid grid-cols-2 gap-2">
-                <label className="text-xs text-muted">
-                  {mode === "CREDIT" ? "Advance Received" : "Amount Received"}
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={received ?? String(defaultReceived)}
-                    onChange={(e) => setReceived(e.target.value)}
-                    onFocus={(e) => e.target.select()}
-                    className="num mt-0.5 h-9 text-right"
-                  />
-                </label>
-                {mode !== "CASH" && mode !== "CREDIT" ? (
+              {lines.length > 0 && !split && mode && (
+                <div className="grid grid-cols-2 gap-2">
                   <label className="text-xs text-muted">
-                    {mode === "CHEQUE" ? "Cheque No." : mode === "UPI" ? "UPI Ref / UTR" : mode === "KCC" ? "KCC Card / Txn No." : "Reference"}
-                    <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Optional" className="mt-0.5 h-9" />
+                    {mode === "CREDIT" ? "Advance Received" : "Amount Received"}
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={received ?? String(defaultReceived)}
+                      onChange={(e) => setReceived(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      className="num mt-0.5 h-9 text-right"
+                    />
                   </label>
-                ) : (
-                  <div className="flex flex-col justify-end text-right">
-                    {mode === "CASH" && change > 0 && (
-                      <>
-                        <span className="text-xs text-muted">Change to return</span>
-                        <span className="num text-lg font-bold text-brand-700">{inr(change)}</span>
-                      </>
-                    )}
-                    {due > 0 && customer && (
-                      <>
-                        <span className="text-xs text-muted">Added to dues</span>
-                        <span className="num text-lg font-bold text-ochre-600">{inr(due)}</span>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                  {mode !== "CASH" && mode !== "CREDIT" ? (
+                    <label className="text-xs text-muted">
+                      {mode === "CHEQUE" ? "Cheque No." : mode === "UPI" ? "UPI Ref / UTR" : mode === "KCC" ? "KCC Card / Txn No." : "Reference"}
+                      <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Optional" className="mt-0.5 h-9" />
+                    </label>
+                  ) : (
+                    <div className="flex flex-col justify-end text-right">
+                      {mode === "CASH" && change > 0 && (
+                        <>
+                          <span className="text-xs text-muted">Change to return</span>
+                          <span className="num text-lg font-bold text-brand-700">{inr(change)}</span>
+                        </>
+                      )}
+                      {due > 0 && customer && (
+                        <>
+                          <span className="text-xs text-muted">Added to dues</span>
+                          <span className="num text-lg font-bold text-ochre-600">{inr(due)}</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
-            <button type="button" onClick={() => setMoreOpen((o) => !o)} className="flex items-center gap-1 text-xs font-medium text-muted hover:text-ink">
-              <ChevronDown className={cx("size-3.5 transition-transform", moreOpen && "rotate-180")} /> More Options
-            </button>
-            {moreOpen && (
-              <div className="space-y-2">
-                <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes to print on the bill (dosage advice, vehicle no.…)" />
-                <Checkbox label="Inter-State Supply (IGST)" checked={interState} onChange={setInterState} />
-              </div>
-            )}
+              <button type="button" onClick={() => setMoreOpen((o) => !o)} className="flex items-center gap-1 text-xs font-medium text-muted hover:text-ink">
+                <ChevronDown className={cx("size-3.5 transition-transform", moreOpen && "rotate-180")} /> More Options
+              </button>
+              {moreOpen && (
+                <div className="space-y-2">
+                  <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes to print on the bill (dosage advice, vehicle no.…)" />
+                  <Checkbox label="Inter-State Supply (IGST)" checked={interState} onChange={setInterState} />
+                </div>
+              )}
 
-            {shiftMissing && (
-              <p className="flex items-center justify-between gap-2 rounded-lg bg-ochre-100 px-3 py-2 text-xs text-ochre-800">
-                <span>{canShift ? "No shift open — enter the opening cash first." : "Billing needs an open shift, and your role can't open one — ask an administrator."}</span>
-                {canShift && (
-                  <button type="button" className="font-semibold underline" onClick={() => setOpenShift(true)}>
-                    Open Shift
-                  </button>
-                )}
-              </p>
+              {shiftMissing && (
+                <p className="flex items-center justify-between gap-2 rounded-lg bg-ochre-100 px-3 py-2 text-xs text-ochre-800">
+                  <span>{canShift ? "No shift open — enter the opening cash first." : "Billing needs an open shift, and your role can't open one — ask an administrator."}</span>
+                  {canShift && (
+                    <button type="button" className="font-semibold underline" onClick={() => setOpenShift(true)}>
+                      Open Shift
+                    </button>
+                  )}
+                </p>
+              )}
+            </section>
+          </div>
+
+          {/* Row 3 · Bill total | actions */}
+          <div className="min-w-0 border-t border-line px-4 py-3 sm:px-5 lg:border-r">
+            <p className="text-xs text-muted">Bill Total</p>
+            <p className="num font-display text-2xl font-bold leading-tight text-ink">{inr(summary.total)}</p>
+          </div>
+          <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
+            {lines.length > 0 && (
+              <Button variant="secondary" className="h-11" icon={<Trash2 className="size-4" />} onClick={newSale}>
+                Clear Cart
+              </Button>
             )}
             <Button
-              className="h-12 w-full text-[15px]"
+              className="h-11 flex-1 text-[15px]"
               loading={saving}
               disabled={!lines.length || needBranch.blocked || govtMissing || shiftMissing}
               icon={online ? <Check className="size-4" /> : <CloudOff className="size-4" />}
               onClick={() => void submit()}
             >
               {online ? "Complete Sale" : "Save Bill Offline"}
-              {lines.length ? ` · ${inr(summary.total)}` : ""}
             </Button>
-            {lines.length > 0 && (
-              <button onClick={newSale} className="w-full py-2 text-center text-sm font-medium text-muted hover:text-ink sm:py-0">
-                Clear Cart
-              </button>
-            )}
           </div>
-        </aside>
-      </div>
-
-      {/* Phone: bottom bar to jump to the bill */}
-      {lines.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t border-line bg-surface px-4 py-3 shadow-[0_-4px_14px_rgba(20,40,25,.08)] xl:hidden">
-          <b className="num min-w-0 truncate text-sm">
-            {qty(summary.count)} item{summary.count === 1 ? "" : "s"} · {inr(summary.total)}
-          </b>
-          <Button className="h-10 shrink-0 bg-gold-500 hover:bg-gold-600" onClick={() => billRef.current?.scrollIntoView({ behavior: "smooth" })}>
-            View Bill
-          </Button>
         </div>
-      )}
+      </Modal>
+
+      {/* Cart: floating bottom-right, opens the bill */}
+      <button
+        type="button"
+        onClick={() => setCartOpen(true)}
+        className="no-print fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-5 z-30 flex h-12 items-center gap-2 rounded-full bg-brand-600 pl-4 pr-2 text-white shadow-lg shadow-brand-900/25 transition hover:bg-brand-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/30"
+        aria-label={`Open cart · ${qty(summary.count)} item${summary.count === 1 ? "" : "s"}`}
+        title="Open cart"
+      >
+        <ShoppingCart className="size-5" />
+        <span className="text-[15px] font-semibold">Cart</span>
+        <span className="num flex h-8 min-w-8 items-center justify-center rounded-full bg-white px-2 text-sm font-bold text-brand-700">{qty(summary.count)}</span>
+      </button>
 
       <Modal
         open={holdLabel !== null}
@@ -1545,14 +1576,8 @@ export default function PosPage() {
         }}
       />
 
-      <LazyCameraScanner
-        open={camOpen}
-        onClose={() => setCamOpen(false)}
-        onScan={(code) => {
-          setCamOpen(false);
-          scanCode(code);
-        }}
-      />
+      {/* Camera stays open: every barcode read adds that product to the cart, item after item */}
+      <LazyCameraScanner open={camOpen} onClose={() => setCamOpen(false)} continuous title="Scan Products" onScan={(code) => scanCode(code, true)} />
 
       <Modal
         open={!!overLimit}

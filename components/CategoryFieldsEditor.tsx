@@ -67,7 +67,7 @@ export function CategoryFieldsEditor({ category, onClose, onSaved }: { category:
         </>
       }
     >
-      <p className="mb-3 text-sm text-slate-600">These extra boxes appear on every product in this category and can be filled by the CSV import (column named like the field). Tick &quot;on bill&quot; to print the value next to the product name.</p>
+      <p className="mb-3 text-sm text-slate-600">These extra boxes appear on every product in this category and can be filled by the CSV import (column named like the field).{/* Tick &quot;on bill&quot; to print the value next to the product name. */}</p>
       <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs">
         <span className="font-medium text-slate-700">Suggested for</span>
         <Select value={suggest} onChange={(e) => setSuggest(e.target.value as ProductType)} className="h-8 w-36 text-xs">
@@ -109,7 +109,9 @@ export function CategoryFieldsEditor({ category, onClose, onSaved }: { category:
               </div>
               <div className="col-span-4 flex flex-col gap-1 pt-1 sm:col-span-2">
                 <Checkbox label="Required" checked={!!f.required} onChange={(v) => update(i, { required: v })} />
-                <Checkbox label="On Bill" checked={!!f.showOnBill} onChange={(v) => update(i, { showOnBill: v })} />
+                {/* No bill prints these attributes (billAttributes in lib/attributes is commented out), so the tick did nothing;
+                    a value already saved is kept when the fields are saved
+                <Checkbox label="On Bill" checked={!!f.showOnBill} onChange={(v) => update(i, { showOnBill: v })} /> */}
               </div>
               <div className="col-span-2 flex justify-end gap-0.5 sm:col-span-1">
                 <button type="button" onClick={() => move(i, -1)} className="rounded p-1 text-slate-400 hover:bg-slate-100" aria-label="Move up">

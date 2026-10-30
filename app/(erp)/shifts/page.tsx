@@ -445,7 +445,7 @@ function CloseShiftBody({ shift, onClose, onSaved }: { shift: Shift; onClose: ()
   const [coins, setCoins] = useState("");
   const [override, setOverride] = useState<string | null>(null);
   const [floatKept, setFloatKept] = useState(String(n(shift.openingFloat)));
-  const [handedTo, setHandedTo] = useState("");
+  // const [handedTo, setHandedTo] = useState(""); // the Cash Handed To field is commented out below
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -467,7 +467,7 @@ function CloseShiftBody({ shift, onClose, onSaved }: { shift: Shift; onClose: ()
         noteCounts,
         countedCash: counted,
         floatKept: n(floatKept),
-        handedTo: handedTo.trim() || undefined,
+        // handedTo: handedTo.trim() || undefined,
         differenceReason: reason.trim() || undefined,
       });
       onSaved(s);
@@ -557,9 +557,11 @@ function CloseShiftBody({ shift, onClose, onSaved }: { shift: Shift; onClose: ()
             <span className="text-slate-600">To deposit</span>
             <span className="num float-right font-semibold text-brand-800">{inr(toBank)}</span>
           </div>
+          {/* Saved with the shift but never shown anywhere afterwards
           <Field label="Cash Handed To">
             <Input value={handedTo} onChange={(e) => setHandedTo(e.target.value)} placeholder="e.g. Store manager · Prakash" />
           </Field>
+          */}
           {Math.abs(diff) >= 0.5 && (
             <Field label="Reason for the Difference" required>
               <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. ₹200 paid to auto driver, voucher attached" />

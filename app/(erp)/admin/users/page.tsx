@@ -96,8 +96,9 @@ function Users() {
     router.replace(t === "user" ? pathname : `${pathname}?tab=${t}`, { scroll: false });
   };
 
-  const [picking, setPicking] = useState(false);
-  const [page, setPage] = useState(1);
+  // Never read: nothing opens a picker, and the user list isn't paged
+  // const [picking, setPicking] = useState(false);
+  // const [page, setPage] = useState(1);
 
   const toast = useToast();
   const confirm = useConfirm();
@@ -157,7 +158,7 @@ function Users() {
             value={filter}
             onChange={(v) => {
               setFilter(v);
-              setPage(1);
+              // setPage(1);
             }}
             tabs={[
               { value: "department", label: "Department" },

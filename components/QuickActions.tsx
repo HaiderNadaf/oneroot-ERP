@@ -7,7 +7,7 @@ import {
   Package,
   Pin,
   Receipt,
-  Truck,
+  // Truck, // only the switched-off Purchase quick action used it
   X,
   Zap,
 } from "lucide-react";
@@ -39,12 +39,13 @@ const POSITION_KEY = "oneroot.quickDock.position";
 
 /** Shown until the user pins their own */
 const DEFAULT_ACTIONS: Action[] = [
-  {
-    href: "/purchases",
-    label: "Purchase",
-    icon: <Truck />,
-    perms: ["purchases.view"],
-  },
+  // The Purchase Invoices list is switched off (its sidebar link too)
+  // {
+  //   href: "/purchases",
+  //   label: "Purchase",
+  //   icon: <Truck />,
+  //   perms: ["purchases.view"],
+  // },
   { href: "/inventory", label: "Inventory", icon: <Package />, perms: ["inventory.view"] },
   { href: "/sales", label: "Sales", icon: <Receipt />, perms: ["sales.view"] },
   { href: "/payments", label: "Receive Payment", icon: <IndianRupee />, perms: ["payments.view"] },

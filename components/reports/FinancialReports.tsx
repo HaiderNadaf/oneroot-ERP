@@ -20,6 +20,9 @@ interface ProfitLoss {
   grossMarginPct: number;
   expenses: { category: string; amount: number }[];
   totalExpenses: number;
+  /** Discount received on bills and money-only vendor notes */
+  otherIncome?: { label: string; amount: number }[];
+  totalOtherIncome?: number;
   netProfit: number;
 }
 
@@ -91,6 +94,7 @@ export function ProfitLossReport({ range, rangeBar }: { range: Range; rangeBar: 
       ["Gross Margin %", data.grossMarginPct],
       ...data.expenses.map((e) => [`Expense: ${e.category}`, -e.amount] as [string, number]),
       ["Total Expenses", -data.totalExpenses],
+      ...(data.otherIncome ?? []).map((x) => [`Other Income: ${x.label}`, x.amount] as [string, number]),
       ["Net Profit", data.netProfit],
       ["Discounts Given (Memo)", data.discounts],
     ]);
@@ -132,6 +136,16 @@ export function ProfitLossReport({ range, rangeBar }: { range: Range; rangeBar: 
             )}
             <Subtotal label="Total Expenses" amount={data.totalExpenses} />
 
+            {!!data.otherIncome?.length && (
+              <>
+                <p className="mb-1 mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">Other Income</p>
+                {data.otherIncome.map((x) => (
+                  <Line key={x.label} label={x.label} amount={x.amount} indent />
+                ))}
+                <Subtotal label="Total Other Income" amount={data.totalOtherIncome ?? 0} />
+              </>
+            )}
+
             <div className="mt-3">
               <Subtotal label="Net Profit" sub={`${netMargin}% of net revenue`} amount={data.netProfit} tone="profit" />
             </div>
@@ -168,7 +182,8 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: 
 
 interface GstReport {
   output: { gstRate: number; taxable: number; cgst: number; sgst: number; igst: number; tax: number }[];
-  input: { gstRate: number; taxable: number; tax: number }[];
+  /** `label` marks the GST on freight / other charges (no single rate) */
+  input: { gstRate: number | null; label?: string; taxable: number; tax: number }[];
   hsn: { hsnCode: string; unit: string; gstRate: number; quantity: number; taxable: number; tax: number; total: number }[];
   outputTax: number;
   /** Net of input tax reversed by posted debit/credit notes */
@@ -189,7 +204,7 @@ export function GstReportView({ range, rangeBar }: { range: Range; rangeBar: Rea
       ["Section", "GST %", "HSN", "Unit", "Qty", "Taxable", "CGST", "SGST", "IGST", "Tax", "Total"],
       [
         ...data.output.map((r) => ["Output", r.gstRate, "", "", "", r.taxable, r.cgst, r.sgst, r.igst, r.tax, ""]),
-        ...data.input.map((r) => ["Input", r.gstRate, "", "", "", r.taxable, "", "", "", r.tax, ""]),
+        ...data.input.map((r) => ["Input", r.label ?? r.gstRate, "", "", "", r.taxable, "", "", "", r.tax, ""]),
         ...(data.noteAdjustment?.count
           ? [["Input reversed by debit/credit notes", "", "", "", data.noteAdjustment.count, -data.noteAdjustment.taxable, "", "", "", -data.noteAdjustment.tax, ""]]
           : []),
@@ -293,8 +308,8 @@ export function GstReportView({ range, rangeBar }: { range: Range; rangeBar: Rea
                   <EmptyRow colSpan={3}>No purchases in this period</EmptyRow>
                 ) : (
                   data.input.map((r) => (
-                    <tr key={r.gstRate}>
-                      <Td className="font-medium">{r.gstRate}%</Td>
+                    <tr key={r.label ?? r.gstRate}>
+                      <Td className="font-medium">{r.label ?? `${r.gstRate}%`}</Td>
                       <Td right>{inr(r.taxable)}</Td>
                       <Td right className="font-medium">
                         {inr(r.tax)}

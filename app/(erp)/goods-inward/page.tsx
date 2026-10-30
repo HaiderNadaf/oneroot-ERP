@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, FileText, PackageCheck, Plus, Truck } from "lucide-react";
+import { AlertTriangle, FileText, PackageCheck, Plus /* , Truck */ } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -25,9 +25,9 @@ import {
 } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
-import { date, daysUntil, qty } from "@/lib/format";
+import { date, /* daysUntil, */ qty } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import type { Grn, Paged, PendingInwardPo, StoreSettings } from "@/lib/types";
+import type { Grn, Paged, PendingInwardPo /* , StoreSettings */ } from "@/lib/types";
 
 type Filter = "all" | "false" | "true";
 
@@ -57,8 +57,9 @@ function GoodsInward() {
   const [sort, setSort] = useState<"fefo" | "latest">("latest");
   const [filters, setFilters] = useState(noListFilters);
   const grns = useApi<Paged<Grn>>("/grns", { ...filters, invoiced: filter === "all" ? undefined : filter, sort: sort === "fefo" ? "fefo" : undefined, page, pageSize: 25 });
-  const { data: settings } = useApi<StoreSettings>("/settings");
-  const alertDays = settings?.expiryAlertDays ?? 60;
+  // Only the Expiry column used these, and it is commented out below
+  // const { data: settings } = useApi<StoreSettings>("/settings");
+  // const alertDays = settings?.expiryAlertDays ?? 60;
   // Always fetched so the banner and tab count stay visible on every tab
   // Banner: the first few GRNs without an invoice, plus how many there are in total
   const uninvoiced = useApi<Paged<Grn>>("/grns", { invoiced: "false", pageSize: 6 });
@@ -231,7 +232,7 @@ function GoodsInward() {
                     </Td>
                     {/* <Td className="whitespace-nowrap">
                       <ExpiryCell d={g.earliestExpiry} alertDays={alertDays} />
-                    </Td> */}
+                    </Td> (ExpiryCell and alertDays are commented out too) */}
                     <Td className="hidden text-slate-600 md:table-cell">{g.receivedBy?.name ?? "—"}</Td>
                     <Td right className="text-slate-700">
                       {g.poQty !== undefined ? qty(g.poQty) : "—"}
@@ -401,21 +402,22 @@ function PendingPosModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** Earliest expiry of a GRN's accepted stock, with how long is left */
-function ExpiryCell({ d, alertDays }: { d?: string | null; alertDays: number }) {
-  if (!d) return <span className="text-slate-400">—</span>;
-  const left = daysUntil(d) ?? 0;
-  return (
-    <span className="inline-flex flex-col">
-      <span className="text-slate-800">{date(d)}</span>
-      {left < 0 ? (
-        <Badge tone="red">Expired</Badge>
-      ) : (
-        <span className={cx("text-xs", left <= alertDays ? "font-medium text-amber-700" : "text-slate-500")}>{left === 0 ? "Expires today" : `${left} day${left === 1 ? "" : "s"} left`}</span>
-      )}
-    </span>
-  );
-}
+// Used only by the Expiry column, which is commented out in the GRN list
+// /** Earliest expiry of a GRN's accepted stock, with how long is left */
+// function ExpiryCell({ d, alertDays }: { d?: string | null; alertDays: number }) {
+//   if (!d) return <span className="text-slate-400">—</span>;
+//   const left = daysUntil(d) ?? 0;
+//   return (
+//     <span className="inline-flex flex-col">
+//       <span className="text-slate-800">{date(d)}</span>
+//       {left < 0 ? (
+//         <Badge tone="red">Expired</Badge>
+//       ) : (
+//         <span className={cx("text-xs", left <= alertDays ? "font-medium text-amber-700" : "text-slate-500")}>{left === 0 ? "Expires today" : `${left} day${left === 1 ? "" : "s"} left`}</span>
+//       )}
+//     </span>
+//   );
+// }
 
 function Qty({ v, tone }: { v?: number; tone: string }) {
   return (

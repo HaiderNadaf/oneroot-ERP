@@ -891,6 +891,8 @@ export interface PurchaseOrder {
   displayStatus?: PoDisplayStatus;
   subtotal: Dec;
   taxAmount: Dec;
+  /** Saved by the backend from the vendor's and the delivery branch's state: IGST when true */
+  isInterState?: boolean;
   totalAmount: Dec;
   round: number;
   level: number;
@@ -1021,7 +1023,7 @@ export interface GrnItem {
 export interface Grn {
   id: string;
   grnNo: string;
-  po: { id: string; poNo: string; vendorId?: string; vendorBranch?: VendorBranch | null };
+  po: { id: string; poNo: string; vendorId?: string; vendorBranch?: VendorBranch | null; isInterState?: boolean; transportGstRate?: Dec };
   vendor: Vendor | { id: string; name: string };
   receivedAt: string;
   /** Earliest expiry of the stock accepted on this GRN (list only) */

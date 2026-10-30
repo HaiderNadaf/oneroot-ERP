@@ -329,7 +329,8 @@ function GrnForm({ po }: { po: PurchaseOrder }) {
     const balance = shortLines.length
       ? ` ${shortLines.length} line${shortLines.length === 1 ? "" : "s"} will stay open for the balance, and the shortfall (${qty(shortfall)}) is noted on a draft short-supply debit note.`
       : " The PO will be marked fully received.";
-    const invoiceNote = totals.passed > 0 ? ` The purchase invoice will be booked under ${supplierInvoiceNo.trim()}.` : "";
+    // Built but never added to the confirm message below
+    // const invoiceNote = totals.passed > 0 ? ` The purchase invoice will be booked under ${supplierInvoiceNo.trim()}.` : "";
     const issueNote = totals.notAccepted > 0 ? ` ${qty(totals.notAccepted)} not accepted stays out of stock and goes on a draft debit note with the reasons.` : "";
     if (!(await confirm(`Post goods inward for ${po.poNo}? ${qty(totals.passed)} received into stock.${issueNote}${balance}`, { confirmLabel: "Post GRN" }))) return;
 

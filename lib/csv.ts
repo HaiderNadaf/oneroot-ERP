@@ -40,22 +40,23 @@ export function parseCsv(text: string): ParsedCsv {
   return { headers, rows };
 }
 
-const esc = (v: unknown) => {
-  const s = v === null || v === undefined ? "" : String(v);
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};
-
-export function toCsv(headers: string[], rows: unknown[][]): string {
-  return [headers, ...rows].map((r) => r.map(esc).join(",")).join("\r\n");
-}
-
-/** Save text as a file from the browser */
-export function downloadText(filename: string, text: string, type = "text/csv;charset=utf-8") {
-  const blob = new Blob(["﻿" + text], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
+// CSV writing is not used anywhere: exports go through lib/format (downloadCsv) and lib/excel
+// const esc = (v: unknown) => {
+//   const s = v === null || v === undefined ? "" : String(v);
+//   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+// };
+//
+// export function toCsv(headers: string[], rows: unknown[][]): string {
+//   return [headers, ...rows].map((r) => r.map(esc).join(",")).join("\r\n");
+// }
+//
+// /** Save text as a file from the browser */
+// export function downloadText(filename: string, text: string, type = "text/csv;charset=utf-8") {
+//   const blob = new Blob(["﻿" + text], { type });
+//   const url = URL.createObjectURL(blob);
+//   const a = document.createElement("a");
+//   a.href = url;
+//   a.download = filename;
+//   a.click();
+//   setTimeout(() => URL.revokeObjectURL(url), 1000);
+// }

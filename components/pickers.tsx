@@ -225,6 +225,32 @@ export function CustomerPicker({
   );
 }
 
+/** A farmer from the field app (cf_users): only fills the bill's name and mobile */
+export interface CfFarmer {
+  id: string;
+  name: string | null;
+  mobile: string | null;
+  village: string | null;
+  taluk: string | null;
+  district: string | null;
+}
+
+export function CfFarmerPicker({ onPick }: { onPick: (f: CfFarmer) => void }) {
+  return (
+    <AsyncPicker<CfFarmer>
+      placeholder="Search field-app farmer by name, mobile, village…"
+      fetcher={(q) => api.get<CfFarmer[]>("/customers/cf-farmers", { search: q })}
+      onPick={onPick}
+      renderItem={(f) => (
+        <div className="min-w-0">
+          <p className="truncate font-medium text-slate-800">{f.name || "Unnamed farmer"}</p>
+          <p className="truncate text-xs text-slate-500">{[f.mobile, f.village, f.taluk, f.district].filter(Boolean).join(" · ") || "—"}</p>
+        </div>
+      )}
+    />
+  );
+}
+
 export function VendorPicker({
   value,
   onChange,

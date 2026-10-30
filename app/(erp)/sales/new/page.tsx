@@ -27,7 +27,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNeedBranch } from "@/components/BranchNotice";
 import { ApprovalGate, approvalNeeded, type ApprovalNeed } from "@/components/ApprovalGate";
-import { CustomerPicker } from "@/components/pickers";
+import { CfFarmerPicker, CustomerPicker } from "@/components/pickers";
 import { PrintPortal } from "@/components/PrintPortal";
 import { SerialSelect } from "@/components/SerialPicker";
 import { ThermalReceipt, receiptFromSale, type ReceiptData } from "@/components/ThermalReceipt";
@@ -35,6 +35,7 @@ import { Button, Checkbox, Dropdown, Input, Modal, Select, Spinner, Table, Td, T
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
+import { cartOwner, saveBill, savedBillLines, useOpenBillHandler } from "@/lib/cart";
 import { date, dateTime, daysUntil, inr, inr0, n, qty, round2 } from "@/lib/format";
 import { placeOfSupply } from "@/lib/gst";
 import { useApi } from "@/lib/hooks";
@@ -125,7 +126,7 @@ export default function PosPage() {
   const params = useSearchParams();
   const toast = useToast();
   const confirm = useConfirm();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const { current } = useBranch();
   const needBranch = useNeedBranch("bill from it");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -414,6 +415,42 @@ export default function PosPage() {
       manualMax,
     };
   }, [lines, billDiscount, pricing]);
+  // The top bar's cart opens the bill
+  const openBill = useCallback(() => setCartOpen(true), []);
+  useOpenBillHandler(openBill);
+
+  // The bill is kept for this tab (lib/cart), so it and the top bar's cart count survive leaving this page.
+  // Restored when the page opens or the branch changes; saved on every change. A van trip's bill is kept apart.
+  const owner = cartOwner(user?.id, current?.id) + (vanTripId ? `:van:${vanTripId}` : "");
+  const billOwner = useRef<string | null>(null);
+  const restoring = useRef(false);
+  useEffect(() => {
+    if (billOwner.current === owner) return;
+    billOwner.current = owner;
+    restoring.current = true;
+    const restored: Line[] = savedBillLines<Omit<Line, "key" | "batches">>(owner).map((l) => ({ ...l, key: ++keySeq.current, batches: null }));
+    setLines(restored);
+    // Batches for this branch, as when the product was added
+    for (const l of restored) {
+      api
+        .get<Product>(`/products/${l.product.id}`)
+        .then((full) => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, batches: full.batches ?? [] } : x))))
+        .catch(() => setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, batches: [] } : x))));
+    }
+  }, [owner]);
+  useEffect(() => {
+    // Skip the render that still holds the previous owner's lines; the restored ones are saved on the next
+    if (restoring.current) {
+      restoring.current = false;
+      return;
+    }
+    saveBill(
+      owner,
+      // Batches are fetched again on restore, and keys are given out afresh
+      lines.map((l) => ({ ...l, key: undefined, batches: undefined })),
+      summary.count,
+    );
+  }, [lines, owner, summary.count]);
   const aboveLimit = !!limits && limits.maxDiscountPct !== null && summary.manualMax > n(limits.maxDiscountPct) + 1e-9;
 
   const defaultReceived = mode === "CREDIT" ? 0 : summary.total;
@@ -1060,6 +1097,15 @@ export default function PosPage() {
                   />
                 )}
               </div>
+              {!customer && (
+                <CfFarmerPicker
+                  onPick={(f) => {
+                    // Fills the walk-in name and mobile only; no customer record is linked
+                    setWalkinName(f.name ?? "");
+                    setPhone(f.mobile ?? "");
+                  }}
+                />
+              )}
               {!customer && can("customers.view", "customers.create") && (
                 <div className="flex items-center gap-2">
                   {can("customers.view") && (

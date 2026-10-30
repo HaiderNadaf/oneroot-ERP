@@ -4,15 +4,17 @@ import { Boxes, Layers, Leaf, Truck, UserCog, Users } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { NAV, canOpenPath } from "@/components/AppShell";
+import { BatchDetailModal } from "@/components/BatchDetails";
 import { CashReconciliationCard } from "@/components/CashReconciliationCard";
+import { ExpiryBadge as StockExpiryBadge, useSeeCostPrice } from "@/components/StockBits";
 import { LazySalesPurchaseChart } from "@/components/lazy";
-import { ErrorBox, Spinner, StatusBadge, cx } from "@/components/ui";
+import { ErrorBox, Pagination, SearchInput, Spinner, StatusBadge, cx } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
 import { date, daysUntil, inr, inr0, inrCompact, qty } from "@/lib/format";
 import { PURCHASE_COLOR, SALES_COLOR } from "@/lib/chart-colors";
-import { useApi } from "@/lib/hooks";
-import { modeLabel, type CashReconciliation, type PaymentMode, type PaymentStatus } from "@/lib/types";
+import { useApi, useDebounced } from "@/lib/hooks";
+import { modeLabel, type Batch, type CashReconciliation, type Paged, type PaymentMode, type PaymentStatus } from "@/lib/types";
 
 type Period = "today" | "month" | "fy";
 
@@ -662,7 +664,8 @@ export default function DashboardPage() {
               growth={k.purchases.growth}
               spark={sparkOf("purchases")}
               color={GOLD}
-              href={linkIf("/purchases")}
+              // The Purchase Invoices list is switched off, so the card no longer links there
+              // href={linkIf("/purchases")}
               periodWord={periodWord}
               sub={
                 scopedToBranch
@@ -909,6 +912,9 @@ export default function DashboardPage() {
             </div>
           </Panel>
         )}
+
+        {/* Every batch; a row opens its details */}
+        {seeStock && <BatchesPanel productLink={productLink} />}
 
         {/* Goods received: POs received in part or in full */}
         {seePurchasing && <GrnProgressPanel />}
@@ -1325,6 +1331,142 @@ function GrnProgressPanel() {
           </tbody>
         </table>
       </div>
+    </Panel>
+  );
+}
+
+/** Batches in the selected branch (or all), searchable; a row opens the batch popup with all its details */
+function BatchesPanel({ productLink }: { productLink: (id: string) => string | undefined }) {
+  const showBranch = useBranch().currentId === "all";
+  const showCost = useSeeCostPrice();
+  const [status, setStatus] = useState<"stock" | "all">("stock");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [open, setOpen] = useState<string | null>(null);
+  const q = useDebounced(search.trim());
+  const { data, error, loading, reload } = useApi<Paged<Batch>>("/inventory/batches", {
+    status: status === "all" ? "all" : undefined,
+    search: q || undefined,
+    page,
+    pageSize: 10,
+  });
+  const rows = data?.items ?? [];
+  const cols = 6 + (showBranch ? 1 : 0) + (showCost ? 1 : 0);
+
+  return (
+    <Panel
+      title="Batches"
+      sub="Click a batch to see all its details"
+      className="lg:col-span-12"
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="w-48">
+            <SearchInput
+              value={search}
+              onChange={(v) => {
+                setSearch(v);
+                setPage(1);
+              }}
+              placeholder="Product, SKU or batch"
+            />
+          </div>
+          <div className="flex gap-1 rounded-lg bg-paper-2 p-1" role="tablist">
+            {(
+              [
+                ["stock", "In Stock"],
+                ["all", "All Batches"],
+              ] as const
+            ).map(([v, l]) => (
+              <button
+                key={v}
+                type="button"
+                role="tab"
+                aria-selected={status === v}
+                onClick={() => {
+                  setStatus(v);
+                  setPage(1);
+                }}
+                className={cx("rounded-md px-2.5 py-1 text-xs font-semibold transition-colors", status === v ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink")}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+      }
+      footer={{ text: "Earliest expiry first", href: "/inventory", link: "Open Stock & Batches" }}
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr>
+              <th className={th}>Product / batch</th>
+              {showBranch && <th className={th}>Branch</th>}
+              <th className={th}>Location</th>
+              <th className={th}>Mfg</th>
+              <th className={th}>Expiry</th>
+              <th className={cx(th, "text-right")}>MRP</th>
+              {showCost && <th className={cx(th, "text-right")}>Value</th>}
+              <th className={cx(th, "text-right")}>Qty</th>
+            </tr>
+          </thead>
+          <tbody>
+            {error && !data ? (
+              <tr>
+                <td colSpan={cols} className="p-4">
+                  <ErrorBox message={error} onRetry={reload} />
+                </td>
+              </tr>
+            ) : loading && !data ? (
+              <tr>
+                <td colSpan={cols} className="py-8">
+                  <Spinner />
+                </td>
+              </tr>
+            ) : !rows.length ? (
+              <tr>
+                <td colSpan={cols} className="px-4 py-10 text-center text-sm text-slate-400">
+                  {search ? "No batch matches the search" : status === "stock" ? "No batches in stock" : "No batches yet"}
+                </td>
+              </tr>
+            ) : (
+              rows.map((b) => {
+                const empty = Number(b.quantity) <= 0;
+                return (
+                  <tr
+                    key={b.id}
+                    tabIndex={0}
+                    onClick={() => setOpen(b.id)}
+                    onKeyDown={(e) => e.key === "Enter" && setOpen(b.id)}
+                    className={cx("cursor-pointer hover:bg-paper-2", empty && "text-muted")}
+                  >
+                    <td className={td}>
+                      <span className="font-semibold text-ink">{b.product?.name}</span>
+                      <p className="text-xs text-muted">
+                        {b.product?.sku} · Batch <b className="font-semibold text-ink">{b.batchNo}</b>
+                      </p>
+                    </td>
+                    {showBranch && <td className={td}>{b.branch && <CodeBadge code={b.branch.code} title={b.branch.name} />}</td>}
+                    <td className={cx(td, "whitespace-nowrap")}>{b.location || b.product?.location || "—"}</td>
+                    <td className={cx(td, "num whitespace-nowrap")}>{date(b.mfgDate)}</td>
+                    <td className={cx(td, "whitespace-nowrap")}>
+                      <span className="num mr-2">{date(b.expiryDate)}</span>
+                      {!empty && <StockExpiryBadge expiry={b.expiryDate} />}
+                    </td>
+                    <td className={cx(td, "num text-right")}>{Number(b.mrp) ? inr(b.mrp) : "—"}</td>
+                    {showCost && <td className={cx(td, "num text-right")}>{inr0(Number(b.quantity) * Number(b.costPrice))}</td>}
+                    <td className={cx(td, "num whitespace-nowrap text-right font-semibold")}>
+                      {qty(b.quantity)} <span className="text-xs font-normal text-muted">{b.product?.unit}</span>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+      {data && <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />}
+      <BatchDetailModal batchId={open} onClose={() => setOpen(null)} showCost={showCost} canMoves allBranches={showBranch} productHref={productLink} />
     </Panel>
   );
 }

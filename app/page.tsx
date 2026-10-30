@@ -34,6 +34,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { LandingBrochure } from "@/components/LandingBrochure";
+import { LandingChatbot } from "@/components/LandingChatbot";
 import { CurrentYear, LandingCta } from "@/components/LandingCta";
 import { Logo } from "@/components/ui";
 import { CONTACT } from "@/lib/contact";
@@ -291,6 +292,7 @@ export default function LandingPage() {
         <ClosingCta />
       </main>
       <SiteFooter />
+      <LandingChatbot />
     </div>
   );
 }

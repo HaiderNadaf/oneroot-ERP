@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useNeedBranch } from "@/components/BranchNotice";
 import { LoadLines, type LoadLine } from "@/components/VanLoadLines";
-import { Badge, Button, Card, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, Select, Table, Td, Textarea, Th, errMsg, useToast } from "@/components/ui";
+import { Badge, Button, Card, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, Select, Table, Td, /* Textarea, */ Th, errMsg, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { dateTime, inr, n } from "@/lib/format";
@@ -111,7 +111,7 @@ function OpenTripModal({ onClose, onOpened }: { onClose: () => void; onOpened: (
   const [vehicleNo, setVehicleNo] = useState("");
   const [route, setRoute] = useState("");
   const [openingCash, setOpeningCash] = useState("");
-  const [notes, setNotes] = useState("");
+  // const [notes, setNotes] = useState(""); // the Notes field is commented out below
   const [lines, setLines] = useState<LoadLine[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -121,7 +121,7 @@ function OpenTripModal({ onClose, onOpened }: { onClose: () => void; onOpened: (
     if (!items.length) return toast.error("Add at least one product with a quantity");
     setBusy(true);
     try {
-      const t = await api.post<VanTrip>("/van-trips", { vehicleNo: vehicleNo.trim() || undefined, route: route.trim() || undefined, openingCash: n(openingCash) || 0, notes: notes.trim() || undefined, items });
+      const t = await api.post<VanTrip>("/van-trips", { vehicleNo: vehicleNo.trim() || undefined, route: route.trim() || undefined, openingCash: n(openingCash) || 0, /* notes: notes.trim() || undefined, */ items });
       toast.success(`Trip ${t.tripNo} loaded — bill from it on the POS`);
       onOpened(t.id);
     } catch (err) {
@@ -159,9 +159,11 @@ function OpenTripModal({ onClose, onOpened }: { onClose: () => void; onOpened: (
         <Field label="Opening Cash (Change)" hint="Cash given to the van for change">
           <Input type="number" min="0" step="1" value={openingCash} onChange={(e) => setOpeningCash(e.target.value)} className="num" />
         </Field>
+        {/* Trip notes were saved but never shown anywhere (the trip page shows only the closing note)
         <Field label="Notes" className="sm:col-span-2">
           <Textarea rows={1} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
+        */}
         <Field label="Stock Loaded" required className="sm:col-span-3" hint="Loaded stock stays in the branch's books but is reserved for the van until it comes back">
           <LoadLines lines={lines} setLines={setLines} />
         </Field>

@@ -232,7 +232,7 @@ function GrnView() {
       {/* Supplier invoice scan, delivery challan, photos of the goods… */}
       <Attachments type="GRN" entityId={g.id} canManage={can("purchases.receive")} className="no-print mb-4" />
 
-      <div className="no-print grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="no-print grid grid-cols-1 gap-4">
         {/* <Card title="Purchase Invoice">
           {invoiced && g.purchase ? (
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm">

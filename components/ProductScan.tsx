@@ -11,7 +11,7 @@ import { cameraScanSupported, isTypingTarget, useScanner } from "@/lib/scanner";
 import type { Product } from "@/lib/types";
 import { LazyCameraScanner } from "./lazy";
 import { ExpiryBadge } from "./StockBits";
-import { Badge, Button, cx, errMsg, InfinityLoader, Modal, TOP_ICON_BUTTON, useToast } from "./ui";
+import { Badge, Button, cx, errMsg, InfinityLoader, Modal, /* TOP_ICON_BUTTON, */ useToast } from "./ui";
 
 /** Pages that use a scan for their own work (add to the bill, receive a PO line), so the lookup stays out of their way */
 const OWN_SCAN_PAGES = ["/sales/new", "/goods-inward/new"];
@@ -59,14 +59,16 @@ export function ProductScan() {
 
   return (
     <>
+      {/* The camera Scan Barcode button is removed from the top bar; USB / Bluetooth scanners still work on every page
       {camera && (
         <button type="button" onClick={() => setCamOpen(true)} className={TOP_ICON_BUTTON} aria-label="Scan Barcode" title="Scan Barcode">
           {looking ? <InfinityLoader className="size-5" /> : <ScanLine className="size-5" />}
         </button>
       )}
+      */}
 
-      {/* A hardware scan shows progress here, since there may be no camera button to spin */}
-      {looking && !camera && (
+      {/* A hardware scan shows progress here, since there is no camera button to spin */}
+      {looking && (
         <div role="status" className="no-print fixed bottom-4 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-sm text-slate-600 shadow-lg">
           <InfinityLoader className="size-5" /> Looking up {looking}…
         </div>

@@ -256,7 +256,15 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
       const batches = (full.batches ?? [])
         .filter((b) => n(b.quantity) > 0)
         .sort((a, b) => (a.expiryDate ?? "9999").localeCompare(b.expiryDate ?? "9999"));
-      updateReturn(key, { batches, batchId: batches[0]?.id ?? "" });
+      // Goods go back at what the batch cost us (after the bill's discount), unless a rate was typed meanwhile
+      const prefill = n(p.purchasePrice) ? numStr(p.purchasePrice) : "";
+      setReturnLines((ls) =>
+        ls.map((l) =>
+          l.key === key
+            ? { ...l, batches, batchId: batches[0]?.id ?? "", rate: batches[0] && l.rate === prefill ? numStr(batches[0].costPrice) : l.rate }
+            : l,
+        ),
+      );
     } catch (e) {
       updateReturn(key, { batches: [], loadError: errMsg(e) });
     }
@@ -313,7 +321,8 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
       product: { id: it.productId, name: it.product?.name ?? "Product", unit: it.product?.unit ?? "", hsnCode: it.product?.hsnCode },
       description: "",
       quantity: wholeQty ? numStr(it.quantity) : "",
-      rate: atBillRate ? numStr(it.rate) : "",
+      // The rate actually billed: after the line's trade discount
+      rate: atBillRate ? numStr(round2(n(it.rate) * (1 - n(it.discountPct) / 100))) : "",
       gstRate: numStr(it.gstRate),
     });
   }

@@ -1,11 +1,12 @@
 "use client";
 
 import { ChevronDown, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { Fragment, useState } from "react";
 import { BranchCode } from "@/components/BranchNotice";
 import { ReportLink } from "@/components/reports/ReportKit";
 import { ExpiryBadge, MovementBadge, MovementRef, SignedQty } from "@/components/StockBits";
-import { Badge, Card, EmptyRow, ErrorBox, LoadingRow, Table, Td, Th, cx } from "@/components/ui";
+import { Badge, Card, EmptyRow, ErrorBox, LoadingRow, Modal, Spinner, Table, Td, Th, cx } from "@/components/ui";
 import { date, dateTime, inr, n, qty } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { Batch, Paged, StockMovement } from "@/lib/types";
@@ -31,6 +32,9 @@ interface BatchDetail extends Batch {
   lastMovementAt: string | null;
   serials: { inStock: number; total: number } | null;
 }
+
+/** A single batch with its product (GET /products/batches/:id) */
+type BatchWithProduct = BatchDetail & { product: NonNullable<Batch["product"]> & { packSize?: string | null } };
 
 const SOURCE_LABEL: Record<BatchDetail["source"]["type"], string> = {
   GRN: "Goods Inward",
@@ -338,5 +342,87 @@ function BatchPanel({ b, unit, canMoves, allBranches }: { b: BatchDetail; unit: 
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Popup for one batch (dashboard batch table): product, rack, dates, prices, source, every count and its movements.
+ * Closed while batchId is null.
+ */
+export function BatchDetailModal({
+  batchId,
+  onClose,
+  showCost,
+  canMoves,
+  allBranches,
+  productHref,
+}: {
+  batchId: string | null;
+  onClose: () => void;
+  showCost: boolean;
+  canMoves: boolean;
+  allBranches: boolean;
+  /** Link to the product page when the user may open it */
+  productHref?: (productId: string) => string | undefined;
+}) {
+  const { data, error, loading, reload } = useApi<BatchWithProduct>(batchId ? `/products/batches/${batchId}` : null);
+  const b = data && data.id === batchId ? data : null;
+  const unit = b?.product.unit ?? "";
+  const href = b && productHref?.(b.product.id);
+
+  return (
+    <Modal open={!!batchId} onClose={onClose} size="xl" title={b ? `Batch ${b.batchNo}` : "Batch"}>
+      {error ? (
+        <ErrorBox message={error} onRetry={reload} />
+      ) : loading || !b ? (
+        <Spinner />
+      ) : (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              {href ? (
+                <Link href={href} className="font-semibold text-slate-900 hover:text-brand-700 hover:underline">
+                  {b.product.name}
+                </Link>
+              ) : (
+                <p className="font-semibold text-slate-900">{b.product.name}</p>
+              )}
+              <p className="text-xs text-slate-500">
+                {b.product.sku}
+                {b.product.packSize ? ` · ${b.product.packSize}` : ""}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {allBranches && <BranchCode code={b.branch?.code} title={b.branch?.name} />}
+              {n(b.quantity) <= 0 ? <Badge tone="slate">Finished</Badge> : <ExpiryBadge expiry={b.expiryDate} />}
+            </div>
+          </div>
+
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 rounded-lg border border-slate-200 p-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
+            {(
+              [
+                ["Batch No.", b.batchNo],
+                ["Location", b.location || b.product.location || "—"],
+                ["Mfg Date", date(b.mfgDate)],
+                ["Expiry Date", date(b.expiryDate)],
+                ...(showCost ? ([["Cost Price", inr(b.costPrice)]] as [string, React.ReactNode][]) : []),
+                ["MRP", n(b.mrp) ? inr(b.mrp) : "—"],
+                ["Sale Price", n(b.product.salePrice) ? inr(b.product.salePrice) : "—"],
+                ...(showCost ? ([["Stock Value", inr(n(b.quantity) * n(b.costPrice))]] as [string, React.ReactNode][]) : []),
+                ["Created", dateTime(b.createdAt)],
+                ["Reference", <SourceCell key="s" s={b.source} />],
+              ] as [string, React.ReactNode][]
+            ).map(([label, value]) => (
+              <div key={label} className="min-w-0">
+                <dt className="text-xs text-slate-500">{label}</dt>
+                <dd className="font-medium text-slate-800">{value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          <BatchPanel b={b} unit={unit} canMoves={canMoves} allBranches={allBranches} />
+        </div>
+      )}
+    </Modal>
   );
 }

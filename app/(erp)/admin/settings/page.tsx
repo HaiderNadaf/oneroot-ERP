@@ -111,7 +111,8 @@ function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (
     if (!Number.isInteger(days) || days < 1 || days > 365) return toast.error("Expiry alert days must be between 1 and 365");
     const grace = Number(f.reminderGraceDays);
     if (!Number.isInteger(grace) || grace < 0 || grace > 90) return toast.error("Grace days must be between 0 and 90");
-    for (const k of ["invoicePrefix", "purchasePrefix", "poPrefix", "receiptPrefix"] as const) {
+    // purchasePrefix is not on the form any more (Purchase Entry is switched off), so it isn't checked here
+    for (const k of ["invoicePrefix", /* "purchasePrefix", */ "poPrefix", "receiptPrefix"] as const) {
       if (!f[k].trim()) return toast.error("Document prefixes cannot be blank");
     }
     if (!gstinInfo.empty && !gstinInfo.valid) return toast.error(`GSTIN: ${gstinInfo.error}`);
@@ -173,7 +174,9 @@ function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (
           <Field label="Store Name" required className="sm:col-span-2">
             {text("storeName", { required: true })}
           </Field>
+          {/* Owner name is saved but never printed or used anywhere, so the field is hidden (the saved value is kept)
           <Field label="Proprietor / Owner">{text("ownerName")}</Field>
+          */}
           <Field label="Phone">{text("phone", { type: "tel" })}</Field>
           <Field label="Email" className="sm:col-span-2">
             {text("email", { type: "email" })}
@@ -251,7 +254,9 @@ function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (
             {(
               [
                 ["invoicePrefix", "Sales Invoice"],
-                ["purchasePrefix", "Purchase Entry"],
+                // Purchase Entry is switched off (see /purchases/new). purchasePrefix still numbers the purchase invoices
+                // booked from a GRN, so the saved value (default PUR) is kept and sent back unchanged
+                // ["purchasePrefix", "Purchase Entry"],
                 ["poPrefix", "Purchase Order"],
                 ["receiptPrefix", "Payment / Receipt"],
               ] as const

@@ -128,6 +128,8 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
   );
   const [discount, setDiscount] = useState("");
   const [otherCharges, setOtherCharges] = useState("");
+  // Freight / other charges carry their own GST (the PO's transport rate, 18% by default), as on an automatic booking
+  const [chargesGstRate, setChargesGstRate] = useState(String(grn.po.transportGstRate != null ? n(grn.po.transportGstRate) : 18));
   // Payment now and Notes are hidden for now: the invoice is booked on credit (the vendor is paid later from Payments)
   // const [paidAmount, setPaidAmount] = useState("");
   // const [paymentMode, setPaymentMode] = useState<PaymentMode>("CASH");
@@ -142,7 +144,8 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
     if (!dueTouched && d) setDueDate(addDays(d, v.paymentTermsDays ?? 0));
   };
 
-  const interState = placeOfSupply(v, store).interState === true;
+  // As the PO decided it (from the delivery branch's state); else from the store's
+  const interState = grn.po.isInterState ?? placeOfSupply(v, store).interState === true;
 
   const rows = items.map((i) => {
     const l = lines[i.id];
@@ -156,9 +159,10 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
   });
   const mismatches = rows.filter((r) => r.mismatch).length;
   const subtotal = round2(rows.reduce((s, r) => s + r.taxableAmount, 0));
-  const taxAmount = round2(rows.reduce((s, r) => s + r.taxAmount, 0));
   const disc = Number(discount) || 0;
   const other = Number(otherCharges) || 0;
+  const chargesTax = other > 0 ? round2((other * (Number(chargesGstRate) || 0)) / 100) : 0;
+  const taxAmount = round2(rows.reduce((s, r) => s + r.taxAmount, 0) + chargesTax);
   const raw = subtotal + taxAmount - disc + other;
   const total = Math.round(raw);
   const roundOff = round2(total - raw);
@@ -185,6 +189,7 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
         items: rows.map((r) => ({ grnItemId: r.i.id, rate: r.rate, discountPct: r.disc || undefined })),
         discount: disc || undefined,
         otherCharges: other || undefined,
+        otherChargesTax: chargesTax || undefined,
         // paidAmount: paid || undefined,
         // paymentMode: paid ? paymentMode : undefined,
         // paymentReference: paid ? paymentReference.trim() || undefined : undefined,
@@ -419,6 +424,22 @@ function InvoiceForm({ grn }: { grn: GrnDetail }) {
                 />
               </dd>
             </div>
+            {other > 0 && (
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-slate-500">GST on charges (%)</dt>
+                <dd>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="28"
+                    value={chargesGstRate}
+                    onChange={(e) => setChargesGstRate(e.target.value)}
+                    className="num h-8 w-28 text-right"
+                  />
+                </dd>
+              </div>
+            )}
             <div className="flex justify-between text-xs">
               <dt className="text-slate-500">Round off</dt>
               <dd className="num">

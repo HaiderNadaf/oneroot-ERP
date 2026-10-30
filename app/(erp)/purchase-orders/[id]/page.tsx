@@ -105,7 +105,8 @@ export default function PurchaseOrderDetailPage() {
   const canBrowse = can("purchases.view");
   const vb = po.vendorBranch;
   const supplier = supplierOf(po);
-  const igst = isInterState(supplier, store);
+  // As saved: the backend decides it from the delivery branch's state, not only the store's
+  const igst = po.isInterState ?? isInterState(supplier, store);
   const pos = placeOfSupply(supplier, store);
   const tax = n(po.taxAmount);
   const slabs = poGstSlabs(po);
@@ -983,7 +984,8 @@ function PoPrint({ po, store, notApproved }: { po: PurchaseOrder; store: StoreSe
   const vb = po.vendorBranch;
   const supplier = supplierOf(po);
   const items = po.items ?? [];
-  const igst = isInterState(supplier, store);
+  // As saved: the backend decides it from the delivery branch's state, not only the store's
+  const igst = po.isInterState ?? isInterState(supplier, store);
   const tax = n(po.taxAmount);
   const slabs = poGstSlabs(po);
   const validUntil = po.expiryDays ? new Date(new Date(po.orderDate).getTime() + po.expiryDays * 86_400_000) : null;

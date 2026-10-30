@@ -26,6 +26,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { Permission } from "@/lib/permissions";
 import { useBranch } from "@/lib/branch";
+import { cartOwner, requestOpenBill, useCartCount } from "@/lib/cart";
 import { date, inr, n, qty } from "@/lib/format";
 import { useDebounced } from "@/lib/hooks";
 import { NotificationBell } from "./Notifications";
@@ -711,6 +712,33 @@ function BranchPicker() {
   );
 }
 
+/** Cart icon with the POS bill's item count; opens the bill on the POS page, or goes to the POS page from anywhere else */
+function CartButton() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const { current } = useBranch();
+  // The counter bill of this user in this branch, kept even while the POS page is closed
+  const count = useCartCount(cartOwner(user?.id, current?.id));
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (!requestOpenBill()) router.push("/sales/new");
+      }}
+      className={TOP_ICON_BUTTON}
+      aria-label={count ? `Cart, ${qty(count)} item${count === 1 ? "" : "s"}` : "Cart (new sale)"}
+      title="Cart"
+    >
+      <ShoppingCart className="size-5" />
+      {count > 0 && (
+        <span className="num absolute -right-0.5 -top-0.5 min-w-[18px] rounded-full bg-brand-600 px-1 text-center text-[10px] font-semibold leading-[18px] text-white ring-2 ring-surface">
+          {count > 99 ? "99+" : qty(count)}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export function TopBar({ onMenu }: { onMenu: () => void }) {
   const { can } = useAuth();
   // Nothing this user may search (a custom role with none of those modules): no search at all
@@ -746,6 +774,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
       )}
       {/* Barcode scans anywhere show the product (camera button on phones / tablets) */}
       <ProductScan />
+      {/* The POS button is replaced by the cart below
       {can("sales.bill") && (
         <Link
           href="/sales/new"
@@ -756,6 +785,8 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
           <span className="hidden sm:inline">POS</span>
         </Link>
       )}
+      */}
+      {can("sales.bill") && <CartButton />}
       <NotificationBell />
       <ThemeToggle />
       <UserMenu />

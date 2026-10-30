@@ -55,7 +55,7 @@ let lineSeq = 0;
 const lineGross = (l: PoLine) => round2((Number(l.quantity) || 0) * (Number(l.rate) || 0));
 const clampPct = (v: string) => Math.min(100, Math.max(0, Number(v) || 0));
 // Same as the backend: the discount comes off quantity x rate, GST is charged on the rest
-const lineTaxable = (l: PoLine) => round2(lineGross(l) * (1 - clampPct(l.discountPct) / 100));
+const lineTaxable = (l: PoLine) => round2((Number(l.quantity) || 0) * (Number(l.rate) || 0) * (1 - clampPct(l.discountPct) / 100));
 const lineAmount = (l: PoLine) => round2(lineTaxable(l) * (1 + l.gstRate / 100));
 
 /** Same rule as the backend's chainFor: first band that covers the value, then that many leading steps */

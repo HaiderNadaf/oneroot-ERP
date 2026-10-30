@@ -76,10 +76,11 @@ export function validateAttributes(fields: FieldDef[] | null | undefined, attrs:
   return errors;
 }
 
-/** Attribute values worth printing next to the product name */
-export function billAttributes(fields: FieldDef[] | null | undefined, attrs: Attributes | null | undefined): string {
-  return (fields ?? [])
-    .filter((f) => f.showOnBill && attrs?.[f.key] !== undefined && attrs?.[f.key] !== null && attrs?.[f.key] !== "")
-    .map((f) => (f.type === "yesno" ? f.label : String(attrs?.[f.key])))
-    .join(" · ");
-}
+// Not called anywhere: no invoice or receipt prints the showOnBill attributes
+// /** Attribute values worth printing next to the product name */
+// export function billAttributes(fields: FieldDef[] | null | undefined, attrs: Attributes | null | undefined): string {
+//   return (fields ?? [])
+//     .filter((f) => f.showOnBill && attrs?.[f.key] !== undefined && attrs?.[f.key] !== null && attrs?.[f.key] !== "")
+//     .map((f) => (f.type === "yesno" ? f.label : String(attrs?.[f.key])))
+//     .join(" · ");
+// }

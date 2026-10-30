@@ -25,7 +25,7 @@ import {
   Spinner,
   Table,
   Td,
-  Textarea,
+  // Textarea, // not used in any tab
   Th,
   cx,
   errMsg,

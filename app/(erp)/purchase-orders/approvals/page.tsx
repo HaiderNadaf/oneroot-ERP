@@ -57,12 +57,13 @@ export default function ApprovalsPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const { data, error, loading, reload } = useApi<ApprovalQueue>("/purchase-orders/approvals");
-  const grn = useApi<GrnApprovalQueue>("/purchase-orders/approvals/grn");
+  // GRN approval is switched off for now (goods inward posts straight away): only the PO tab shows
+  const GRN_APPROVAL = false;
+  // Only the hidden Goods Inward tab uses this, so it isn't fetched while GRN approval is off
+  const grn = useApi<GrnApprovalQueue>(GRN_APPROVAL ? "/purchase-orders/approvals/grn" : null);
   // Purchase orders or goods inward (?tab=grn, where GRN approval notifications link)
   const params = useSearchParams();
   const pathname = usePathname();
-  // GRN approval is switched off for now (goods inward posts straight away): only the PO tab shows
-  const GRN_APPROVAL = false;
   const tab: "po" | "grn" = GRN_APPROVAL && params.get("tab") === "grn" ? "grn" : "po";
   const setTab = (t: "po" | "grn") => router.replace(t === "po" ? pathname : `${pathname}?tab=grn`, { scroll: false });
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -116,7 +117,7 @@ export default function ApprovalsPage() {
     <>
       <PageHeader
         title="Approvals"
-        subtitle="Purchase orders and goods inward waiting for a decision, and what was decided recently"
+        subtitle="Purchase orders waiting for a decision, and what was decided recently" /* "and goods inward" while GRN approval is off */
         actions={
           <>
             <Button variant="secondary" icon={<RefreshCw className="size-4" />} onClick={() => void (tab === "grn" ? grn.reload() : reload())} loading={tab === "grn" ? grn.loading && !!grn.data : loading && !!data}>

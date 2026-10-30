@@ -11,7 +11,7 @@ import {
   Pencil,
   Printer,
   ReceiptIndianRupee,
-  ShoppingCart,
+  // ShoppingCart, // only the switched-off New Purchase button used it
   Trash2,
   Wallet,
 } from "lucide-react";
@@ -53,10 +53,11 @@ import { LazyVendorForm } from "@/components/lazy";
 
 type VendorDetail = Vendor & {
   stats: { totalPurchases: Dec; billCount: number; lastPurchase: string | null };
-  recentPurchases: Pick<
-    Purchase,
-    "id" | "purchaseNo" | "vendorInvoiceNo" | "purchaseDate" | "totalAmount" | "paidAmount" | "paymentStatus" | "status"
-  >[];
+  // Never rendered (the Purchases tab loads its own list), and the API no longer sends it
+  // recentPurchases: Pick<
+  //   Purchase,
+  //   "id" | "purchaseNo" | "vendorInvoiceNo" | "purchaseDate" | "totalAmount" | "paidAmount" | "paymentStatus" | "status"
+  // >[];
 };
 
 type Tab = "ledger" | "branches" | "products" | "purchases" | "payments";
@@ -114,6 +115,7 @@ export default function VendorDetailPage() {
                 New PO
               </Button>
             )}
+            {/* Purchase Entry is switched off: purchase invoices are booked from a GRN (Goods Inward) now
             {can("invoices.create") && (
               <Button
                 variant="secondary"
@@ -123,6 +125,7 @@ export default function VendorDetailPage() {
                 New Purchase
               </Button>
             )}
+            */}
             {can("vendors.edit") && (
               <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
                 Edit

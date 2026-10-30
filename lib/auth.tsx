@@ -6,6 +6,7 @@ import { clearApiCache } from "./hooks";
 import { isNetworkError, persistClear, persistGet, persistSet } from "./offline";
 import { hasPerm, type Permission } from "./permissions";
 import type { Role } from "./types";
+import { clearSavedBills } from "./cart";
 
 /**
  * POSTs to the API directly: it answers a wrong password with 401, which the shared client treats as an
@@ -91,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setToken(null);
     persistClear();
+    clearSavedBills();
     setUser(null);
     window.location.href = "/login";
   }, []);

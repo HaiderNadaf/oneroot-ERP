@@ -261,7 +261,8 @@ function PurchaseDetail() {
               <Th>Mfg</Th>
               <Th>Expiry</Th>
               <Th right>Qty</Th>
-              <Th right>Free</Th>
+              {/* Free qty is only set by Purchase Entry (switched off); invoices booked from a GRN never have it
+              <Th right>Free</Th> */}
               <Th right>Rate</Th>
               <Th right>Disc</Th>
               <Th right>GST</Th>
@@ -292,9 +293,10 @@ function PurchaseDetail() {
                   <Td right>
                     {qty(it.quantity)} <span className="text-xs text-slate-500">{it.product?.unit}</span>
                   </Td>
+                  {/* Free column hidden, see the header
                   <Td right className="text-slate-500">
                     {n(it.freeQty) ? qty(it.freeQty) : "—"}
-                  </Td>
+                  </Td> */}
                   <Td right>{inr(it.rate)}</Td>
                   <Td right className="text-slate-500">
                     {n(it.discountPct) ? `${n(it.discountPct)}%` : "—"}

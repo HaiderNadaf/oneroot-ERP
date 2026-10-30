@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronRight,
   FileMinus,
+  FileSpreadsheet,
   PackageCheck,
   ClipboardList,
   FileText,
@@ -142,6 +143,7 @@ export const NAV: NavGroup[] = [
       { href: "/expenses", label: "Expenses", icon: <Wallet />, perms: ["expenses.view"] },
       { href: "/petty-cash", label: "Petty Cash", icon: <HandCoins />, perms: ["expenses.view"] },
       { href: "/accounts", label: "Accounts", icon: <BookOpen />, perms: ["accounts.view"] },
+      { href: "/tally", label: "Tally", icon: <FileSpreadsheet />, perms: ["accounts.view"] },
     ],
   },
   {

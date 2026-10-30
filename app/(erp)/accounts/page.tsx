@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { BalanceSheetTab, ChartTab, DayBookTab, LedgerTab, PartiesTab, PnlTab, TallyTab, TrialBalanceTab } from "@/components/accounts/AccountsTabs";
+import { TallySyncTab } from "@/components/accounts/TallySyncTab";
 import { RequirePerm } from "@/components/AppShell";
 import { RangeBar, type Range } from "@/components/reports/ReportKit";
 import { PageHeader, Tabs } from "@/components/ui";
@@ -16,6 +17,7 @@ const TABS = [
   { value: "tb", label: "Trial Balance" },
   { value: "pl", label: "Profit & Loss" },
   { value: "bs", label: "Balance Sheet" },
+  { value: "tallysync", label: "Tally Sync" },
   { value: "tally", label: "Tally Export" },
 ] as const;
 
@@ -59,6 +61,7 @@ function Accounts() {
       {tab === "tb" && <TrialBalanceTab range={range} rangeBar={rangeBar} />}
       {tab === "pl" && <PnlTab range={range} rangeBar={rangeBar} />}
       {tab === "bs" && <BalanceSheetTab />}
+      {tab === "tallysync" && <TallySyncTab />}
       {tab === "tally" && <TallyTab range={range} rangeBar={rangeBar} />}
     </>
   );

@@ -99,7 +99,7 @@ export function ChartTab() {
           </Button>
         )}
         {canCreate && (
-          <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
+          <Button variant="add" icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
             New Account
           </Button>
         )}
@@ -324,7 +324,7 @@ export function DayBookTab({ range, rangeBar }: { range: Range; rangeBar: ReactN
         {can("accounts.create") && (
           <>
             <div className="flex-1" />
-            <Button icon={<Plus className="size-4" />} onClick={() => setManual(true)}>
+            <Button variant="add" icon={<Plus className="size-4" />} onClick={() => setManual(true)}>
               New Voucher
             </Button>
           </>
@@ -659,7 +659,7 @@ function ManualVoucherBody({ onClose, onSaved }: { onClose: () => void; onSaved:
         </div>
         <Button
           type="button"
-          variant="ghost"
+          variant="add"
           size="sm"
           icon={<Plus className="size-4" />}
           onClick={() => setLines((ls) => [...ls, { key: ++seq.n, accountId: "", debit: "", credit: "", customer: null, vendor: null, description: "" }])}

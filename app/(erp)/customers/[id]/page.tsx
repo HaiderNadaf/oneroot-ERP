@@ -112,7 +112,7 @@ export default function CustomerDetailPage() {
               </Button>
             </Link>
             {can("customers.edit") && (
-              <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
+              <Button variant="edit" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
                 Edit
               </Button>
             )}
@@ -128,7 +128,7 @@ export default function CustomerDetailPage() {
             )}
             {can("sales.bill") && (
               <Link href={`/sales/new?customerId=${c.id}`}>
-                <Button icon={<ShoppingCart className="size-4" />}>New Sale</Button>
+                <Button variant="add" icon={<ShoppingCart className="size-4" />}>New Sale</Button>
               </Link>
             )}
           </>

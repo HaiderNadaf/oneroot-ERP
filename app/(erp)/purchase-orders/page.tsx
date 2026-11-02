@@ -46,8 +46,11 @@ export default function PurchaseOrdersPage() {
 
 function PurchaseOrders() {
   const router = useRouter();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const canCreate = can("po.create");
+  /** po.edit edits any open PO; a raiser their own drafts and sent-back POs */
+  const mayEdit = (po: PurchaseOrder) =>
+    !!po.canEdit && (can("po.edit") || (canCreate && po.createdBy?.id === user?.id && (po.status === "DRAFT" || po.status === "SENT_BACK")));
   const { currentId } = useBranch();
   const [status, setStatus] = useState<Filter>("");
   const [page, setPage] = useState(1);
@@ -93,7 +96,7 @@ function PurchaseOrders() {
               Approvals
             </Button>
             {canCreate && (
-              <Button icon={<Plus className="size-4" />} onClick={() => router.push("/purchase-orders/new")}>
+              <Button variant="add" icon={<Plus className="size-4" />} onClick={() => router.push("/purchase-orders/new")}>
                 New PO
               </Button>
             )}
@@ -171,7 +174,7 @@ function PurchaseOrders() {
                             {po.poNo}
                           </Link>
                           {po.round > 1 && <Badge tone="violet">Round {po.round}</Badge>}
-                          {currentId === "all" && po.branch && <BranchCode code={po.branch.code} title={`Deliver to ${po.branch.name}`} />}
+                          {(currentId === "all" || po.branch?.id !== currentId) && po.branch && <BranchCode code={po.branch.code} title={`Deliver to ${po.branch.name}`} />}
                         </div>
                         <p className="text-xs text-slate-500">
                           {date(po.orderDate)}
@@ -215,7 +218,14 @@ function PurchaseOrders() {
                             </Button>
                           )}
                           <RowAction kind="view" label="Open" href={`/purchase-orders/${po.id}`} title={`Open ${po.poNo}`} />
-                          {po.canEdit && can("po.edit") && <RowAction kind="edit" href={`/purchase-orders/${po.id}/edit`} title={`Edit ${po.poNo}`} />}
+                          {mayEdit(po) && (
+                            <RowAction
+                              kind="edit"
+                              label={po.status === "DRAFT" ? "Edit Draft" : undefined}
+                              href={`/purchase-orders/${po.id}/edit`}
+                              title={`Edit ${po.poNo}`}
+                            />
+                          )}
                       </ActionsTd>
                     </tr>
                   );

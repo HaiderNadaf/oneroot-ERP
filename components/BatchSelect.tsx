@@ -203,7 +203,7 @@ export function BatchSelect({
                     className="h-8 font-mono"
                     aria-label="New batch number"
                   />
-                  <Button size="sm" onClick={addNew} disabled={!draft.trim()}>
+                  <Button variant="add" size="sm" onClick={addNew} disabled={!draft.trim()}>
                     Add
                   </Button>
                 </div>

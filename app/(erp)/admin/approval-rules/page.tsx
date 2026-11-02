@@ -242,7 +242,7 @@ function RulesEditor({
         title="Value Bands"
         bodyClassName="p-0"
         actions={
-          <Button variant="secondary" size="sm" icon={<Plus className="size-4" />} onClick={addBand}>
+          <Button variant="add" size="sm" icon={<Plus className="size-4" />} onClick={addBand}>
             Add Band
           </Button>
         }

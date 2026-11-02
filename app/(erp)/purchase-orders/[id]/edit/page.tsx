@@ -11,7 +11,7 @@ import type { PurchaseOrder } from "@/lib/types";
 
 export default function EditPurchaseOrderPage() {
   return (
-    <RequirePerm perms={["po.edit"]}>
+    <RequirePerm perms={["po.edit", "po.create"]}>
       <EditPurchaseOrder />
     </RequirePerm>
   );

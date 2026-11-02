@@ -68,7 +68,7 @@ export function VendorBranchList({ vendor }: { vendor?: Pick<Vendor, "id" | "nam
       actions={
         vendor &&
         canAdd && (
-          <Button size="sm" icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
+          <Button variant="add" size="sm" icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
             Add Depot
           </Button>
         )
@@ -90,7 +90,7 @@ export function VendorBranchList({ vendor }: { vendor?: Pick<Vendor, "id" | "nam
           <option value="all">All</option>
         </Select>
         {!vendor && canAdd && (
-          <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
+          <Button variant="add" icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
             New Depot
           </Button>
         )}

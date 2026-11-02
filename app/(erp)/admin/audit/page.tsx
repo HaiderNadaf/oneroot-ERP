@@ -213,7 +213,7 @@ function DeviceNameForm({ log, onClose, onSaved }: { log: AuditLog; onClose: () 
       footer={
         <>
           {log.deviceLabel && (
-            <Button variant="ghost" className="mr-auto" onClick={() => void save(true)} disabled={saving}>
+            <Button variant="danger" className="mr-auto" onClick={() => void save(true)} disabled={saving}>
               Remove Name
             </Button>
           )}

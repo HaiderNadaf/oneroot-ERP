@@ -110,7 +110,7 @@ export function LandingBrochure() {
       <PrintPortal className="sheet-host">
         <div className="hidden bg-white p-[12mm] text-slate-900 [print-color-adjust:exact] [-webkit-print-color-adjust:exact] print:block">
           <div className="flex items-center justify-between border-b-[3px] border-forest-700 pb-3">
-            <PrintLogo className="mx-0" imageClassName="h-12 w-auto" textClassName="text-[30px]" />
+            <PrintLogo className="mx-0" imageClassName="h-14 w-auto" />
             <div className="text-right">
               <p className="text-[19px] font-extrabold uppercase tracking-[0.06em] text-brand-800">Product Brochure</p>
               <p className="text-xs text-slate-500">OneRoot ERP for agri-input stores</p>

@@ -787,7 +787,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
-                variant="secondary"
+                variant="add"
                 icon={<Plus className="size-4" />}
                 onClick={() => setMoneyLines((ls) => [...ls, blankMoneyLine()])}
               >

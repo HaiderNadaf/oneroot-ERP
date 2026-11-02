@@ -458,7 +458,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
         title={`Items${lines.length ? ` (${lines.length})` : ""}`}
         actions={
           can("inventory.view") && (
-            <Button variant="secondary" size="sm" icon={<ListPlus className="size-4" />} onClick={addLowStock} loading={loadingLow} disabled={!supplied}>
+            <Button variant="add" size="sm" icon={<ListPlus className="size-4" />} onClick={addLowStock} loading={loadingLow} disabled={!supplied}>
               Add Low-Stock Items
             </Button>
           )

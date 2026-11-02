@@ -72,6 +72,7 @@ export default function ProductsPage() {
   const [type, setType] = useState("");
   const { data: taxTypes } = useApi<TaxType[]>("/tax-types");
   const [categoryId, setCategoryId] = useState("");
+  const [subCategoryId, setSubCategoryId] = useState("");
   const [status, setStatus] = useState("active");
   const [stock, setStock] = useState("");
   const [sort, setSort] = useState("");
@@ -83,14 +84,14 @@ export default function ProductsPage() {
   const q = useDebounced(search);
 
   const { data: categories, reload: reloadCats } = useApi<Category[]>("/categories", { withSubs: "true" });
-  // The category filter holds "cat:<id>" (whole category) or "sub:<id>" (one sub-category)
-  const [pickKind, pickId] = categoryId.split(":");
+  // Sub-category choices follow the chosen category
+  const subCategories = categories?.find((c) => c.id === categoryId)?.subCategories ?? [];
   const filters = {
     search: q,
     // "type" filters by the category's tax type
     taxTypeId: type,
-    categoryId: pickKind === "cat" ? pickId : "",
-    subCategoryId: pickKind === "sub" ? pickId : "",
+    categoryId,
+    subCategoryId,
     status,
     stock,
     sort,
@@ -209,7 +210,7 @@ export default function ProductsPage() {
 
   const cols = useColumns("products", allColumns);
   const colCount = cols.columns.length + 1;
-  const activeFilters = [type, categoryId, stock, status !== "active" ? status : ""].filter(Boolean).length;
+  const activeFilters = [type, categoryId, subCategoryId, stock, status !== "active" ? status : ""].filter(Boolean).length;
 
   const openNew = () => {
     setEditing(null);
@@ -219,6 +220,7 @@ export default function ProductsPage() {
   function clearFilters() {
     setType("");
     setCategoryId("");
+    setSubCategoryId("");
     setStock("");
     setStatus("active");
     setSearch("");
@@ -257,7 +259,7 @@ export default function ProductsPage() {
                 <Button variant="secondary" icon={<Tags className="size-4" />} onClick={() => setCatsOpen(true)}>
                   Categories
                 </Button>
-                <Button icon={<Plus className="size-4" />} onClick={openNew}>
+                <Button variant="add" icon={<Plus className="size-4" />} onClick={openNew}>
                   New Product
                 </Button>
               </>
@@ -286,17 +288,32 @@ export default function ProductsPage() {
               </option>
             ))}
           </Select>
-          <Select value={categoryId} onChange={(e) => (setCategoryId(e.target.value), setPage(1))} className="w-[calc(50%-0.25rem)] sm:w-40" aria-label="Category">
+          <Select
+            value={categoryId}
+            onChange={(e) => (setCategoryId(e.target.value), setSubCategoryId(""), setPage(1))}
+            className="w-[calc(50%-0.25rem)] sm:w-44"
+            aria-label="Category"
+          >
             <option value="">All Categories</option>
-            {categories?.map((top) => (
-              <optgroup key={top.id} label={top.name}>
-                <option value={`cat:${top.id}`}>All {top.name}</option>
-                {top.subCategories?.map((c) => (
-                  <option key={c.id} value={`sub:${c.id}`}>
-                    {c.name}
-                  </option>
-                ))}
-              </optgroup>
+            {categories?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+          <Select
+            value={subCategoryId}
+            onChange={(e) => (setSubCategoryId(e.target.value), setPage(1))}
+            disabled={!categoryId}
+            title={categoryId ? undefined : "Choose a category first"}
+            className="w-[calc(50%-0.25rem)] sm:w-48"
+            aria-label="Sub-Category"
+          >
+            <option value="">{categoryId ? "All Sub-Categories" : "Sub-Category"}</option>
+            {subCategories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
             ))}
           </Select>
           <Select value={stock} onChange={(e) => (setStock(e.target.value), setPage(1))} className="w-[calc(50%-0.25rem)] sm:w-36" aria-label="Stock">

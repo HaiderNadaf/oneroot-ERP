@@ -99,7 +99,7 @@ function CampaignView() {
         actions={
           <>
             {can("schemes.edit") && (
-              <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditing(true)}>
+              <Button variant="edit" icon={<Pencil className="size-4" />} onClick={() => setEditing(true)}>
                 Edit
               </Button>
             )}
@@ -114,7 +114,7 @@ function CampaignView() {
                 </Button>
               ))}
             {can("schemes.delete") && (
-              <Button variant="secondary" icon={<Trash2 className="size-4" />} onClick={() => void remove()}>
+              <Button variant="danger" icon={<Trash2 className="size-4" />} onClick={() => void remove()}>
                 Delete
               </Button>
             )}
@@ -141,7 +141,7 @@ function CampaignView() {
         title={`Offers (${c.schemes.length})`}
         actions={
           can("schemes.create") && (
-            <Button size="sm" icon={<Plus className="size-4" />} onClick={() => setOffer("new")}>
+            <Button variant="add" size="sm" icon={<Plus className="size-4" />} onClick={() => setOffer("new")}>
               Add Offer
             </Button>
           )

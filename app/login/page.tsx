@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Button, Field, Input, errMsg, Logo } from "@/components/ui";
+import { Button, Field, Input, LOGOS, errMsg, Logo } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 
 export default function LoginPage() {
@@ -32,16 +32,16 @@ export default function LoginPage() {
   }
 
   return (
-    // Light mint page with soft green and wheat-gold glows; the card's deep-green header frames the white logo tile
-    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-gradient-to-br from-paper-4 via-brand-50 to-leaf-150 p-4">
+    // Warm light page with soft orange and amber glows; the card's light orange header frames the logo tile
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-gradient-to-br from-paper-4 via-brand-50 to-brand-100 p-4">
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div className="absolute -left-32 -top-32 size-[28rem] rounded-full bg-brand-500/25 blur-3xl" />
         <div className="absolute -bottom-40 -right-24 size-[30rem] rounded-full bg-amber-300/30 blur-3xl" />
-        <div className="absolute inset-0 bg-[radial-gradient(#16634114_1px,transparent_1px)] [background-size:22px_22px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(#ff620014_1px,transparent_1px)] [background-size:22px_22px]" />
       </div>
       <form onSubmit={submit} className="relative w-full max-w-sm">
         <div className="overflow-hidden rounded-3xl bg-surface shadow-2xl shadow-brand-900/20 ring-1 ring-forest-900/5">
-          <div className="relative overflow-hidden bg-gradient-to-br from-forest-900 via-forest-800 to-brand-600  p-4 pb-1 text-center">
+          <div className="relative overflow-hidden bg-gradient-to-br from-brand-50 via-brand-100 to-brand-200  p-4 pb-1 text-center">
             <div
               aria-hidden
               className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-brand-400/20 blur-2xl"
@@ -50,8 +50,8 @@ export default function LoginPage() {
               aria-hidden
               className="pointer-events-none absolute -bottom-20 -left-10 size-44 rounded-full bg-amber-300/15 blur-2xl"
             />
-            <Logo priority framed className="relative" imageClassName="w-56" textClassName="text-4xl" />
-            <p className="relative text-[11px] font-medium uppercase tracking-[0.18em] text-mint-100/80">
+            <Logo logo={LOGOS.vertical} priority framed className="relative px-6 py-3" imageClassName="w-44" />
+            <p className="relative text-[11px] font-medium uppercase tracking-[0.18em] text-brand-800 mt-2">
               Agri Inputs ERP
             </p>
           </div>

@@ -129,7 +129,7 @@ export function TaxTypesManager({ onClose, canEdit }: { onClose: () => void; can
       footer={
         <>
           {canEdit && (
-            <Button variant="secondary" icon={<Plus className="size-4" />} onClick={() => setForm({ taxType: null })} className="mr-auto">
+            <Button variant="add" icon={<Plus className="size-4" />} onClick={() => setForm({ taxType: null })} className="mr-auto">
               New tax type
             </Button>
           )}
@@ -155,11 +155,11 @@ export function TaxTypesManager({ onClose, canEdit }: { onClose: () => void; can
               </div>
               {canEdit && (
                 <>
-                  <Button variant="ghost" size="sm" icon={<Pencil className="size-4" />} onClick={() => setForm({ taxType: t })}>
+                  <Button variant="edit" size="sm" icon={<Pencil className="size-4" />} onClick={() => setForm({ taxType: t })}>
                     Edit
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="danger"
                     size="sm"
                     icon={<Trash2 className="size-4" />}
                     onClick={() => void remove(t)}

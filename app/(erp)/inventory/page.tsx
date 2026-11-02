@@ -359,7 +359,7 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
                     <Td right>
                       <div className="flex justify-end gap-1.5">
                         {isAdmin && (
-                          <Button variant="secondary" size="sm" onClick={() => setEditBatch(b)}>
+                          <Button variant="edit" size="sm" onClick={() => setEditBatch(b)}>
                             Edit
                           </Button>
                         )}
@@ -471,7 +471,7 @@ function LowStockTab({
       actions={
         can("po.create") && (
           <Link href="/purchase-orders/new">
-            <Button size="sm" icon={<ClipboardList className="size-4" />}>
+            <Button variant="add" size="sm" icon={<ClipboardList className="size-4" />}>
               Create PO
             </Button>
           </Link>
@@ -663,7 +663,7 @@ function TransfersTab({ version, onNew }: { version: number; onNew: () => void }
       bodyClassName="p-0"
       actions={
         can("inventory.transfer") && (
-          <Button size="sm" icon={<ArrowLeftRight className="size-4" />} onClick={onNew}>
+          <Button variant="add" size="sm" icon={<ArrowLeftRight className="size-4" />} onClick={onNew}>
             New Transfer
           </Button>
         )

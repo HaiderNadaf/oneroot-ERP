@@ -64,7 +64,7 @@ const supplierOf = (po: PurchaseOrder) => (po.vendorBranch && (po.vendorBranch.g
 export default function PurchaseOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const { refresh } = useCounts();
   const toast = useToast();
   const confirm = useConfirm();
@@ -116,7 +116,8 @@ export default function PurchaseOrderDetailPage() {
   const history = po.history ?? [];
   const pending = po.status === "PENDING_APPROVAL";
   const receivable = po.status === "APPROVED" || po.status === "PARTIALLY_RECEIVED";
-  const isBuyer = can("po.edit");
+  // po.edit edits any open PO; a raiser their own drafts and sent-back POs
+  const isBuyer = can("po.edit") || (can("po.create") && po.createdBy?.id === user?.id && (po.status === "DRAFT" || po.status === "SENT_BACK"));
   // Named approvers can open this page without the purchases section
   const canBrowse = can("purchases.view");
   const vb = po.vendorBranch;
@@ -186,7 +187,7 @@ export default function PurchaseOrderDetailPage() {
               </Button>
             )}
             {po.canEdit && isBuyer && (
-              <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => router.push(`/purchase-orders/${po.id}/edit`)}>
+              <Button variant="edit" icon={<Pencil className="size-4" />} onClick={() => router.push(`/purchase-orders/${po.id}/edit`)}>
                 {editLabel}
               </Button>
             )}

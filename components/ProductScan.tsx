@@ -116,7 +116,7 @@ function ProductCard({ product: p, onClose, onScanAgain }: { product: Product; o
             <Link
               href={`/products/${p.id}`}
               onClick={onClose}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3.5 text-sm font-medium text-white shadow-sm hover:bg-forest-700"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3.5 text-sm font-medium text-white shadow-sm hover:bg-brand-700"
             >
               <ExternalLink className="size-4" /> Open Product
             </Link>

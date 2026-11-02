@@ -97,7 +97,7 @@ export default function CustomersPage() {
               Export
             </Button>
             {canCreate && (
-              <Button icon={<Plus className="size-4" />} onClick={openNew}>
+              <Button variant="add" icon={<Plus className="size-4" />} onClick={openNew}>
                 New Customer
               </Button>
             )}

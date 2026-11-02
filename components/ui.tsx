@@ -25,6 +25,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
 import { date } from "@/lib/format";
+import { LOGOS, type LogoImage } from "@/lib/logos";
 import type { StoreSettings } from "@/lib/types";
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
@@ -34,13 +35,16 @@ export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Bool
 export const TOP_ICON_BUTTON =
   "relative inline-flex size-10 shrink-0 items-center justify-center rounded-[9px] border border-line bg-surface text-slate-600 transition-colors hover:border-line-3 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+/** Action colours used everywhere: add / new = green, edit = yellow, delete / remove = red (danger) */
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "add" | "edit";
 
 const buttonStyles: Record<ButtonVariant, string> = {
-  primary: "bg-brand-600 text-white hover:bg-forest-700 shadow-sm",
+  primary: "bg-brand-600 text-white hover:bg-brand-700 shadow-sm",
   secondary: "bg-surface text-slate-700 border border-slate-300 hover:bg-slate-50 shadow-sm",
   ghost: "text-slate-600 hover:bg-slate-100",
   danger: "bg-red-600 text-white hover:bg-crimson-700 shadow-sm",
+  add: "bg-green-600 text-white hover:bg-green-700 shadow-sm",
+  edit: "bg-yellow-400 text-yellow-950 hover:bg-yellow-500 shadow-sm",
 };
 
 export function Button({
@@ -338,7 +342,7 @@ export function DateInput({
   const cellButton = (isSelected: boolean, isOff: boolean, extra?: string) =>
     cx(
       "flex items-center justify-center rounded-md text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
-      isSelected ? "bg-brand-600 font-semibold text-white hover:bg-forest-700" : "text-slate-700 hover:bg-brand-50",
+      isSelected ? "bg-brand-600 font-semibold text-white hover:bg-brand-700" : "text-slate-700 hover:bg-brand-50",
       isOff && "cursor-not-allowed opacity-35 hover:bg-transparent",
       extra,
     );
@@ -508,23 +512,27 @@ export function DateInput({
   );
 }
 
+export { LOGOS, type LogoImage } from "@/lib/logos";
+
 /**
- * The full OneRoot.farm logo (black wordmark, green infinity on white) in a rounded white card.
+ * A OneRoot logo, centred in a rounded card. `logo` picks the image (a LOGOS entry or any
+ * { src, width, height }); `alt` its text.
  * `framed` adds a shadow and soft ring so the card lifts off a dark background (the sidebar);
  * leave it off where the logo already sits on white (the login card).
  * `className` sizes and places the card; `imageClassName` sets the logo width (default 176px).
  */
 export function Logo({
+  logo = LOGOS.horizontal,
+  alt = "OneRoot",
   className,
   imageClassName = "w-[176px]",
-  textClassName = "text-3xl",
   framed = false,
   priority,
 }: {
+  logo?: LogoImage;
+  alt?: string;
   className?: string;
   imageClassName?: string;
-  /** Size of the "ERP" word beside the logo */
-  textClassName?: string;
   framed?: boolean;
   /** Load eagerly (above-the-fold logos: sidebar, login) */
   priority?: boolean;
@@ -537,30 +545,29 @@ export function Logo({
         className,
       )}
     >
-      <Image src="/full_logo.png" alt="OneRoot.farm" width={1630} height={640} priority={priority} className={cx("h-auto min-w-0", imageClassName)} />
-      <span className={cx("shrink-0 pr-3 font-display font-bold leading-none text-brand-800", textClassName)}>ERP</span>
+      <Image src={logo.src} alt={alt} width={logo.width} height={logo.height} priority={priority} className={cx("h-auto min-w-0", imageClassName)} />
     </div>
   );
 }
 
 /**
- * Company logo with "ERP" at the top of printed bills, invoices, notes and receipts (as on the PO).
- * `className` places the pair; `imageClassName` sizes the image (default 44px tall); `textClassName` sizes "ERP".
+ * Company logo at the top of printed bills, invoices, notes and receipts (as on the PO), and so in the PO PDF
+ * emailed to vendors. `src` picks the image (the stacked logo unless given).
+ * `className` places it; `imageClassName` sizes the image (default 56px tall).
  */
 export function PrintLogo({
+  src = LOGOS.vertical.src,
   className,
-  imageClassName = "h-11 w-auto",
-  textClassName = "text-[26px]",
+  imageClassName = "h-14 w-auto",
 }: {
+  src?: string;
   className?: string;
   imageClassName?: string;
-  textClassName?: string;
 }) {
   return (
-    <span className={cx("mx-auto flex w-fit items-center gap-1", className)}>
+    <span className={cx("mx-auto flex w-fit items-center justify-center", className)}>
       {/* eslint-disable-next-line @next/next/no-img-element -- plain img prints reliably */}
-      <img src="/full_logo.png" alt="OneRoot.farm" className={cx("block", imageClassName)} />
-      <span className={cx("font-bold leading-none text-brand-800", textClassName)}>ERP</span>
+      <img src={src} alt="OneRoot" className={cx("block", imageClassName)} />
     </span>
   );
 }
@@ -1255,7 +1262,7 @@ export function ActionsTd({ children, className, right }: { children?: ReactNode
 
 const ROW_ACTION = {
   view: { icon: Eye, label: "View", tone: "bg-sky-50 text-sky-700 ring-sky-200 hover:bg-sky-100" },
-  edit: { icon: Pencil, label: "Edit", tone: "bg-brand-50 text-brand-700 ring-brand-200 hover:bg-brand-100" },
+  edit: { icon: Pencil, label: "Edit", tone: "bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100" },
   delete: { icon: Trash2, label: "Delete", tone: "bg-red-50 text-red-700 ring-red-200 hover:bg-red-100" },
 } as const;
 

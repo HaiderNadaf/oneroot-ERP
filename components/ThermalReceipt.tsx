@@ -103,8 +103,7 @@ export function ThermalReceipt({ data, settings, width = 80 }: { data: ReceiptDa
       <div className="text-center">
         <PrintLogo
           className="mb-1"
-          imageClassName={narrow ? "h-auto w-[28mm]" : "h-auto w-[38mm]"}
-          textClassName={narrow ? "text-[15px] text-black" : "text-[19px] text-black"}
+          imageClassName={narrow ? "h-auto w-[22mm]" : "h-auto w-[28mm]"}
         />
         <p className="text-[13px] font-bold uppercase">{settings?.storeName ?? "OneRoot Agri Inputs"}</p>
         {settings?.address && <p>{[settings.address, settings.city].filter(Boolean).join(", ")}</p>}

@@ -157,7 +157,7 @@ function PettyCash() {
                 >
                   Top Up
                 </Button>
-                <Button
+                <Button variant="add"
                   icon={<Plus className="size-4" />}
                   onClick={() => setForm("SPEND")}
                   disabled={!current}
@@ -423,7 +423,7 @@ function TopUpForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" form="petty-topup-form" loading={saving}>
+          <Button variant="add" type="submit" form="petty-topup-form" loading={saving}>
             Add to Fund
           </Button>
         </>

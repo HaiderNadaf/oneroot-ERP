@@ -35,7 +35,7 @@ export default function QuotationsPage() {
         actions={
           canAdd && (
             <Link href="/quotations/new">
-              <Button icon={<Plus className="size-4" />}>New Quotation</Button>
+              <Button variant="add" icon={<Plus className="size-4" />}>New Quotation</Button>
             </Link>
           )
         }

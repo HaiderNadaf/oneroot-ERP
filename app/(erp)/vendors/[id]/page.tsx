@@ -108,7 +108,7 @@ export default function VendorDetailPage() {
           <>
             {canBuy && (
               <Button
-                variant="secondary"
+                variant="add"
                 icon={<ClipboardList className="size-4" />}
                 onClick={() => router.push(`/purchase-orders/new?vendorId=${v.id}`)}
               >
@@ -118,7 +118,7 @@ export default function VendorDetailPage() {
             {/* Purchase Entry is switched off: purchase invoices are booked from a GRN (Goods Inward) now
             {can("invoices.create") && (
               <Button
-                variant="secondary"
+                variant="add"
                 icon={<ShoppingCart className="size-4" />}
                 onClick={() => router.push(`/purchases/new?vendorId=${v.id}`)}
               >
@@ -127,7 +127,7 @@ export default function VendorDetailPage() {
             )}
             */}
             {can("vendors.edit") && (
-              <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
+              <Button variant="edit" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
                 Edit
               </Button>
             )}

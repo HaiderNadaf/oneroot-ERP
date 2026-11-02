@@ -778,7 +778,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
       {can("sales.bill") && (
         <Link
           href="/sales/new"
-          className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[9px] bg-brand-600 px-3 text-sm font-semibold text-white shadow-sm hover:bg-forest-700 sm:px-3.5"
+          className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[9px] bg-brand-600 px-3 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 sm:px-3.5"
           aria-label="New sale (POS)"
         >
           <ShoppingCart className="size-4" />

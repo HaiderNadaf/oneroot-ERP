@@ -27,7 +27,7 @@ export default function VanTripsPage() {
         subtitle="Load stock onto the van in the morning, bill farmers in the villages against the trip, and reconcile returns and cash in the evening"
         actions={
           can("sales.van") && (
-            <Button icon={<Plus className="size-4" />} onClick={() => setOpening(true)}>
+            <Button variant="add" icon={<Plus className="size-4" />} onClick={() => setOpening(true)}>
               Load a Van
             </Button>
           )

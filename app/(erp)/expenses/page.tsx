@@ -115,7 +115,7 @@ function Expenses() {
               Categories
             </Button>
             {canCreate && (
-              <Button icon={<Plus className="size-4" />} onClick={() => setAddOpen(true)}>
+              <Button variant="add" icon={<Plus className="size-4" />} onClick={() => setAddOpen(true)}>
                 Add Expense
               </Button>
             )}

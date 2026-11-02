@@ -128,7 +128,7 @@ export function CategoryFieldsEditor({ category, onClose, onSaved }: { category:
           ))}
         </ul>
       )}
-      <Button variant="secondary" size="sm" className="mt-3" icon={<Plus className="size-4" />} onClick={addBlank}>
+      <Button variant="add" size="sm" className="mt-3" icon={<Plus className="size-4" />} onClick={addBlank}>
         Add a Field
       </Button>
     </Modal>

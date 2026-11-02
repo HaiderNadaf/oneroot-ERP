@@ -132,19 +132,19 @@ function Users() {
           // One add button, in the same place, for whichever tab is open
           filter === "department" ? (
             can("roles.create") && (
-              <Button icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
+              <Button variant="add" icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
                 New Department
               </Button>
             )
           ) : filter === "role" ? (
             can("roles.create") && (
-              <Button icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
+              <Button variant="add" icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
                 New Role
               </Button>
             )
           ) : (
             can("users.create") && (
-              <Button icon={<Plus className="size-4" />} onClick={() => open(null)}>
+              <Button variant="add" icon={<Plus className="size-4" />} onClick={() => open(null)}>
                 New User
               </Button>
             )

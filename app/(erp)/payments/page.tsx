@@ -113,7 +113,7 @@ export default function PaymentsPage() {
               </Button>
             )}
             {(canReceive || canPayVendor) && (
-              <Button icon={<Plus className="size-4" />} onClick={() => setFormOpen(true)}>
+              <Button variant="add" icon={<Plus className="size-4" />} onClick={() => setFormOpen(true)}>
                 New Payment
               </Button>
             )}

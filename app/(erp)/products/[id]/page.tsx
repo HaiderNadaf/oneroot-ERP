@@ -139,7 +139,7 @@ export default function ProductDetailPage() {
             </Button>
             {p.isActive
               ? can("products.delete") && (
-                  <Button variant="secondary" icon={<Trash2 className="size-4" />} onClick={remove} loading={busy}>
+                  <Button variant="danger" icon={<Trash2 className="size-4" />} onClick={remove} loading={busy}>
                     Delete
                   </Button>
                 )
@@ -149,7 +149,7 @@ export default function ProductDetailPage() {
                   </Button>
                 )}
             {can("products.edit") && (
-              <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
+              <Button variant="edit" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
                 Edit
               </Button>
             )}

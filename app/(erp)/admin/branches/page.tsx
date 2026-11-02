@@ -90,7 +90,7 @@ function Branches() {
         subtitle="Store locations — each with its own stock, bills and staff"
         actions={
           can("branches.create") && (
-            <Button icon={<Plus className="size-4" />} onClick={() => open(null)}>
+            <Button variant="add" icon={<Plus className="size-4" />} onClick={() => open(null)}>
               New Branch
             </Button>
           )

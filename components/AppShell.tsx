@@ -44,7 +44,7 @@ import type { Permission } from "@/lib/permissions";
 import { CountsProvider, useCounts } from "./Notifications";
 import { TopBar } from "./TopBar";
 import { QuickDock } from "./QuickActions";
-import { Spinner, cx, Logo } from "./ui";
+import { LOGOS, Spinner, cx, Logo } from "./ui";
 
 export interface NavItem {
   href: string;
@@ -276,12 +276,12 @@ function NavItemLink({
           : "text-[13.5px] [&>svg]:size-[17px]",
         active
           ? cx(
-              "bg-forest-800 font-medium text-white",
+              "bg-brand-100 font-semibold text-brand-800",
               nested
-                ? "shadow-[inset_2px_0_0_#8fd19e]"
-                : "shadow-[inset_3px_0_0_#8fd19e]",
+                ? "shadow-[inset_2px_0_0_var(--color-brand-500)]"
+                : "shadow-[inset_3px_0_0_var(--color-brand-500)]",
             )
-          : "text-sidebar-text hover:bg-forest-800 hover:text-white",
+          : "text-slate-700 hover:bg-brand-100 hover:text-brand-800",
       )}
     >
       {item.icon}
@@ -364,8 +364,8 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
               className={cx(
                 "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-[13.5px] font-medium transition-colors",
                 hasActiveItem
-                  ? "bg-forest-800 text-white"
-                  : "text-sidebar-text hover:bg-forest-800 hover:text-white",
+                  ? "bg-brand-100 text-brand-800"
+                  : "text-slate-700 hover:bg-brand-100 hover:text-brand-800",
               )}
             >
               <span className="flex-1">{group.section}</span>
@@ -377,7 +377,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
             </button>
 
             {isOpen && (
-              <div className="ml-3 space-y-1 border-l border-white/15 pl-2">
+              <div className="ml-3 space-y-1 border-l border-brand-200 pl-2">
                 {items.map((item) => (
                   <NavItemLink
                     key={item.href}
@@ -399,11 +399,11 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 /** `onClose` (mobile / tablet drawer) adds a close button beside the logo, so it never sits on top of it */
 function Sidebar({ onNavigate, onClose }: { onNavigate?: () => void; onClose?: () => void }) {
   return (
-    <div className="flex h-full flex-col bg-forest-900">
+    <div className="flex h-full flex-col border-r border-brand-100 bg-brand-50">
       <div className="flex items-start gap-2 px-5 pb-4 pt-5">
         <Link href="/dashboard" onClick={onNavigate} className="block min-w-0 flex-1" aria-label="OneRoot.farm — dashboard">
-          <Logo priority framed className="flex" imageClassName="w-auto flex-1" textClassName="text-2xl" />
-          <p className="mt-1.5 text-[10.5px] uppercase tracking-[0.12em] text-sidebar-muted">
+          <Logo logo={LOGOS.horizontal} priority className="flex px-4 py-3 shadow-sm ring-1 ring-brand-100" imageClassName="w-[85%]" />
+          <p className="mt-1.5 text-[10.5px] font-medium uppercase tracking-[0.12em] text-brand-700">
             Agri Inputs ERP
           </p>
         </Link>
@@ -411,7 +411,7 @@ function Sidebar({ onNavigate, onClose }: { onNavigate?: () => void; onClose?: (
           <button
             type="button"
             onClick={onClose}
-            className="-mr-2 shrink-0 rounded-md p-1.5 text-white/80 transition-colors duration-200 hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+            className="-mr-2 shrink-0 rounded-md p-1.5 text-slate-600 transition-colors duration-200 hover:bg-brand-100 hover:text-brand-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
             aria-label="Close menu"
           >
             <X className="size-5" />

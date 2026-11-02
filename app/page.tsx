@@ -37,6 +37,7 @@ import { LandingBrochure } from "@/components/LandingBrochure";
 import { LandingChatbot } from "@/components/LandingChatbot";
 import { CurrentYear, LandingCta, LandingRedirect } from "@/components/LandingCta";
 import { Logo } from "@/components/ui";
+import { LOGOS } from "@/lib/logos";
 import { CONTACT } from "@/lib/contact";
 
 export const metadata: Metadata = {
@@ -202,7 +203,7 @@ const CATALOGUE: {
   {
     icon: <Leaf />,
     group: "Farm Produce",
-    tint: "from-[#1a7c4e] to-[#2e8b46]",
+    tint: "from-[#ff7a1f] to-[#ffa766]",
     items: [
       {
         name: "Tender Coconut",
@@ -232,7 +233,7 @@ const CATALOGUE: {
   {
     icon: <Package />,
     group: "Meals, Starch & Oils",
-    tint: "from-[#18432e] to-[#166341]",
+    tint: "from-[#5e2400] to-[#b84300]",
     items: [
       {
         name: "Soybean Meal",
@@ -305,19 +306,16 @@ function SiteHeader() {
         <Link
           href="/"
           aria-label="OneRoot.farm ERP home"
-          className="flex shrink-0 items-center gap-1"
+          className="flex shrink-0 items-center"
         >
           <Image
-            src="/full_logo.png"
-            alt="OneRoot.farm"
-            width={1630}
-            height={840}
+            src={LOGOS.horizontal.src}
+            alt="OneRoot"
+            width={LOGOS.horizontal.width}
+            height={LOGOS.horizontal.height}
             priority
-            className="h-10 w-auto sm:h-14 lg:h-16"
+            className="h-7 w-auto sm:h-9 lg:h-10"
           />
-          <span className="font-display text-2xl font-bold leading-none text-brand-800 sm:text-3xl lg:text-4xl">
-            ERP
-          </span>
         </Link>
         <nav
           className="hidden items-center gap-1 rounded-full border border-line bg-paper-2/80 p-1 text-sm font-medium text-muted lg:flex"
@@ -361,7 +359,7 @@ function DarkBackdrop() {
       aria-hidden
       className="pointer-events-none absolute inset-0 overflow-hidden"
     >
-      <div className="absolute -left-40 -top-40 size-[34rem] rounded-full bg-[#289a62]/30 blur-3xl" />
+      <div className="absolute -left-40 -top-40 size-[34rem] rounded-full bg-[#ff6200]/25 blur-3xl" />
       <div className="absolute -bottom-48 right-[-8rem] size-[36rem] rounded-full bg-gold-500/20 blur-3xl" />
       <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.07)_1px,transparent_1px)] [background-size:24px_24px]" />
     </div>
@@ -379,7 +377,7 @@ function Hero() {
           </p>
           <h1 className="mt-5 font-display text-[2rem] font-bold leading-[1.1] tracking-tight sm:text-5xl sm:leading-[1.05] lg:text-6xl">
             Billing, stock and accounts for your agri store,{" "}
-            <span className="bg-gradient-to-r from-gold-500 via-[#f0c766] to-[#9be3b8] bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-gold-500 via-[#ffb35c] to-[#ffd8bd] bg-clip-text text-transparent">
               in one place
             </span>
           </h1>
@@ -1138,7 +1136,7 @@ function SiteFooter() {
       <DarkBackdrop />
       <div className="relative mx-auto grid max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-4 py-10 sm:px-6 sm:py-14 lg:grid-cols-[1.6fr_1fr_1fr_1.3fr]">
         <div className="col-span-2 lg:col-span-1">
-          <Logo framed imageClassName="w-[92px]" textClassName="text-2xl" />
+          <Logo logo={LOGOS.horizontal} framed className="px-4 py-3" imageClassName="w-[150px]" />
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/65">
             Inventory, billing, purchasing and accounts for agri-input stores —
             seeds, fertilisers, pesticides and equipment.

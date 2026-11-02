@@ -87,7 +87,7 @@ export default function QuotationDetailPage() {
             </Button>
             {open && canBill && (
               <Link href={`/quotations/${q.id}/edit`}>
-                <Button variant="secondary" icon={<Pencil className="size-4" />}>
+                <Button variant="edit" icon={<Pencil className="size-4" />}>
                   Edit
                 </Button>
               </Link>
@@ -99,7 +99,7 @@ export default function QuotationDetailPage() {
             )}
             {canBill && (
               <Link href="/quotations/new">
-                <Button icon={<Plus className="size-4" />}>New Quotation</Button>
+                <Button variant="add" icon={<Plus className="size-4" />}>New Quotation</Button>
               </Link>
             )}
           </>

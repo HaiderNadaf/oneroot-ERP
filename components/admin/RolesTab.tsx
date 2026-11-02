@@ -427,7 +427,7 @@ function CustomRoles() {
       bodyClassName="p-0"
       actions={
         can("roles.create") && (
-          <Button size="sm" icon={<Plus className="size-4" />} onClick={() => setForm({ open: true, template: null })}>
+          <Button variant="add" size="sm" icon={<Plus className="size-4" />} onClick={() => setForm({ open: true, template: null })}>
             New Role
           </Button>
         )

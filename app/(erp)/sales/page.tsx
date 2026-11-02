@@ -101,7 +101,7 @@ export default function SalesPage() {
             </Button>
             {can("sales.bill") && (
               <Link href="/sales/new">
-                <Button icon={<Plus className="size-4" />}>New Sale</Button>
+                <Button variant="add" icon={<Plus className="size-4" />}>New Sale</Button>
               </Link>
             )}
           </>

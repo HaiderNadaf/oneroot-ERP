@@ -242,7 +242,7 @@ function TransferForm({ onClose, onSaved }: { onClose: () => void; onSaved?: (t:
                     </Td>
                     <Td right>
                       <Button
-                        variant="ghost"
+                        variant="danger"
                         size="sm"
                         icon={<Trash2 className="size-4" />}
                         aria-label={`Remove ${l.product.name}`}

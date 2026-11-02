@@ -148,7 +148,7 @@ function ProductCategories() {
               className="w-40 shrink-0"
               aria-label="Tax type"
             />
-            <Button type="submit" loading={busy === "cat"}>
+            <Button variant="add" type="submit" loading={busy === "cat"}>
               Add
             </Button>
           </form>
@@ -206,7 +206,7 @@ function ProductCategories() {
                 aria-label="Category for the new sub-category"
               />
               <Input value={subName} onChange={(e) => setSubName(e.target.value)} placeholder={`New sub-category in ${picked.name}`} className="min-w-0 flex-1" />
-              <Button type="submit" loading={busy === "sub"}>
+              <Button variant="add" type="submit" loading={busy === "sub"}>
                 Add
               </Button>
             </form>
@@ -351,7 +351,7 @@ function ExpenseCategories({ open, onClose }: { open: boolean; onClose: () => vo
     <Modal open={open} onClose={onClose} title="Expense Categories" size="sm">
       <form onSubmit={add} className="mb-3 flex gap-2">
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New category name" className="min-w-0 flex-1" />
-        <Button type="submit" loading={busy}>
+        <Button variant="add" type="submit" loading={busy}>
           Add
         </Button>
       </form>

@@ -76,7 +76,7 @@ function GoodsInward() {
           <>
             <GstSheetButton kind="grn" />
             {canReceive && (
-              <Button icon={<Plus className="size-4" />} onClick={() => setPicking(true)}>
+              <Button variant="add" icon={<Plus className="size-4" />} onClick={() => setPicking(true)}>
                 Add GRN
               </Button>
             )}
@@ -386,7 +386,7 @@ function PendingPosModal({ onClose }: { onClose: () => void }) {
                       {po.status === "PARTIALLY_RECEIVED" && <p className="mt-0.5 truncate text-xs text-violet-700">Balance open</p>}
                     </Td>
                     <Td right className="whitespace-nowrap pr-4 sm:pr-5">
-                      <Button
+                      <Button variant="add"
                         size="sm"
                         className="whitespace-nowrap"
                         icon={<PackageCheck className="size-4 shrink-0" />}

@@ -117,7 +117,7 @@ function SchemesTab() {
             <Button variant="secondary" icon={<PackageMinus className="size-4" />} onClick={() => setEditing({ scheme: null, purpose: "STOCK_CLEARANCE" })}>
               Stock Clearance
             </Button>
-            <Button icon={<Plus className="size-4" />} onClick={() => setEditing({ scheme: null })}>
+            <Button variant="add" icon={<Plus className="size-4" />} onClick={() => setEditing({ scheme: null })}>
               New Offer
             </Button>
           </>
@@ -229,7 +229,7 @@ function TypesTab() {
     <>
       <div className="mb-3 flex justify-end">
         {can("schemes.create") && (
-          <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
+          <Button variant="add" icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
             New Customer Type
           </Button>
         )}

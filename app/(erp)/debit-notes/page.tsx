@@ -176,7 +176,7 @@ function Notes() {
           }
           actions={
             !canCreate ? undefined : isDebit ? (
-              <Button icon={<FileMinus className="size-4" />} onClick={() => setFormOpen(true)}>
+              <Button variant="add" icon={<FileMinus className="size-4" />} onClick={() => setFormOpen(true)}>
                 New Debit Note
               </Button>
             ) : (

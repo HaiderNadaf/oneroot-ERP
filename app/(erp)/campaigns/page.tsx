@@ -36,7 +36,7 @@ function Campaigns() {
         subtitle="Promotions such as a season drive or a launch offer: their schemes apply at the counter while they run, and their results are tracked here"
         actions={
           can("schemes.create") && (
-            <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
+            <Button variant="add" icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
               New Campaign
             </Button>
           )

@@ -61,7 +61,7 @@ export function SerialsPanel({ productId, batches }: { productId: string; batche
             <option value="">All</option>
           </Select>
           {can("products.edit") && (
-            <Button size="sm" icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
+            <Button variant="add" size="sm" icon={<Plus className="size-4" />} onClick={() => setAdding(true)}>
               Register
             </Button>
           )}

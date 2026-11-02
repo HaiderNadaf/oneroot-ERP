@@ -60,7 +60,7 @@ export default function AgentsPage() {
         subtitle="Agents who bring in vendors and customers"
         actions={
           canAdd && (
-            <Button icon={<Plus className="size-4" />} onClick={() => openForm(null)}>
+            <Button variant="add" icon={<Plus className="size-4" />} onClick={() => openForm(null)}>
               New Agent
             </Button>
           )

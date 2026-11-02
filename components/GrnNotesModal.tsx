@@ -349,7 +349,7 @@ function ReturnTable({ grn, notes, onCreated }: { grn: ReturnGrn; notes: DebitNo
             {chosen.length} line{chosen.length === 1 ? "" : "s"} · <b className="num text-red-700">{inr(value)}</b> incl. GST
           </span>
         )}
-        <Button size="sm" icon={<Undo2 className="size-3.5" />} onClick={create} loading={saving}>
+        <Button variant="add" size="sm" icon={<Undo2 className="size-3.5" />} onClick={create} loading={saving}>
           Create Debit Note
         </Button>
       </footer>

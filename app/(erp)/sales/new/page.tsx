@@ -1187,7 +1187,7 @@ export default function PosPage() {
                     </div>
                   )}
                   {can("customers.create") && (
-                    <Button variant="secondary" size="sm" className="h-9" icon={<UserPlus className="size-4" />} onClick={() => setQuickAdd(true)}>
+                    <Button variant="add" size="sm" className="h-9" icon={<UserPlus className="size-4" />} onClick={() => setQuickAdd(true)}>
                       New
                     </Button>
                   )}
@@ -1607,7 +1607,7 @@ export default function PosPage() {
           </div>
           <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
             {lines.length > 0 && (
-              <Button variant="secondary" className="h-11" icon={<Trash2 className="size-4" />} onClick={newSale}>
+              <Button variant="danger" className="h-11" icon={<Trash2 className="size-4" />} onClick={newSale}>
                 Clear Cart
               </Button>
             )}
@@ -1679,7 +1679,7 @@ export default function PosPage() {
                 </Button>
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="danger"
                   icon={<Trash2 className="size-4" />}
                   aria-label="Discard held bill"
                   onClick={async () => {
@@ -1767,7 +1767,7 @@ export default function PosPage() {
                 {defaultPrintMode(store) === "thermal" ? "A4 Invoice" : "Receipt"}
               </Button>
             )}
-            <Button onClick={newSale}>New Sale</Button>
+            <Button variant="add" onClick={newSale}>New Sale</Button>
           </>
         }
       >
@@ -1841,7 +1841,7 @@ export default function PosPage() {
                   </Button>
                   <Button
                     size="sm"
-                    variant="ghost"
+                    variant="danger"
                     icon={<Trash2 className="size-4" />}
                     onClick={async () => {
                       if (await confirm("Remove this offline bill? It will never reach the server — only do this if it was billed again or by mistake.", { danger: true, confirmLabel: "Remove" })) {

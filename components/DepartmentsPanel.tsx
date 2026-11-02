@@ -66,7 +66,7 @@ export function DepartmentsPanel({
         bodyClassName="p-0"
         actions={
           canCreate && (
-            <Button size="sm" icon={<Plus className="size-4" />} onClick={() => setForm({ department: null })}>
+            <Button variant="add" size="sm" icon={<Plus className="size-4" />} onClick={() => setForm({ department: null })}>
               New Department
             </Button>
           )
@@ -161,7 +161,7 @@ function Section({
         {(canCreate || onEdit || onDelete) && (
           <div className="flex items-center gap-1">
             {canCreate && (
-              <Button variant="secondary" size="sm" icon={<Plus className="size-4" />} onClick={onAddRole}>
+              <Button variant="add" size="sm" icon={<Plus className="size-4" />} onClick={onAddRole}>
                 Role
               </Button>
             )}

@@ -3,42 +3,42 @@
 /* Dark mode is a class on <html> (set by lib/theme.tsx before first paint), not the OS setting alone */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* OneRoot ERP theme — agri green brand, neutral slate surfaces */
+/* OneRoot ERP theme — light orange brand (from the logo's #ff6200), warm neutral surfaces */
 @theme {
-  --color-brand-50: #effaf3;
-  --color-brand-100: #d8f3e1;
-  --color-brand-200: #b3e5c6;
-  --color-brand-300: #80d1a4;
-  --color-brand-400: #4bb57e;
-  --color-brand-500: #289a62;
-  --color-brand-600: #1a7c4e;
-  --color-brand-700: #166341;
-  --color-brand-800: #18432e;
-  --color-brand-900: #123524;
+  --color-brand-50: #fff7f1;
+  --color-brand-100: #ffebdc;
+  --color-brand-200: #ffd6b8;
+  --color-brand-300: #ffbb8a;
+  --color-brand-400: #ff9d57;
+  --color-brand-500: #ff8a3d;
+  --color-brand-600: #ff7a1f;
+  --color-brand-700: #f26a12;
+  --color-brand-800: #c25000;
+  --color-brand-900: #8f3b00;
 
   /* Gold accent (sidebar active bar, highlights) */
-  --color-gold-50: #f8eed6;
-  --color-gold-500: #c9932a;
-  --color-gold-700: #8a6316;
+  --color-gold-50: #fff1e0;
+  --color-gold-500: #ff8a2b;
+  --color-gold-700: #a14b00;
 
   /* Surfaces, lines and text: every screen uses these (or the Tailwind scales) so the dark theme can swap them */
   --color-surface: #ffffff;
-  --color-paper: #f3f5ef;
-  --color-paper-2: #f7f9f3;
-  --color-paper-3: #eef1e8;
-  --color-paper-4: #f6faf2;
-  --color-frame: #e4e9dc;
-  --color-line: #e1e6d8;
-  --color-line-2: #d5dccb;
-  --color-line-3: #c9d1c0;
-  --color-line-soft: #eef3e6;
-  --color-grid: #e6eadf;
+  --color-paper: #f7f4f1;
+  --color-paper-2: #faf8f6;
+  --color-paper-3: #f2ede8;
+  --color-paper-4: #fcf8f4;
+  --color-frame: #ece5dd;
+  --color-line: #e9e2da;
+  --color-line-2: #ddd4ca;
+  --color-line-3: #cfc5ba;
+  --color-line-soft: #f4efe9;
+  --color-grid: #ece6df;
   /* Purchase reports, this month vs last month (validated pair; gold is light, so charts carry a legend + table) */
-  --color-chart-current: #c9932a;
+  --color-chart-current: #ff7a1f;
   --color-chart-previous: #2a78d6;
-  --color-ink: #1d2a1f;
-  --color-muted: #5f6e60;
-  --color-muted-2: #8a9a8b;
+  --color-ink: #2b201a;
+  --color-muted: #6f625a;
+  --color-muted-2: #9b8e85;
   --color-leaf-50: #f3faf3;
   --color-leaf-100: #e3f1e3;
   --color-leaf-150: #dcefe3;
@@ -53,17 +53,30 @@
   --color-ochre-800: #8a5a0f;
   --color-sea-100: #e0eef5;
   --color-sea-700: #2a6f97;
-  --color-forest-700: #166341;
-  --color-forest-800: #18432e;
-  --color-forest-900: #123524;
+  --color-forest-700: #4a2a16;
+  --color-forest-800: #2e1d13;
+  --color-forest-900: #1f150f;
   --color-night-900: oklch(20.8% 0.042 265.755);
   --color-crimson-700: oklch(50.5% 0.213 27.518);
-  --color-sidebar-text: #d6e4d4;
-  --color-mint-100: #d8f3e1;
-  --color-sidebar-muted: #8fab93;
-  --color-gold-600: #b07b1c;
+  --color-sidebar-text: #f2e4d9;
+  --color-mint-100: #ffe5d2;
+  --color-sidebar-muted: #b8a091;
+  --color-gold-600: #e06d10;
   --color-rust-700: #b91c1c;
   --color-rust-900: #7f1d1d;
+
+  /* Greys: warm stone instead of Tailwind's blue slate, to sit with the orange */
+  --color-slate-50: oklch(98.5% 0.001 106.423);
+  --color-slate-100: oklch(97% 0.001 106.424);
+  --color-slate-200: oklch(92.3% 0.003 48.717);
+  --color-slate-300: oklch(86.9% 0.005 56.366);
+  --color-slate-400: oklch(70.9% 0.01 56.259);
+  --color-slate-500: oklch(55.3% 0.013 58.071);
+  --color-slate-600: oklch(44.4% 0.011 73.639);
+  --color-slate-700: oklch(37.4% 0.01 67.558);
+  --color-slate-800: oklch(26.8% 0.007 34.298);
+  --color-slate-900: oklch(21.6% 0.006 56.043);
+  --color-slate-950: oklch(14.7% 0.004 49.25);
 
   --font-sans: var(--font-body), "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-display-face), "Segoe UI", ui-sans-serif, system-ui, sans-serif;
@@ -71,8 +84,8 @@
 }
 
 :root {
-  --background: #f3f5ef;
-  --foreground: #1d2a1f;
+  --background: #f7f4f1;
+  --foreground: #2b201a;
   color-scheme: light;
 }
 
@@ -82,25 +95,25 @@
  */
 @media screen {
   .dark {
-    --background: #0e1510;
-    --foreground: #e6ece6;
+    --background: #120e0c;
+    --foreground: #f1e9e3;
     color-scheme: dark;
-    --color-surface: #151e18;
-    --color-paper: #0e1510;
-    --color-paper-2: #18221b;
-    --color-paper-3: #1d2820;
-    --color-paper-4: #17211a;
-    --color-frame: #0a0f0b;
-    --color-line: #2a362d;
-    --color-line-2: #34423a;
-    --color-line-3: #3e4d43;
-    --color-line-soft: #223026;
-    --color-grid: #243028;
-    --color-chart-current: #b5821c;
+    --color-surface: #1c1714;
+    --color-paper: #120e0c;
+    --color-paper-2: #221b17;
+    --color-paper-3: #29211c;
+    --color-paper-4: #1f1915;
+    --color-frame: #0b0807;
+    --color-line: #3a2f29;
+    --color-line-2: #463931;
+    --color-line-3: #53443b;
+    --color-line-soft: #2c231e;
+    --color-grid: #2f2621;
+    --color-chart-current: #ff8a3d;
     --color-chart-previous: #3987e5;
-    --color-ink: #e6ece6;
-    --color-muted: #9aa99c;
-    --color-muted-2: #7f8d81;
+    --color-ink: #f1e9e3;
+    --color-muted: #ab9c92;
+    --color-muted-2: #8b7e75;
     --color-leaf-50: #13241a;
     --color-leaf-100: #183020;
     --color-leaf-150: #1c3826;
@@ -115,27 +128,27 @@
     --color-ochre-800: #f0c27a;
     --color-sea-100: #13283a;
     --color-sea-700: #7fb8dc;
-    --color-slate-50: #18211b;
-    --color-slate-100: #1e2821;
-    --color-slate-200: #2a352d;
-    --color-slate-300: #3a473e;
-    --color-slate-400: #6f7d72;
-    --color-slate-500: #93a196;
-    --color-slate-600: #b0bcb3;
-    --color-slate-700: #c8d1ca;
-    --color-slate-800: #dce3dd;
-    --color-slate-900: #edf1ee;
-    --color-slate-950: #f6f8f6;
-    --color-brand-50: #12261a;
-    --color-brand-100: #173121;
-    --color-brand-200: #1f442e;
-    --color-brand-300: #2c6444;
-    --color-brand-400: #3f8f62;
-    --color-brand-500: #4fb07a;
-    --color-brand-600: #2f9561;
-    --color-brand-700: #6fcf9a;
-    --color-brand-800: #93ddb4;
-    --color-brand-900: #bdeccf;
+    --color-slate-50: #1e1815;
+    --color-slate-100: #241d19;
+    --color-slate-200: #342a24;
+    --color-slate-300: #463a33;
+    --color-slate-400: #7d7069;
+    --color-slate-500: #a0938b;
+    --color-slate-600: #bcb0a8;
+    --color-slate-700: #d2c8c1;
+    --color-slate-800: #e4dcd6;
+    --color-slate-900: #f1ebe7;
+    --color-slate-950: #f8f5f2;
+    --color-brand-50: #2a1609;
+    --color-brand-100: #361b0b;
+    --color-brand-200: #4d260f;
+    --color-brand-300: #6f3514;
+    --color-brand-400: #b9561c;
+    --color-brand-500: #ff7a2e;
+    --color-brand-600: #ff7a1f;
+    --color-brand-700: #ff9a5c;
+    --color-brand-800: #ffb98a;
+    --color-brand-900: #ffd8bd;
     --color-red-50: #2a1515;
     --color-red-100: #3a1a1a;
     --color-red-200: #5c2626;
@@ -180,32 +193,32 @@
     --color-emerald-600: #4fcf9d;
     --color-emerald-700: #7ddcb6;
     --color-emerald-900: #c4f0de;
-    --color-gold-50: #2e2410;
-    --color-gold-700: #e0b45a;
+    --color-gold-50: #33200c;
+    --color-gold-700: #ffae6b;
   }
 
   /* Paper documents (invoice preview, print sheets, labels, barcodes) keep their light look in dark mode */
   .dark .paper {
     --background: #ffffff;
-    --foreground: #1d2a1f;
+    --foreground: #2b201a;
     color-scheme: light;
     color: var(--foreground);
     --color-surface: #ffffff;
-    --color-paper: #f3f5ef;
-    --color-paper-2: #f7f9f3;
-    --color-paper-3: #eef1e8;
-    --color-paper-4: #f6faf2;
-    --color-frame: #e4e9dc;
-    --color-line: #e1e6d8;
-    --color-line-2: #d5dccb;
-    --color-line-3: #c9d1c0;
-    --color-line-soft: #eef3e6;
-    --color-grid: #e6eadf;
-    --color-chart-current: #c9932a;
+    --color-paper: #f7f4f1;
+    --color-paper-2: #faf8f6;
+    --color-paper-3: #f2ede8;
+    --color-paper-4: #fcf8f4;
+    --color-frame: #ece5dd;
+    --color-line: #e9e2da;
+    --color-line-2: #ddd4ca;
+    --color-line-3: #cfc5ba;
+    --color-line-soft: #f4efe9;
+    --color-grid: #ece6df;
+    --color-chart-current: #ff7a1f;
     --color-chart-previous: #2a78d6;
-    --color-ink: #1d2a1f;
-    --color-muted: #5f6e60;
-    --color-muted-2: #8a9a8b;
+    --color-ink: #2b201a;
+    --color-muted: #6f625a;
+    --color-muted-2: #9b8e85;
     --color-leaf-50: #f3faf3;
     --color-leaf-100: #e3f1e3;
     --color-leaf-150: #dcefe3;
@@ -220,27 +233,27 @@
     --color-ochre-800: #8a5a0f;
     --color-sea-100: #e0eef5;
     --color-sea-700: #2a6f97;
-    --color-slate-50: oklch(98.4% 0.003 247.858);
-    --color-slate-100: oklch(96.8% 0.007 247.896);
-    --color-slate-200: oklch(92.9% 0.013 255.508);
-    --color-slate-300: oklch(86.9% 0.022 252.894);
-    --color-slate-400: oklch(70.4% 0.04 256.788);
-    --color-slate-500: oklch(55.4% 0.046 257.417);
-    --color-slate-600: oklch(44.6% 0.043 257.281);
-    --color-slate-700: oklch(37.2% 0.044 257.287);
-    --color-slate-800: oklch(27.9% 0.041 260.031);
-    --color-slate-900: oklch(20.8% 0.042 265.755);
-    --color-slate-950: oklch(12.9% 0.042 264.695);
-    --color-brand-50: #effaf3;
-    --color-brand-100: #d8f3e1;
-    --color-brand-200: #b3e5c6;
-    --color-brand-300: #80d1a4;
-    --color-brand-400: #4bb57e;
-    --color-brand-500: #289a62;
-    --color-brand-600: #1a7c4e;
-    --color-brand-700: #166341;
-    --color-brand-800: #18432e;
-    --color-brand-900: #123524;
+    --color-slate-50: oklch(98.5% 0.001 106.423);
+    --color-slate-100: oklch(97% 0.001 106.424);
+    --color-slate-200: oklch(92.3% 0.003 48.717);
+    --color-slate-300: oklch(86.9% 0.005 56.366);
+    --color-slate-400: oklch(70.9% 0.01 56.259);
+    --color-slate-500: oklch(55.3% 0.013 58.071);
+    --color-slate-600: oklch(44.4% 0.011 73.639);
+    --color-slate-700: oklch(37.4% 0.01 67.558);
+    --color-slate-800: oklch(26.8% 0.007 34.298);
+    --color-slate-900: oklch(21.6% 0.006 56.043);
+    --color-slate-950: oklch(14.7% 0.004 49.25);
+    --color-brand-50: #fff7f1;
+    --color-brand-100: #ffebdc;
+    --color-brand-200: #ffd6b8;
+    --color-brand-300: #ffbb8a;
+    --color-brand-400: #ff9d57;
+    --color-brand-500: #ff8a3d;
+    --color-brand-600: #ff7a1f;
+    --color-brand-700: #f26a12;
+    --color-brand-800: #c25000;
+    --color-brand-900: #8f3b00;
     --color-red-50: oklch(97.1% 0.013 17.38);
     --color-red-100: oklch(93.6% 0.032 17.717);
     --color-red-200: oklch(88.5% 0.062 18.334);
@@ -285,8 +298,8 @@
     --color-emerald-600: oklch(59.6% 0.145 163.225);
     --color-emerald-700: oklch(50.8% 0.118 165.612);
     --color-emerald-900: oklch(37.8% 0.077 168.94);
-    --color-gold-50: #f8eed6;
-    --color-gold-700: #8a6316;
+    --color-gold-50: #fff1e0;
+    --color-gold-700: #a14b00;
   }
 }
 
@@ -390,7 +403,7 @@ input[type="number"] {
 }
 
 /*
- * Common scrollbar for the whole app: thin, rounded, brand green. Colours come from the theme tokens,
+ * Common scrollbar for the whole app: thin, rounded, brand orange. Colours come from the theme tokens,
  * so it matches light and dark mode by itself. Applies to every scrolling area; .no-scrollbar still hides it.
  * Chrome, Edge, Brave and Safari get the rounded style; Firefox (no ::-webkit-scrollbar) its thin native bar.
  */

@@ -33,6 +33,8 @@ const TEXT_FIELDS = [
   "invoiceFooter",
   "reminderTemplate",
   "vendorTerms",
+  "poMailSubject",
+  "poMailBody",
 ] as const;
 
 type TextKey = (typeof TEXT_FIELDS)[number] | "expiryAlertDays" | "reminderGraceDays" | "receiptFormat";
@@ -278,6 +280,8 @@ function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (
             </Field>
           </Section>
 
+          <PoMailTemplate subject={f.poMailSubject} body={f.poMailBody} onChange={(k, v) => set(k, v)} />
+
           <Section title="Vendor Terms & Conditions" note="Shown at the bottom of the New Vendor form. Write the lock-in period, early-exit rules and payment terms here, one point per line.">
             <Field label="Terms Text" className="sm:col-span-2">
               <Textarea
@@ -291,6 +295,64 @@ function SettingsForm({ initial, onSaved }: { initial: StoreSettings; onSaved: (
         </div>
       </div>
     </form>
+  );
+}
+
+/** Default template and placeholders come from the server, which fills them in when the email goes out */
+function PoMailTemplate({ subject, body, onChange }: { subject: string; body: string; onChange: (k: "poMailSubject" | "poMailBody", v: string) => void }) {
+  const { data } = useApi<{ subject: string; body: string; placeholders: Record<string, string> }>("/purchase-orders/mail-template");
+  const custom = !!(subject.trim() || body.trim());
+  return (
+    <Section
+      title="Purchase Order Email"
+      note="Sent when Procurement presses Send to Vendor on a fully approved PO (once per PO), from the mailbox of the user sending it, with the PO attached as a PDF. Leave blank to use the default."
+    >
+      <Field label="Subject" className="sm:col-span-2">
+        <Input value={subject} onChange={(e) => onChange("poMailSubject", e.target.value)} placeholder={data?.subject} />
+      </Field>
+      <Field label="Message" className="sm:col-span-2" hint="One line per line of the email. Put {items} on a line of its own where the item table should go.">
+        <Textarea rows={12} value={body} onChange={(e) => onChange("poMailBody", e.target.value)} placeholder={data?.body} className="font-mono text-xs" />
+      </Field>
+      <div className="flex flex-wrap items-center justify-end gap-2 sm:col-span-2">
+        {!custom && data && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              onChange("poMailSubject", data.subject);
+              onChange("poMailBody", data.body);
+            }}
+          >
+            Start From Default
+          </Button>
+        )}
+        {custom && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              onChange("poMailSubject", "");
+              onChange("poMailBody", "");
+            }}
+          >
+            Reset to Default
+          </Button>
+        )}
+      </div>
+      {data && (
+        <div className="text-xs text-slate-500 sm:col-span-2">
+          <p className="mb-1 font-medium text-slate-600">Placeholders</p>
+          <dl className="grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2">
+            {Object.entries(data.placeholders).map(([k, label]) => (
+              <div key={k} className="flex gap-2">
+                <dt className="shrink-0 font-mono text-slate-700">{`{${k}}`}</dt>
+                <dd className="truncate">{label}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+    </Section>
   );
 }
 

@@ -26,6 +26,7 @@ import {
   errMsg,
   useConfirm,
   useToast,
+  FilterBar,
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -145,7 +146,7 @@ export default function RemindersPage() {
       </div>
 
       <Card bodyClassName="p-0">
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
+        <FilterBar>
           <SearchInput value={search} onChange={setSearch} placeholder="Search name, phone, village…" className="w-full flex-1 sm:w-auto sm:min-w-60" />
           <Select value={minDays} onChange={(e) => setMinDays(e.target.value)} className="w-full sm:w-40" aria-label="Minimum days overdue">
             <option value="0">Any Overdue</option>
@@ -157,7 +158,7 @@ export default function RemindersPage() {
           <div className="px-1">
             <Checkbox label="Include Dues Not Yet Overdue" checked={all} onChange={setAll} />
           </div>
-        </div>
+        </FilterBar>
         {error ? (
           <div className="p-4">
             <ErrorBox message={error} onRetry={reload} />

@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, MonitorSmartphone, Pencil, X } from "lucide-
 import Link from "next/link";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
-import { Badge, Button, Card, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, Pagination, Select, Table, Td, Th, errMsg, useToast } from "@/components/ui";
+import { Badge, Button, Card, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, Pagination, Select, Table, Td, Th, errMsg, useToast, FilterBar } from "@/components/ui";
 import { api, getDeviceId } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
@@ -114,7 +114,7 @@ function Audit() {
     <>
       <PageHeader title="Audit Log" subtitle="Who did what, and when — every create, change, cancellation and sign-in" />
       <Card bodyClassName="p-0">
-        <div className="flex flex-wrap gap-2 border-b border-slate-100 p-3">
+        <FilterBar>
           <Select value={entity} onChange={(e) => (setEntity(e.target.value), setPage(1))} className="w-full sm:w-48">
             <option value="">All Records</option>
             {ENTITIES.map((x) => (
@@ -142,7 +142,7 @@ function Audit() {
               </Button>
             </span>
           )}
-        </div>
+        </FilterBar>
         {error ? (
           <div className="p-4">
             <ErrorBox message={error} onRetry={reload} />

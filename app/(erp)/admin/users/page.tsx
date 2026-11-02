@@ -16,7 +16,6 @@ import {
   Badge,
   Button,
   Card,
-  Checkbox,
   Dropdown,
   EmptyRow,
   ErrorBox,
@@ -41,7 +40,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import { PERMISSIONS, defaultsFor, hasPerm, normalizePermissions, type Permission } from "@/lib/permissions";
+import { PERMISSIONS, defaultsFor, normalizePermissions, type Permission } from "@/lib/permissions";
 import { ROLES, type BuiltInRole, type Department, type Role, type RoleTemplate, type User } from "@/lib/types";
 
 const ROLE_INFO: Record<Role, string> = {
@@ -477,8 +476,6 @@ function UserForm({
   const [allBranches, setAllBranches] = useState(!branchIds.length);
   const { branches, loading: branchesLoading } = useBranchOptions();
   const [password, setPassword] = useState("");
-  const [pin, setPin] = useState("");
-  const [clearPin, setClearPin] = useState(false);
   const [saving, setSaving] = useState(false);
   const [newRole, setNewRole] = useState(false);
   // A role just made from here, shown until the reloaded list has it
@@ -494,7 +491,6 @@ function UserForm({
   // Exactly the role's permissions — nothing is ticked per person
   const permissions: Permission[] =
     role === "ADMIN" ? [] : template ? normalizePermissions(template.permissions) : user && !departmentId ? rolePerms(role, builtIns) : [];
-  const approver = hasPerm({ role, permissions }, "approvals.decide");
 
   const pick = (r: Role, t: RoleTemplate | null) => {
     setRole(r);
@@ -514,7 +510,6 @@ function UserForm({
     e.preventDefault();
     if (password && password.length < 6) return toast.error("Password must be at least 6 characters");
     if (!editing && !password) return toast.error("Set a password for the new user");
-    if (pin && !/^\d{4,6}$/.test(pin)) return toast.error("Approval PIN must be 4 to 6 digits");
     if (!departmentId) return toast.error("Choose the user's department");
     if (departmentId !== "admin" && !templateId) return toast.error("Choose the user's role in the department");
     if (!allBranches && !branchIds.length) return toast.error("Choose the user's branches, or All Branches");
@@ -525,13 +520,10 @@ function UserForm({
         const body: Record<string, unknown> = { name: name.trim(), phone: phone.trim(), designation: designation.trim(), branchIds: allBranches ? [] : branchIds };
         if (!isSelf) Object.assign(body, outranks ? {} : access, { isActive });
         if (password) body.password = password;
-        if (clearPin) body.pin = "";
-        else if (pin) body.pin = pin;
         await api.patch(`/users/${user.id}`, body);
         toast.success(password ? "User updated and password reset" : "User updated");
       } else {
-        const created = await api.post<User>("/users", { name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, designation: designation.trim() || undefined, password, branchIds: allBranches ? [] : branchIds, ...access, isActive });
-        if (pin) await api.patch(`/users/${created.id}`, { pin });
+        await api.post<User>("/users", { name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, designation: designation.trim() || undefined, password, branchIds: allBranches ? [] : branchIds, ...access, isActive });
         toast.success(
           isActive
             ? `${name.trim()} can now sign in as ${template?.name ?? role.toLowerCase()}`
@@ -652,19 +644,6 @@ function UserForm({
                   : "Can switch between these branches only; the first ticked is where they start"}
           </p>
         </div>
-        {approver && (
-          <Field
-            label={user?.hasPin ? "Change Approval PIN" : "Approval PIN"}
-            className="sm:col-span-2"
-            hint="4–6 digits an approver types at the counter to approve a discount, refund or adjustment above a cashier's limit"
-          >
-            <div className="flex items-center gap-3">
-              <Input type="password" inputMode="numeric" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} disabled={clearPin} className="num w-40 tracking-[0.4em]" placeholder={user?.hasPin ? "••••" : ""} />
-              {user?.hasPin && <Checkbox label="Remove PIN" checked={clearPin} onChange={setClearPin} />}
-              {user?.hasPin && !clearPin && <Badge tone="green">PIN Set</Badge>}
-            </div>
-          </Field>
-        )}
         {!isSelf && (
           <Field label="Status" required hint="Only active users can sign in">
             <Select value={isActive ? "active" : "inactive"} onChange={(e) => setIsActive(e.target.value === "active")} aria-label="Status">

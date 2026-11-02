@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Fragment, useState, type FormEvent } from "react";
 import { GstinField, StateSelect } from "@/components/GstinField";
 import { VendorPicker } from "@/components/pickers";
-import { ActionsTd, ActionsTh, Badge, Button, Card, Checkbox, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, Pagination, RowAction, SearchInput, Select, Table, Td, Th, cx, errMsg, useConfirm, useToast } from "@/components/ui";
+import { ActionsTd, ActionsTh, Badge, Button, Card, Checkbox, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, Pagination, RowAction, SearchInput, Select, Table, Td, Th, cx, errMsg, useConfirm, useToast, FilterBar } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useApi, useDebounced } from "@/lib/hooks";
@@ -74,7 +74,7 @@ export function VendorBranchList({ vendor }: { vendor?: Pick<Vendor, "id" | "nam
         )
       }
     >
-      <div className="flex flex-wrap gap-2 border-b border-slate-100 p-3">
+      <FilterBar>
         <SearchInput
           value={search}
           onChange={(v) => {
@@ -94,7 +94,7 @@ export function VendorBranchList({ vendor }: { vendor?: Pick<Vendor, "id" | "nam
             New Depot
           </Button>
         )}
-      </div>
+      </FilterBar>
       {error ? (
         <div className="p-4">
           <ErrorBox message={error} onRetry={reload} />

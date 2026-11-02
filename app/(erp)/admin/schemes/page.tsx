@@ -1,18 +1,32 @@
 "use client";
 
-import { Plus } from "lucide-react";
-import Link from "next/link";
+import { PackageMinus, PartyPopper, Plus, Tag, Tags } from "lucide-react";
+// import Link from "next/link"; // only used for the disabled Campaigns link
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
-import { SchemeForm, dayOf, describeScheme } from "@/components/SchemeForm";
-import { ActionsTd, ActionsTh, Badge, Button, Card, Checkbox, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, RowAction, Select, Table, Tabs, Td, Th, cx, errMsg, useConfirm, useToast } from "@/components/ui";
+import { SchemeForm, dayOf } from "@/components/SchemeForm";
+import { ActionsTd, ActionsTh, Badge, Button, Card, Checkbox, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, RowAction, Select, StatCard, Table, Tabs, Td, Th, cx, errMsg, useConfirm, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { date, inr, n, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import type { CustomerType, Scheme } from "@/lib/types";
+import { PURPOSE_LABEL, PURPOSE_TONE, describeScheme, offerConditions, offerCoverage } from "@/lib/offers";
+import { remainingOf } from "@/lib/pricing";
+import type { CustomerType, OfferPurpose, Scheme } from "@/lib/types";
 
 type Tab = "schemes" | "types";
+
+/** Page header for each tab */
+const HEADER: Record<Tab, { title: string; subtitle: string }> = {
+  schemes: {
+    title: "Offers & Schemes",
+    subtitle: "Festival offers, stock clearance, company schemes and more apply by themselves at the counter (one per line, the best for the farmer)",
+  },
+  types: {
+    title: "Customer Types",
+    subtitle: "Customer groups with a fixed discount (e.g. FPO 3%, bulk buyer 2% above ₹25,000), added on top of any offer at the counter",
+  },
+};
 
 export default function SchemesPage() {
   return (
@@ -26,12 +40,12 @@ function Pricing() {
   const [tab, setTab] = useState<Tab>("schemes");
   return (
     <>
-      <PageHeader title="Schemes & Customer Types" subtitle="Company schemes apply by themselves at the counter (one per line, the best for the farmer); customer types add a fixed discount on top" />
+      <PageHeader {...HEADER[tab]} />
       <Tabs<Tab>
         value={tab}
         onChange={setTab}
         tabs={[
-          { value: "schemes", label: "Schemes" },
+          { value: "schemes", label: "Offers & Schemes" },
           { value: "types", label: "Customer Types" },
         ]}
       />
@@ -45,15 +59,26 @@ function SchemesTab() {
   const toast = useToast();
   const confirm = useConfirm();
   const [status, setStatus] = useState("all");
-  const [editing, setEditing] = useState<Scheme | null | "new">(null);
-  const { data, error, loading, reload } = useApi<Scheme[]>("/schemes", { status });
+  const [purpose, setPurpose] = useState<OfferPurpose | "">("");
+  const [editing, setEditing] = useState<{ scheme: Scheme | null; purpose?: OfferPurpose } | null>(null);
+  const { data: all, error, loading, reload } = useApi<Scheme[]>("/schemes", { status });
   const now = today();
+  const data = purpose ? all?.filter((s) => s.purpose === purpose) : all;
+
+  const isRunning = (s: Scheme) => s.isActive && dayOf(s.from) <= now && (!s.to || dayOf(s.to) >= now);
+  const running = (all ?? []).filter(isRunning);
+  const stats = {
+    running: running.length,
+    festival: running.filter((s) => s.purpose === "FESTIVAL").length,
+    clearance: running.filter((s) => s.purpose === "STOCK_CLEARANCE").length,
+    scheduled: (all ?? []).filter((s) => s.isActive && dayOf(s.from) > now).length,
+  };
 
   async function remove(s: Scheme) {
-    if (!(await confirm(`Delete scheme "${s.name}"? If bills used it, it is switched off instead.`, { danger: true, confirmLabel: "Delete" }))) return;
+    if (!(await confirm(`Delete offer "${s.name}"? If bills used it, it is switched off instead.`, { danger: true, confirmLabel: "Delete" }))) return;
     try {
       const r = await api.del<{ deleted: boolean }>(`/schemes/${s.id}`);
-      toast.success(r.deleted ? "Scheme deleted" : "Scheme switched off (bills used it)");
+      toast.success(r.deleted ? "Offer deleted" : "Offer switched off (bills used it)");
       void reload();
     } catch (e) {
       toast.error(errMsg(e));
@@ -63,27 +88,49 @@ function SchemesTab() {
   if (error) return <ErrorBox message={error} onRetry={reload} />;
   return (
     <>
-      <div className="mb-3 flex items-center gap-2">
-        <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-40" aria-label="Filter">
-          <option value="all">All Schemes</option>
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Running Today" value={stats.running} icon={<Tags />} tone="green" sub="Showing at the counter" />
+        <StatCard label="Festival Offers" value={stats.festival} icon={<PartyPopper />} tone="amber" sub="Running today" />
+        <StatCard label="Stock Clearance" value={stats.clearance} icon={<PackageMinus />} tone="red" sub="Running today" />
+        <StatCard label="Scheduled" value={stats.scheduled} icon={<Tag />} tone="blue" sub="Start on a later date" />
+      </div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-40" aria-label="Filter by status">
+          <option value="all">All Offers</option>
           <option value="active">Running Today</option>
           <option value="">Switched On</option>
         </Select>
+        <Select value={purpose} onChange={(e) => setPurpose(e.target.value as OfferPurpose | "")} className="w-44" aria-label="Filter by purpose">
+          <option value="">Every Purpose</option>
+          {(Object.keys(PURPOSE_LABEL) as OfferPurpose[]).map((p) => (
+            <option key={p} value={p}>
+              {PURPOSE_LABEL[p]}
+            </option>
+          ))}
+        </Select>
         <div className="flex-1" />
         {can("schemes.create") && (
-          <Button icon={<Plus className="size-4" />} onClick={() => setEditing("new")}>
-            New Scheme
-          </Button>
+          <>
+            <Button variant="secondary" icon={<PartyPopper className="size-4" />} onClick={() => setEditing({ scheme: null, purpose: "FESTIVAL" })}>
+              Festival Offer
+            </Button>
+            <Button variant="secondary" icon={<PackageMinus className="size-4" />} onClick={() => setEditing({ scheme: null, purpose: "STOCK_CLEARANCE" })}>
+              Stock Clearance
+            </Button>
+            <Button icon={<Plus className="size-4" />} onClick={() => setEditing({ scheme: null })}>
+              New Offer
+            </Button>
+          </>
         )}
       </div>
       <Card bodyClassName="p-0">
         <Table>
           <thead>
             <tr>
-              <Th>Scheme</Th>
-              <Th>Campaign</Th>
               <Th>Offer</Th>
-              <Th>Products</Th>
+              <Th>Gives</Th>
+              <Th>Applies To</Th>
+              <Th>Conditions</Th>
               <Th>Period</Th>
               <Th>Claim</Th>
               <Th right>Used On</Th>
@@ -95,35 +142,46 @@ function SchemesTab() {
             {loading && !data ? (
               <LoadingRow colSpan={9} />
             ) : !data?.length ? (
-              <EmptyRow colSpan={9}>No schemes yet — add the company offers you pass on to farmers</EmptyRow>
+              <EmptyRow colSpan={9}>No offers yet — add a festival offer, a stock clearance or the company schemes you pass on to farmers</EmptyRow>
             ) : (
               data.map((s) => {
-                const running = s.isActive && dayOf(s.from) <= now && (!s.to || dayOf(s.to) >= now);
+                const soldOut = s.maxQty !== null && s.maxQty !== undefined && remainingOf(s) <= 0;
                 return (
                   <tr key={s.id} className="hover:bg-slate-50">
                     <Td className="font-medium text-slate-900">
-                      {s.name}
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        {s.name}
+                        <Badge tone={PURPOSE_TONE[s.purpose]}>{PURPOSE_LABEL[s.purpose]}</Badge>
+                      </span>
+                      {(s.occasion || s.campaign) && <p className="text-xs font-normal text-amber-700">{[s.occasion, s.campaign?.name].filter(Boolean).join(" · ")}</p>}
                       {s.notes && <p className="text-xs font-normal text-slate-500">{s.notes}</p>}
                     </Td>
-                    <Td className="whitespace-nowrap text-xs">
-                      {s.campaign ? (
-                        <Link href={`/campaigns/${s.campaign.id}`} className="font-medium text-brand-700 hover:underline">
-                          {s.campaign.name}
-                        </Link>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
+                    <Td className="whitespace-nowrap font-medium">{describeScheme(s)}</Td>
+                    <Td className="max-w-xs text-xs text-slate-600">
+                      {s.scope !== "PRODUCTS" && <span className="mr-1 font-semibold text-slate-700">{s.scope === "ALL" ? "Store-wide:" : "Categories:"}</span>}
+                      {offerCoverage(s)}
                     </Td>
-                    <Td>{describeScheme(s)}</Td>
-                    <Td className="max-w-xs text-xs text-slate-600">{s.products.map((p) => p.product?.name ?? p.productId).join(", ")}</Td>
+                    <Td className="text-xs text-slate-600">{offerConditions(s) || <span className="text-slate-400">—</span>}</Td>
                     <Td className="whitespace-nowrap text-xs">
                       {date(s.from)} – {s.to ? date(s.to) : "open"}
                     </Td>
                     <Td>{s.claimable ? <Badge tone="blue">From Company</Badge> : <Badge>Own Cost</Badge>}</Td>
                     <Td right>{s._count?.saleItems ?? 0} lines</Td>
-                    <Td>{!s.isActive ? <Badge>Off</Badge> : running ? <Badge tone="green">Running</Badge> : dayOf(s.from) > now ? <Badge tone="amber">Scheduled</Badge> : <Badge>Ended</Badge>}</Td>
+                    <Td>
+                      {!s.isActive ? (
+                        <Badge>Off</Badge>
+                      ) : soldOut ? (
+                        <Badge tone="red">Stock Limit Reached</Badge>
+                      ) : isRunning(s) ? (
+                        <Badge tone="green">Running</Badge>
+                      ) : dayOf(s.from) > now ? (
+                        <Badge tone="amber">Scheduled</Badge>
+                      ) : (
+                        <Badge>Ended</Badge>
+                      )}
+                    </Td>
                     <ActionsTd>
-                      {can("schemes.edit") && <RowAction kind="edit" title={`Edit ${s.name}`} onClick={() => setEditing(s)} />}
+                      {can("schemes.edit") && <RowAction kind="edit" title={`Edit ${s.name}`} onClick={() => setEditing({ scheme: s })} />}
                       {can("schemes.delete") && <RowAction kind="delete" title={`Delete ${s.name}`} onClick={() => remove(s)} />}
                     </ActionsTd>
                   </tr>
@@ -135,7 +193,8 @@ function SchemesTab() {
       </Card>
       {editing && (
         <SchemeForm
-          scheme={editing === "new" ? null : editing}
+          scheme={editing.scheme}
+          purpose={editing.purpose}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);

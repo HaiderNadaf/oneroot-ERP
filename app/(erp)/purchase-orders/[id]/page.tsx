@@ -6,7 +6,9 @@ import {
   CheckCircle2,
   Clock,
   CornerUpLeft,
+  FileDown,
   FileText,
+  Mail,
   PackageCheck,
   Pencil,
   Printer,
@@ -32,6 +34,7 @@ import {
   Button,
   Card,
   ErrorBox,
+  Input,
   Modal,
   PageHeader,
   Spinner,
@@ -67,6 +70,7 @@ export default function PurchaseOrderDetailPage() {
   const confirm = useConfirm();
   const [decision, setDecision] = useState<Decision | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [sending, setSending] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const { data: po, error, loading, reload } = useApi<PurchaseOrder>(`/purchase-orders/${id}`);
   const { data: store } = useApi<StoreSettings>("/settings");
@@ -88,6 +92,18 @@ export default function PurchaseOrderDetailPage() {
       toast.error(errMsg(e));
     } finally {
       setCancelling(false);
+    }
+  }
+
+  async function downloadPdf() {
+    if (!po) return;
+    try {
+      const blob = await api.blob(`/purchase-orders/${po.id}/pdf`);
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      toast.error(errMsg(e));
     }
   }
 
@@ -145,15 +161,30 @@ export default function PurchaseOrderDetailPage() {
         subtitle={`${v?.name ?? "Vendor"} · ${date(po.orderDate)} · ${inr(po.totalAmount)}`}
         actions={
           <>
-            <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => {
+            {/* data-print-po: the server presses this to make the PDF emailed to the vendor */}
+            <Button data-print-po variant="secondary" icon={<Printer className="size-4" />} onClick={() => {
                 fitPoPrintToPages();
                 printAs("sheet", "size: A4; margin: 0 !important;", `Purchase Order - ${po.poNo}`);
               }}>
               Print
             </Button>
+            <Button variant="secondary" icon={<FileDown className="size-4" />} onClick={downloadPdf}>
+              PDF
+            </Button>
             <Button variant="secondary" icon={<FileText className="size-4" />} onClick={() => setTermsOpen(true)}>
               Terms & Conditions
             </Button>
+            {receivable && (can("po.create") || isBuyer || can("purchases.approve")) && (
+              <Button
+                variant={po.vendorEmailedAt ? "secondary" : "primary"}
+                icon={<Mail className="size-4" />}
+                disabled={!!po.vendorEmailedAt}
+                title={po.vendorEmailedAt ? `Sent to the vendor by ${po.vendorEmailedBy ?? "—"} on ${dateTime(po.vendorEmailedAt)}` : undefined}
+                onClick={() => setSending(true)}
+              >
+                {po.vendorEmailedAt ? "Sent to Vendor" : "Send to Vendor"}
+              </Button>
+            )}
             {po.canEdit && isBuyer && (
               <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => router.push(`/purchase-orders/${po.id}/edit`)}>
                 {editLabel}
@@ -188,6 +219,7 @@ export default function PurchaseOrderDetailPage() {
 
       <StatusNotice po={po} lastNote={lastNote} />
       <LazyPoTermsModal open={termsOpen} onClose={() => setTermsOpen(false)} />
+      {sending && <SendToVendorModal po={po} onClose={() => setSending(false)} onDone={() => { setSending(false); void reload(); }} />}
 
       {/* Printed on its own from under <body>, so nothing in the app layout can shift its pages */}
       <PrintPortal className="sheet-host">
@@ -824,6 +856,71 @@ const DECISION_COPY: Record<Decision, { title: string; button: string; variant: 
   },
 };
 
+const splitEmails = (s: string) => s.split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean);
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Send to Vendor: the PO emailed once, PDF attached, from the sender's mailbox, with CC typed here */
+function SendToVendorModal({ po, onClose, onDone }: { po: PurchaseOrder; onClose: () => void; onDone: () => void }) {
+  const toast = useToast();
+  const { user } = useAuth();
+  const [cc, setCc] = useState("");
+  const [saving, setSaving] = useState(false);
+  const to = (po.vendorBranch?.email || po.vendor?.email || "").trim();
+  const ccList = splitEmails(cc);
+  const badCc = ccList.filter((e) => !EMAIL_RE.test(e));
+
+  async function send() {
+    if (!to) return toast.error(`${po.vendor?.name ?? "The vendor"} has no email address — add it on the vendor first`);
+    if (badCc.length) return toast.error(`Not a valid email: ${badCc.join(", ")}`);
+    setSaving(true);
+    try {
+      const r = await api.post<{ to: string; cc: string[]; from: string; fallback?: string | null }>(`/purchase-orders/${po.id}/email`, { cc: ccList });
+      toast.success(`${po.poNo} sent to ${r.to}${r.cc.length ? ` (cc ${r.cc.join(", ")})` : ""} from ${r.from}${r.fallback ? ` — shared account: ${r.fallback}` : ""}`);
+      onDone();
+    } catch (e) {
+      toast.error(errMsg(e));
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Send ${po.poNo} to Vendor`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button icon={<Mail className="size-4" />} onClick={send} loading={saving} disabled={!to}>
+            Send Email
+          </Button>
+        </>
+      }
+    >
+      <div className="mb-3 grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3 text-sm">
+        <div className="min-w-0">
+          <p className="text-xs text-slate-500">To</p>
+          <p className="break-words font-medium text-slate-800">{to || <span className="text-red-600">No email on the vendor</span>}</p>
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs text-slate-500">From</p>
+          <p className="break-words font-medium text-slate-800">{user?.email ?? "Your mailbox"}</p>
+        </div>
+      </div>
+      <label className="block">
+        <span className="mb-1 block text-xs font-medium text-slate-600">CC (optional)</span>
+        <Input autoFocus value={cc} onChange={(e) => setCc(e.target.value)} placeholder="name@example.com, another@example.com" />
+        <span className={cx("mt-1 block text-xs", badCc.length ? "text-red-600" : "text-slate-500")}>
+          {badCc.length ? `Not a valid email: ${badCc.join(", ")}` : "Separate addresses with commas."}
+        </span>
+      </label>
+      <p className="mt-3 text-sm text-slate-600">The PO goes as a PDF attachment. A PO can be sent only once — the button is disabled after it is sent.</p>
+    </Modal>
+  );
+}
+
 function DecisionModal({ po, action, onClose, onDone }: { po: PurchaseOrder; action: Decision; onClose: () => void; onDone: () => void }) {
   const toast = useToast();
   const [note, setNote] = useState("");
@@ -840,7 +937,7 @@ function DecisionModal({ po, action, onClose, onDone }: { po: PurchaseOrder; act
       toast.success(
         action === "approve"
           ? po.level + 1 >= po.chain.length
-            ? `${po.poNo} approved — ready for goods inward`
+            ? `${po.poNo} approved — Procurement is notified to send it to the vendor`
             : `${po.poNo} approved and passed to ${po.chain[po.level + 1]?.title ?? "the next step"}`
           : action === "send_back"
             ? `${po.poNo} sent back for changes`

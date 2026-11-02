@@ -44,7 +44,7 @@ export function ListFilters({
   const set = (patch: Partial<ListFilterValue>) => onChange({ ...value, ...patch });
 
   return (
-    <div className="flex flex-wrap items-end gap-2">
+    <div className="flex flex-wrap items-end justify-end gap-2">
       <div className="w-full sm:w-auto">
         <span className="mb-1 block text-xs font-medium text-slate-600">From / To Date</span>
         <div className="flex items-center gap-1.5">

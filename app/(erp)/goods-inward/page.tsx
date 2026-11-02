@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { BranchCode } from "@/components/BranchNotice";
+import { GstSheetButton } from "@/components/GstSheetExport";
 import { ListFilters, hasListFilters, noListFilters } from "@/components/ListFilters";
 import {
   Badge,
@@ -72,11 +73,14 @@ function GoodsInward() {
         title="Goods Inward"
         subtitle="Count what arrives against approved purchase orders: passed goods go into stock, rejected goods go back to the vendor"
         actions={
-          canReceive && (
-            <Button icon={<Plus className="size-4" />} onClick={() => setPicking(true)}>
-              Add GRN
-            </Button>
-          )
+          <>
+            <GstSheetButton kind="grn" />
+            {canReceive && (
+              <Button icon={<Plus className="size-4" />} onClick={() => setPicking(true)}>
+                Add GRN
+              </Button>
+            )}
+          </>
         }
       />
 

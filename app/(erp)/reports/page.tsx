@@ -5,6 +5,7 @@ import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { GstReportView, ProfitLossReport } from "@/components/reports/FinancialReports";
 import { DayBookReport, OutstandingReport, StockValuationReport } from "@/components/reports/LedgerReports";
+import { WeightedAvgPriceReport } from "@/components/reports/PriceReports";
 import { PurchaseByMonthReport, PurchaseByProductReport, PurchaseByVendorReport } from "@/components/reports/PurchaseReports";
 import { ProductSalesReport, PurchaseRegisterReport, SalesRegisterReport } from "@/components/reports/RegisterReports";
 import { RangeBar, defaultRange, type Range } from "@/components/reports/ReportKit";
@@ -27,6 +28,7 @@ const TABS = [
   // Purchase invoices are booked from goods received
   { value: "purchases", label: "Purchase Register", group: "grn" },
   { value: "stock", label: "Stock Valuation", group: "stock" },
+  { value: "wap", label: "Weighted Average Price", group: "stock" },
 ] as const;
 
 const GROUPS = [
@@ -96,6 +98,7 @@ function Reports() {
       {tab === "grn-month" && <PurchaseByMonthReport kind="grn" />}
       {tab === "products" && <ProductSalesReport range={range} rangeBar={rangeBar} />}
       {tab === "stock" && <StockValuationReport />}
+      {tab === "wap" && <WeightedAvgPriceReport range={range} rangeBar={rangeBar} />}
       {tab === "outstanding" && <OutstandingReport />}
       {tab === "daybook" && <DayBookReport />}
     </>

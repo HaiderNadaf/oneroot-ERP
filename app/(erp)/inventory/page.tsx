@@ -30,6 +30,7 @@ import {
   cx,
   errMsg,
   useToast,
+  FilterBar,
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -239,7 +240,7 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
 
   return (
     <Card bodyClassName="p-0">
-      <div className="flex flex-wrap gap-2 border-b border-slate-100 p-3">
+      <FilterBar>
         <SearchInput
           value={search}
           onChange={(v) => (setSearch(v), setPage(1))}
@@ -282,7 +283,7 @@ function BatchesTab({ version, onWriteOff }: { version: number; onWriteOff: (b: 
         <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv}>
           Export
         </Button>
-      </div>
+      </FilterBar>
       {error ? (
         <div className="p-4">
           <ErrorBox message={error} onRetry={reload} />
@@ -566,7 +567,7 @@ function MovementsTab({ version }: { version: number }) {
 
   return (
     <Card bodyClassName="p-0">
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
+      <FilterBar>
         <Select value={type} onChange={(e) => (setType(e.target.value), setPage(1))} className="w-full sm:w-48">
           <option value="">All Movement Types</option>
           {MOVEMENT_TYPES.map((t) => (
@@ -587,7 +588,7 @@ function MovementsTab({ version }: { version: number }) {
         <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv}>
           Export
         </Button>
-      </div>
+      </FilterBar>
       {error ? (
         <div className="p-4">
           <ErrorBox message={error} onRetry={reload} />

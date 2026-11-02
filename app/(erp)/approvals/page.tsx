@@ -2,7 +2,7 @@
 
 import { Check, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Badge, Button, Card, EmptyRow, ErrorBox, Input, LoadingRow, Modal, PageHeader, Pagination, Select, StatCard, Table, Td, Th, cx, errMsg, useToast } from "@/components/ui";
+import { Badge, Button, Card, EmptyRow, ErrorBox, Input, LoadingRow, Modal, PageHeader, Pagination, Select, StatCard, Table, Td, Th, cx, errMsg, useToast, FilterBar } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { dateTime, inr } from "@/lib/format";
@@ -69,7 +69,7 @@ export default function ApprovalsPage() {
         </div>
       )}
       <Card bodyClassName="p-0">
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
+        <FilterBar>
           <Select value={status} onChange={(e) => (setStatus(e.target.value), setPage(1))} className="w-40" aria-label="Status">
             <option value="">All</option>
             <option value="PENDING">Pending</option>
@@ -82,7 +82,7 @@ export default function ApprovalsPage() {
               <input type="checkbox" checked={mine} onChange={(e) => (setMine(e.target.checked), setPage(1))} /> Only My Requests
             </label>
           )}
-        </div>
+        </FilterBar>
         {error ? (
           <div className="p-4">
             <ErrorBox message={error} onRetry={reload} />

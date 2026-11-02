@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useBranchOptions } from "@/components/BranchNotice";
-import { ActionsTd, ActionsTh, Button, Card, DateInput, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, Pagination, RowAction, SearchInput, Select, Table, Td, Th, errMsg, useConfirm, useToast } from "@/components/ui";
+import { ActionsTd, ActionsTh, Button, Card, DateInput, EmptyRow, ErrorBox, Field, Input, LoadingRow, Modal, PageHeader, Pagination, RowAction, SearchInput, Select, Table, Td, Th, errMsg, useConfirm, useToast, FilterBar } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { date, inr } from "@/lib/format";
@@ -68,7 +68,7 @@ export default function AgentsPage() {
       />
 
       <Card bodyClassName="p-0">
-        <div className="flex flex-wrap gap-2 border-b border-slate-100 p-3">
+        <FilterBar>
           <SearchInput
             value={search}
             onChange={(v) => {
@@ -85,7 +85,7 @@ export default function AgentsPage() {
               <DateInput value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="Sales to date" />
             </div>
           )}
-        </div>
+        </FilterBar>
 
         {error ? (
           <div className="p-4">

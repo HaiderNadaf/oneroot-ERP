@@ -22,6 +22,7 @@ import {
   Th,
   errMsg,
   useToast,
+  FilterBar,
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -137,7 +138,7 @@ export default function PaymentsPage() {
         <VendorPending />
       ) : (
       <Card bodyClassName="p-0">
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
+        <FilterBar>
           <div className="flex w-full items-center gap-1.5 sm:w-auto">
             <DateInput value={from} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="From date" />
             <span className="text-xs text-slate-400">to</span>
@@ -169,7 +170,7 @@ export default function PaymentsPage() {
               <span className={`num font-semibold ${isIn ? "text-brand-700" : "text-amber-700"}`}>{inr(data.totalAmount)}</span>
             </p>
           )}
-        </div>
+        </FilterBar>
 
         {error ? (
           <div className="p-4">

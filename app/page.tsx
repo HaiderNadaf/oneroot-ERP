@@ -35,7 +35,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { LandingBrochure } from "@/components/LandingBrochure";
 import { LandingChatbot } from "@/components/LandingChatbot";
-import { CurrentYear, LandingCta } from "@/components/LandingCta";
+import { CurrentYear, LandingCta, LandingRedirect } from "@/components/LandingCta";
 import { Logo } from "@/components/ui";
 import { CONTACT } from "@/lib/contact";
 
@@ -278,6 +278,7 @@ const ANCHOR = "scroll-mt-28 lg:scroll-mt-24";
 export default function LandingPage() {
   return (
     <div className="flex min-h-dvh flex-col bg-paper text-ink">
+      <LandingRedirect />
       <SiteHeader />
       <main className="flex-1">
         <Hero />

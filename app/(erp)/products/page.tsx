@@ -24,6 +24,7 @@ import {
   Td,
   Th,
   cx,
+  FilterBar,
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -267,7 +268,7 @@ export default function ProductsPage() {
 
       <Card bodyClassName="p-0">
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
+        <FilterBar>
           <SearchInput
             value={search}
             onChange={(v) => {
@@ -326,7 +327,7 @@ export default function ProductsPage() {
           <div className="ml-auto">
             <ColumnPicker state={cols} />
           </div>
-        </div>
+        </FilterBar>
 
         {error ? (
           <div className="p-4">

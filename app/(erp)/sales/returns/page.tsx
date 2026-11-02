@@ -3,7 +3,7 @@
 import { Download } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { Badge, Button, Card, DateInput, EmptyRow, ErrorBox, LoadingRow, PageHeader, Pagination, Table, Td, Th } from "@/components/ui";
+import { Badge, Button, Card, DateInput, EmptyRow, ErrorBox, LoadingRow, PageHeader, Pagination, Table, Td, Th, FilterBar } from "@/components/ui";
 import { date, downloadCsv, inr, monthStart, n, qty, today } from "@/lib/format";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -55,7 +55,7 @@ export default function SaleReturnsPage() {
       />
 
       <Card bodyClassName="p-0">
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
+        <FilterBar>
           <DateInput value={from} max={to || undefined} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="From date" />
           <span className="text-xs text-slate-400">to</span>
           <DateInput value={to} min={from || undefined} onChange={(e) => (setTo(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="To date" />
@@ -64,7 +64,7 @@ export default function SaleReturnsPage() {
               Returns are created from an invoice&apos;s <span className="font-medium">Return items</span> button.
             </p>
           )}
-        </div>
+        </FilterBar>
 
         {error ? (
           <div className="p-4">

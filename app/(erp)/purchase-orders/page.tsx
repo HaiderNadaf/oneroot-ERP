@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { BranchCode } from "@/components/BranchNotice";
+import { GstSheetButton } from "@/components/GstSheetExport";
 import { ListFilters, hasListFilters, noListFilters } from "@/components/ListFilters";
 import { ActionsTd, ActionsTh, Badge, Button, Card, EmptyRow, ErrorBox, LoadingRow, PageHeader, Pagination, RowAction, StatusBadge, Table, Tabs, Td, Th, cx } from "@/components/ui";
 import { date, inr, n } from "@/lib/format";
@@ -87,6 +88,7 @@ function PurchaseOrders() {
         subtitle="Raise orders with vendors, get them approved, then receive goods against them"
         actions={
           <>
+            <GstSheetButton kind="po" />
             <Button variant="secondary" icon={<ClipboardCheck className="size-4" />} onClick={() => router.push("/purchase-orders/approvals")}>
               Approvals
             </Button>

@@ -103,7 +103,7 @@ export const PERMISSIONS = [
   { key: 'admin.branches', section: 'Administration', module: 'Branches', action: 'view', label: 'Branches', roles: [] },
   { key: 'branches.create', section: 'Administration', module: 'Branches', action: 'create', label: 'Add branches', roles: [] },
   { key: 'branches.edit', section: 'Administration', module: 'Branches', action: 'edit', label: 'Edit and deactivate branches', roles: [] },
-  { key: 'branches.delete', section: 'Administration', module: 'Branches', action: 'delete', label: 'Delete branches — not in use yet', roles: [], planned: true },
+  { key: 'branches.delete', section: 'Administration', module: 'Branches', action: 'delete', label: 'Delete branches that were never used', roles: [] },
   { key: 'admin.settings', section: 'Administration', module: 'Store Settings', action: 'view', label: 'Store settings', roles: [] },
   { key: 'settings.create', section: 'Administration', module: 'Store Settings', action: 'create', label: 'Add store settings — not in use yet', roles: [], planned: true },
   { key: 'settings.edit', section: 'Administration', module: 'Store Settings', action: 'edit', label: 'Change store settings', roles: [] },

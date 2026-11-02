@@ -4,7 +4,7 @@ import { ArrowLeft, Download, IndianRupee, ReceiptText, Wallet } from "lucide-re
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Badge, Button, Card, DateInput, EmptyRow, ErrorBox, LoadingRow, PageHeader, Pagination, Select, Spinner, StatCard, StatusBadge, Table, Td, Th, cx, errMsg, useToast } from "@/components/ui";
+import { Badge, Button, Card, DateInput, EmptyRow, ErrorBox, LoadingRow, PageHeader, Pagination, Select, Spinner, StatCard, StatusBadge, Table, Td, Th, cx, errMsg, useToast, FilterBar } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { date, downloadCsv, inr, n, round2 } from "@/lib/format";
@@ -115,7 +115,7 @@ export default function AgentSalesPage() {
       </div>
 
       <Card bodyClassName="p-0" title="Sales Transactions">
-        <div className="flex flex-wrap gap-2 border-b border-slate-100 p-3">
+        <FilterBar>
           <div className="flex w-full items-center gap-1.5 sm:w-auto">
             <DateInput value={from} max={to || undefined} onChange={(e) => resetPage(setFrom)(e.target.value)} className="min-w-0 flex-1 sm:w-38 sm:flex-none" aria-label="From date" />
             <span className="text-xs text-slate-400">to</span>
@@ -126,7 +126,7 @@ export default function AgentSalesPage() {
             <option value="CANCELLED">Cancelled Bills</option>
             <option value="all">All Bills</option>
           </Select>
-        </div>
+        </FilterBar>
         {error ? (
           <div className="p-4">
             <ErrorBox message={error} onRetry={reload} />

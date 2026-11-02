@@ -3,6 +3,7 @@
 import { Download, FileText, Plus, RefreshCw, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
+import { useGstSheetDownload } from "@/components/GstSheetExport";
 import { CustomerPicker, VendorPicker } from "@/components/pickers";
 import { ReportFrame, TotalRow, periodLabel, type Range } from "@/components/reports/ReportKit";
 import {
@@ -1111,6 +1112,9 @@ export function TallyTab({ range, rangeBar }: { range: Range; rangeBar: ReactNod
   const toast = useToast();
   const [company, setCompany] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const sheet = useGstSheetDownload();
+
+
   const { data, error, loading, reload } = useApi<TallyPreview>("/accounting/tally/preview", { ...range });
   const byType = useMemo(() => {
     const m = new Map<string, number>();
@@ -1154,6 +1158,26 @@ export function TallyTab({ range, rangeBar }: { range: Range; rangeBar: ReactNod
             </Button>
             <Button icon={<Download className="size-4" />} loading={busy === "vouchers"} onClick={() => download("vouchers")} disabled={!data}>
               2 · Vouchers
+            </Button>
+          </div>
+        </div>
+      </Card>
+      <Card title={`GST Vouchers Excel · ${periodLabel(range)}`}>
+        <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+          <p className="text-sm text-slate-600">
+            For manual entry in Tally: one row per document, in the GST Vouchers sheet columns (date, invoice no., party, ledgers, taxable amount, GST slab, bill amount, place of supply)
+            followed by its products with quantity and rate. Purchase orders cover approved and received POs by order date, with freight and round off in their own columns; GRNs
+            value the accepted quantity at the PO rate, by received date; sales cover completed invoices by bill date. Pick the period with the dates above.
+          </p>
+          <div className="flex flex-col gap-2 lg:w-64">
+            <Button variant="secondary" icon={<Download className="size-4" />} loading={sheet.busy === "po"} onClick={() => sheet.download("po", range)}>
+              Purchase Orders (.xlsx)
+            </Button>
+            <Button variant="secondary" icon={<Download className="size-4" />} loading={sheet.busy === "grn"} onClick={() => sheet.download("grn", range)}>
+              GRNs (.xlsx)
+            </Button>
+            <Button variant="secondary" icon={<Download className="size-4" />} loading={sheet.busy === "sale"} onClick={() => sheet.download("sale", range)}>
+              Sales (.xlsx)
             </Button>
           </div>
         </div>

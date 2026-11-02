@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { isExpired } from "@/components/QuotationDocument";
-import { Badge, Button, Card, DateInput, EmptyRow, ErrorBox, LoadingRow, PageHeader, Pagination, SearchInput, Select, StatusBadge, Table, Td, Th } from "@/components/ui";
+import { Badge, Button, Card, DateInput, EmptyRow, ErrorBox, LoadingRow, PageHeader, Pagination, SearchInput, Select, StatusBadge, Table, Td, Th, FilterBar } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { date, inr, monthStart, n, today } from "@/lib/format";
 import { useApi, useDebounced } from "@/lib/hooks";
@@ -42,7 +42,7 @@ export default function QuotationsPage() {
       />
 
       <Card bodyClassName="p-0">
-        <div className="flex flex-wrap gap-2 border-b border-slate-100 p-3">
+        <FilterBar>
           <SearchInput
             value={search}
             onChange={resetPage(setSearch)}
@@ -61,7 +61,7 @@ export default function QuotationsPage() {
             <option value="REJECTED">Rejected</option>
             <option value="CANCELLED">Cancelled</option>
           </Select>
-        </div>
+        </FilterBar>
 
         {error ? (
           <div className="p-4">

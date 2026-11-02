@@ -2,6 +2,7 @@
 
 import { Download, Plus } from "lucide-react";
 import Link from "next/link";
+import { GstSheetButton } from "@/components/GstSheetExport";
 import { useState } from "react";
 import {
   Badge,
@@ -21,6 +22,7 @@ import {
   Th,
   errMsg,
   useToast,
+  FilterBar,
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -93,6 +95,7 @@ export default function SalesPage() {
         subtitle="All bills raised at the counter"
         actions={
           <>
+            <GstSheetButton kind="sale" />
             <Button variant="secondary" icon={<Download className="size-4" />} onClick={exportCsv} loading={exporting}>
               Export
             </Button>
@@ -106,7 +109,7 @@ export default function SalesPage() {
       />
 
       <Card bodyClassName="p-0">
-        <div className="flex flex-wrap gap-2 border-b border-slate-100 p-3">
+        <FilterBar>
           <SearchInput
             value={search}
             onChange={resetPage(setSearch)}
@@ -129,7 +132,7 @@ export default function SalesPage() {
             <option value="CANCELLED">Cancelled</option>
             <option value="all">All</option>
           </Select>
-        </div>
+        </FilterBar>
 
         {error ? (
           <div className="p-4">

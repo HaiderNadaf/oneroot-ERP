@@ -27,6 +27,7 @@ import {
   Th,
   cx,
   errMsg,
+  useConfirm,
   useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -47,10 +48,32 @@ export default function BranchesPage() {
 
 function Branches() {
   const { data, error, loading, reload } = useApi<Branch[]>("/branches");
-  const { currentId } = useBranch();
+  const { currentId, refresh: refreshBranches } = useBranch();
   const { can } = useAuth();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState<Branch | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  async function remove(b: Branch) {
+    const ok = await confirm(
+      `Delete ${b.name} (${b.code}) permanently? Only a branch with no bills, stock, staff or other records can be deleted; otherwise deactivate it to keep its history.`,
+      { danger: true, confirmLabel: "Delete" },
+    );
+    if (!ok) return;
+    setDeleting(b.id);
+    try {
+      await api.del(`/branches/${b.id}`);
+      toast.success(`${b.name} deleted`);
+      refreshBranches();
+      void reload();
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   const open = (b: Branch | null) => {
     setEditing(b);
@@ -151,6 +174,9 @@ function Branches() {
                     <Td>{b.isActive ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}</Td>
                     <ActionsTd>
                       {can("branches.edit") && <RowAction kind="edit" title={`Edit ${b.name}`} onClick={() => open(b)} />}
+                      {can("branches.delete") && (
+                        <RowAction kind="delete" title={`Delete ${b.name}`} loading={deleting === b.id} disabled={b.id === currentId} onClick={() => remove(b)} />
+                      )}
                     </ActionsTd>
                   </tr>
                 ))

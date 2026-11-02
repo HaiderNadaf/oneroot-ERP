@@ -76,12 +76,12 @@ function ProductFormBody({ open, product, onClose, onSaved }: Props) {
   // Brand and manufacturer are picked from the vendor list; without Vendors they are typed in
   const canVendors = can("vendors.view");
   const { data: vendors } = useApi<Paged<Vendor>>(canVendors ? "/vendors" : null, { pageSize: 500 });
-  // A hidden purchase rate keeps the product's saved value
-  const showCost = useSeeCostPrice();
+  const editing = !!product;
+  // Whoever adds / edits products sets the purchase rate; a hidden one keeps the product's saved value
+  const showCost = useSeeCostPrice() || can(editing ? "products.edit" : "products.create");
   const [f, setF] = useState<FormState>(() => toForm(product));
   const [attrs, setAttrs] = useState<Attributes>(() => ({ ...(product?.attributes ?? {}) }));
   const [saving, setSaving] = useState(false);
-  const editing = !!product;
   // Preview of the SKU a new product will get: ORI + category code + sub-category code + the sub-category's next number (11 digits in all)
   // Sub-categories are fetched for the chosen category only
   const { data: subCategories, loading: subsLoading } = useApi<SubCategory[]>(f.category ? `/categories/${f.category}/sub-categories` : null);

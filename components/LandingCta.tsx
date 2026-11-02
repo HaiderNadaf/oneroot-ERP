@@ -2,6 +2,8 @@
 
 import { LayoutDashboard, LogIn } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { cx } from "./ui";
 
@@ -36,6 +38,16 @@ export function LandingCta({ size = "md", tone = "brand", className }: { size?: 
       )}
     </Link>
   );
+}
+
+/** Sends a signed-in visitor straight from the landing page to their dashboard */
+export function LandingRedirect() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  useEffect(() => {
+    if (!loading && user) router.replace("/dashboard");
+  }, [loading, user, router]);
+  return null;
 }
 
 /** The current year, worked out in the browser (a server-rendered `new Date()` would make the page dynamic) */

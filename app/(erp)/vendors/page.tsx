@@ -23,6 +23,7 @@ import {
   Th,
   errMsg,
   useToast,
+  FilterBar,
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -111,7 +112,7 @@ export default function VendorsPage() {
       />
 
       <Card bodyClassName="p-0">
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
+        <FilterBar>
           <SearchInput
             value={search}
             onChange={(v) => {
@@ -129,7 +130,7 @@ export default function VendorsPage() {
           <div className="px-1">
             <Checkbox label="With Dues Only" checked={withDues} onChange={(v) => (setWithDues(v), setPage(1))} />
           </div>
-        </div>
+        </FilterBar>
 
         {error ? (
           <div className="p-4">

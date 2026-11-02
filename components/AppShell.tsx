@@ -33,7 +33,7 @@ import {
   Wallet,
   X,
   ReceiptText,
-  Megaphone,
+  // Megaphone, // Campaigns menu disabled
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -120,7 +120,7 @@ export const NAV: NavGroup[] = [
       { href: "/van", label: "Van Trips", icon: <Truck />, perms: ["van.view", "sales.van"] },
       { href: "/agents", label: "Agents", icon: <UserRoundPlus />, perms: ["sales.bill", "vendors.view"] },
       { href: "/quotations", label: "Quotations", icon: <ReceiptText />, perms: ["sales.view", "sales.bill"] },
-      { href: "/campaigns", label: "Campaigns", icon: <Megaphone />, perms: ["admin.schemes"] },
+      // { href: "/campaigns", label: "Campaigns", icon: <Megaphone />, perms: ["admin.schemes"] },
     ],
   },
     {
@@ -160,7 +160,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/admin/schemes",
-        label: "Schemes & Pricing",
+        label: "Schemes & Offers",
         icon: <Tags />,
         perms: ["admin.schemes"],
       },

@@ -1016,7 +1016,7 @@ export function SearchInput({
   autoFocus?: boolean;
 }) {
   return (
-    <div className={cx("relative", className)}>
+    <div data-search className={cx("relative", className)}>
       <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
       <Input
         value={value}
@@ -1042,15 +1042,32 @@ export function PageHeader({
 }) {
   return (
     <>
-      <div className="no-print mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-        <div className="min-w-0">
+      <div className="no-print mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 sm:flex-1">
           <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">{title}</h1>
           {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
         </div>
-        {/* Phones: the actions get their own row under the title */}
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+        {/* Wider screens: always the top-right corner, wrapping right-aligned. Phones: their own row under the title */}
+        {actions && <div className="flex flex-wrap items-center gap-2 sm:ml-auto sm:max-w-[65%] sm:shrink-0 sm:justify-end">{actions}</div>}
       </div>
     </>
+  );
+}
+
+/**
+ * The filter row at the top of a list card. Search and filters sit at the right end and wrap right-aligned; the
+ * search box keeps a fixed width there. Phones: each control keeps its own (usually full) width.
+ */
+export function FilterBar({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={cx(
+        "no-print flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 p-3 sm:[&>*]:flex-none sm:[&>[data-search]]:w-72",
+        className,
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -1072,7 +1089,7 @@ export function Card({
       {(title || actions) && (
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 sm:px-4">
           <h2 className="min-w-0 text-sm font-semibold text-slate-800">{title}</h2>
-          {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+          {actions && <div className="ml-auto flex flex-wrap items-center justify-end gap-2">{actions}</div>}
         </header>
       )}
       <div className={cx("p-3 sm:p-4", bodyClassName)}>{children}</div>

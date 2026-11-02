@@ -232,14 +232,16 @@ function Notes() {
                 </button>
               ))}
             </div>
-            <ListFilters
-              value={filters}
-              optionsPath="/debit-notes/filters"
-              onChange={(f) => {
-                setFilters(f);
-                setPage(1);
-              }}
-            />
+            <div className="ml-auto">
+              <ListFilters
+                value={filters}
+                optionsPath="/debit-notes/filters"
+                onChange={(f) => {
+                  setFilters(f);
+                  setPage(1);
+                }}
+              />
+            </div>
           </div>
 
           {error ? (

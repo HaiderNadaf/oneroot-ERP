@@ -203,16 +203,36 @@ export interface ApprovalRequest {
 
 // ───────────────────────── Schemes & customer types ─────────────────────────
 
-export type SchemeType = "BUY_X_GET_Y" | "PCT_OFF" | "FLAT_OFF";
+export type SchemeType = "BUY_X_GET_Y" | "PCT_OFF" | "FLAT_OFF" | "FIXED_PRICE";
+/** Why an offer runs */
+export type OfferPurpose = "GENERAL" | "FESTIVAL" | "STOCK_CLEARANCE" | "SEASONAL" | "COMPANY" | "NEW_LAUNCH" | "BULK";
+/** What an offer covers */
+export type SchemeScope = "PRODUCTS" | "CATEGORIES" | "ALL";
 
 export interface Scheme {
   id: string;
   name: string;
   type: SchemeType;
+  purpose: OfferPurpose;
+  /** Festival / occasion, e.g. "Pongal 2027" */
+  occasion?: string | null;
+  scope: SchemeScope;
   buyQty?: number | null;
   freeQty?: number | null;
   pct?: Dec | null;
   flat?: Dec | null;
+  /** Offer price per unit (FIXED_PRICE) */
+  price?: Dec | null;
+  /** Applies only when the line has at least this many units */
+  minQty?: Dec | null;
+  /** Applies only when the bill reaches this value */
+  minBill?: Dec | null;
+  /** Stock limit: units that can be sold under the offer in all */
+  maxQty?: Dec | null;
+  /** Units already sold under a stock-limited offer */
+  usedQty?: number;
+  excludeSubsidised: boolean;
+  categories: { categoryId: string; category?: { id: string; name: string } }[];
   from: string;
   to?: string | null;
   claimable: boolean;
@@ -316,6 +336,8 @@ export interface StoreSettings {
   receiptFormat: "A4" | "THERMAL_80" | "THERMAL_58";
   reminderTemplate?: string | null;
   vendorTerms?: string | null;
+  poMailSubject?: string | null;
+  poMailBody?: string | null;
   reminderGraceDays: number;
   autoReminders: boolean;
   blockOverdueCredit: boolean;
@@ -899,6 +921,9 @@ export interface PurchaseOrder {
   levelsNeeded: number;
   notes?: string | null;
   createdBy?: { id?: string; name: string } | null;
+  /** Sent to the vendor by email (Send to Vendor, once only) and by whom */
+  vendorEmailedAt?: string | null;
+  vendorEmailedBy?: string | null;
   chain: ChainStep[];
   receivedPct: number;
   canEdit: boolean;

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { CampaignForm, CampaignStatusBadge } from "@/components/CampaignForm";
-import { ActionsTd, ActionsTh, Button, Card, EmptyRow, ErrorBox, LoadingRow, PageHeader, RowAction, SearchInput, Select, Table, Td, Th, cx } from "@/components/ui";
+import { ActionsTd, ActionsTh, Button, Card, EmptyRow, ErrorBox, LoadingRow, PageHeader, RowAction, SearchInput, Select, Table, Td, Th, cx, FilterBar } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { date, inr, n, qty } from "@/lib/format";
 import { useApi, useDebounced } from "@/lib/hooks";
@@ -43,7 +43,7 @@ function Campaigns() {
         }
       />
       <Card bodyClassName="p-0">
-        <div className="flex flex-wrap gap-2 border-b border-slate-100 p-3">
+        <FilterBar>
           <SearchInput value={search} onChange={setSearch} placeholder="Search campaign name or code…" className="w-full flex-1 sm:w-auto sm:min-w-60" />
           <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full sm:w-44" aria-label="Status">
             <option value="">All Campaigns</option>
@@ -52,7 +52,7 @@ function Campaigns() {
             <option value="ENDED">Ended</option>
             <option value="STOPPED">Stopped</option>
           </Select>
-        </div>
+        </FilterBar>
         {error ? (
           <div className="p-4">
             <ErrorBox message={error} onRetry={reload} />

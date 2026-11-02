@@ -37,8 +37,22 @@ function lastMonth(): Range {
   return { from: today(new Date(d.getFullYear(), d.getMonth() - 1, 1)), to: today(new Date(d.getFullYear(), d.getMonth(), 0)) };
 }
 
+function yesterday(): Range {
+  const d = new Date();
+  const y = today(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1));
+  return { from: y, to: y };
+}
+
+/** Monday to today */
+function thisWeek(): Range {
+  const d = new Date();
+  return { from: today(new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))), to: today() };
+}
+
 export const PRESETS: { label: string; range: () => Range }[] = [
   { label: "Today", range: () => ({ from: today(), to: today() }) },
+  { label: "Yesterday", range: yesterday },
+  { label: "This Week", range: thisWeek },
   { label: "This Month", range: () => ({ from: monthStart(), to: today() }) },
   { label: "Last Month", range: lastMonth },
   { label: "This FY", range: () => ({ from: fyStart(), to: today() }) },
@@ -109,7 +123,7 @@ export function ReportFrame({
   const { data: store } = useApi<StoreSettings>("/settings");
   return (
     <div>
-      <div className="no-print mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-surface p-3 shadow-sm">
+      <div className="no-print mb-4 flex flex-wrap items-center justify-end gap-2 rounded-xl border border-slate-200 bg-surface p-3 shadow-sm">
         {controls}
         <div className="flex-1" />
         <Button variant="secondary" icon={<Printer className="size-4" />} onClick={() => window.print()} disabled={!hasData}>

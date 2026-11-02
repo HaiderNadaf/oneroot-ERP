@@ -26,6 +26,7 @@ import {
   errMsg,
   useConfirm,
   useToast,
+  FilterBar,
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -124,7 +125,7 @@ function Expenses() {
 
       <div className="grid gap-4 xl:grid-cols-3">
         <Card bodyClassName="p-0" className="xl:col-span-2">
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
+          <FilterBar>
             <div className="flex w-full items-center gap-2 sm:w-auto">
               <DateInput value={from} onChange={(e) => (setFrom(e.target.value), setPage(1))} className="min-w-0 flex-1 sm:w-40 sm:flex-none" aria-label="From date" />
               <span className="text-sm text-slate-400">to</span>
@@ -144,7 +145,7 @@ function Expenses() {
                 Total <span className="num font-semibold text-slate-900">{inr(data.totalAmount)}</span>
               </p>
             )}
-          </div>
+          </FilterBar>
           {error ? (
             <div className="p-4">
               <ErrorBox message={error} onRetry={reload} />

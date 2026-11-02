@@ -9,6 +9,7 @@ import {
   History,
   LockKeyholeOpen,
   Minus,
+  PartyPopper,
   PauseCircle,
   Plus,
   Printer,
@@ -17,6 +18,7 @@ import {
   ScanLine,
   ShieldCheck,
   ShoppingCart,
+  Tag,
   Trash2,
   UserPlus,
   WifiOff,
@@ -40,7 +42,8 @@ import { date, dateTime, daysUntil, inr, inr0, n, qty, round2 } from "@/lib/form
 import { placeOfSupply } from "@/lib/gst";
 import { useApi } from "@/lib/hooks";
 import { isNetworkError, newOfflineId, queueAdd, queueList, queueRemove, syncQueue, useOnline, useQueue } from "@/lib/offline";
-import { priceLines, type PricedLine } from "@/lib/pricing";
+import { PURPOSE_LABEL, PURPOSE_RIBBON, offerConditions, offerCoverage } from "@/lib/offers";
+import { combinePct, covers, offerLabel, priceLines, remainingOf, type PricedLine } from "@/lib/pricing";
 import { defaultPrintMode, printReceipt, receiptWidth } from "@/lib/print";
 import { useScanner } from "@/lib/scanner";
 import { MONEY_MODES, modeLabel, type Batch, type Category, type Customer, type CustomerType, type HeldBill, type Paged, type PaymentMode, type Product, type RoleLimit, type Sale, type Scheme, type Shift, type StoreSettings, type VanTripDetail } from "@/lib/types";
@@ -117,7 +120,11 @@ const MODES: { mode: PaymentMode; label: string }[] = [
 
 const isExpired = (b: Batch) => !!b.expiryDate && (daysUntil(b.expiryDate) ?? 0) < 0;
 /** Line value after the cashier's discount, the scheme and the customer-type discount (free goods are extra, at zero) */
+/** A line after only the cashier's own discount (before offers and customer-type discounts) */
+const lineBeforeOffers = (l: Line) => n(l.quantity) * n(l.rate) * (1 - Math.min(100, Math.max(0, n(l.discountPct))) / 100);
 const lineGross = (l: Line, p?: PricedLine) => n(l.quantity) * n(l.rate) * (1 - Math.min(100, p ? p.effectivePct : n(l.discountPct)) / 100);
+/** Category-row value that shows only products with a running offer */
+const OFFERS = "__offers";
 /** Sellable stock in this branch for a product card */
 const sellableOf = (p: PosProduct) => (p.sellable !== undefined ? p.sellable : n(p.stock));
 
@@ -289,17 +296,24 @@ export default function PosPage() {
     return (categories ?? []).filter((c) => ids.has(c.id));
   }, [products, categories]);
 
+  // Offers running today (stock-limited ones drop out once their lot is sold), and which cover each product
+  const liveOffers = useMemo(() => (schemes ?? []).filter((s) => remainingOf(s) > 0), [schemes]);
+  const offersFor = useCallback(
+    (p: PosProduct) => liveOffers.filter((s) => covers(s, { productId: p.id, categoryId: p.categoryId, isSubsidised: !!p.isSubsidised })),
+    [liveOffers],
+  );
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return products.filter(
       (p) =>
-        (!category || p.categoryId === category) &&
+        (!category || (category === OFFERS ? offersFor(p).length > 0 : p.categoryId === category)) &&
         (!q ||
           [p.name, p.sku, p.brand, p.barcode, p.technicalName, p.packSize]
             .filter(Boolean)
             .some((s) => String(s).toLowerCase().includes(q))),
     );
-  }, [products, search, category]);
+  }, [products, search, category, offersFor]);
 
   const inCart = (productId: string) => lines.filter((l) => l.product.id === productId).reduce((s, l) => s + n(l.quantity), 0);
 
@@ -380,7 +394,7 @@ export default function PosPage() {
   // ── Pricing rules (mirrors the server): cashier discount → best scheme per line → customer-type discount ──
   const pricing = useMemo(() => {
     const r = priceLines(
-      lines.map((l) => ({ productId: l.product.id, quantity: n(l.quantity), rate: n(l.rate), manualPct: Math.min(100, Math.max(0, n(l.discountPct))), isSubsidised: !!l.product.isSubsidised })),
+      lines.map((l) => ({ productId: l.product.id, categoryId: l.product.categoryId, quantity: n(l.quantity), rate: n(l.rate), manualPct: Math.min(100, Math.max(0, n(l.discountPct))), isSubsidised: !!l.product.isSubsidised })),
       schemes ?? [],
       credit ?? customer ? (credit ?? customer)?.customerType : walkInType,
     );
@@ -392,6 +406,8 @@ export default function PosPage() {
   // ── Bill math (mirrors the server: GST-inclusive rates, bill discount spread pro-rata) ──
   const summary = useMemo(() => {
     const itemsTotal = lines.reduce((s, l) => s + lineGross(l, pricing.byKey.get(l.key)), 0);
+    // What offers and the customer-type discount took off (already inside itemsTotal)
+    const offerSavings = Math.max(0, lines.reduce((s, l) => s + lineBeforeOffers(l), 0) - itemsTotal);
     const discount = Math.min(n(billDiscount), itemsTotal);
     const factor = itemsTotal > 0 ? 1 - discount / itemsTotal : 1;
     let tax = 0;
@@ -405,6 +421,7 @@ export default function PosPage() {
     const manualMax = round2(Math.max(0, ...lines.map((l) => Math.min(100, n(l.discountPct))), itemsTotal > 0 ? (discount / itemsTotal) * 100 : 0));
     return {
       itemsTotal: round2(itemsTotal),
+      offerSavings: round2(offerSavings),
       discount: round2(discount),
       factor,
       tax: round2(tax),
@@ -836,8 +853,8 @@ export default function PosPage() {
   return (
     <div className="pb-24">
       {/* Heading */}
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 sm:flex-1">
           <p className="text-[12.5px] text-muted">
             <Link href="/sales" className="text-brand-700 hover:underline">
               Sales
@@ -855,7 +872,7 @@ export default function PosPage() {
             </span>
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:ml-auto sm:max-w-[65%] sm:shrink-0 sm:justify-end">
           {!online && (
             <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100 px-2.5 py-1.5 text-xs font-semibold text-amber-800">
               <WifiOff className="size-3.5" /> Offline — bills are saved on this device
@@ -960,8 +977,31 @@ export default function PosPage() {
           </button>
         </div>
 
+        {liveOffers.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Offers today">
+            {liveOffers.map((s) => {
+              const cond = offerConditions(s);
+              return (
+                <div
+                  key={s.id}
+                  className="flex shrink-0 items-center gap-2 rounded-[10px] border border-amber-200 bg-amber-50 px-3 py-1.5 text-[12.5px] text-amber-900"
+                  title={`${s.name} — ${offerCoverage(s)}${cond ? ` · ${cond}` : ""}`}
+                >
+                  {s.purpose === "FESTIVAL" ? <PartyPopper className="size-4 shrink-0 text-amber-600" /> : <Tag className="size-4 shrink-0 text-amber-600" />}
+                  <span className="max-w-[260px] truncate">
+                    <b>{s.occasion || s.name}</b> · {offerLabel(s)}
+                    {s.scope === "ALL" ? " on everything" : s.scope === "CATEGORIES" ? ` on ${offerCoverage(s)}` : ""}
+                    {cond ? ` · ${cond}` : ""}
+                  </span>
+                  <span className="rounded bg-white/70 px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-amber-700">{PURPOSE_LABEL[s.purpose]}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {[{ id: "", name: "All" }, ...usedCategories].map((c) => (
+          {[{ id: "", name: "All" }, ...(liveOffers.length ? [{ id: OFFERS, name: `Offers (${products.filter((p) => offersFor(p).length > 0).length})` }] : []), ...usedCategories].map((c) => (
             <button
               key={c.id || "all"}
               type="button"
@@ -998,6 +1038,19 @@ export default function PosPage() {
               const expiring = expiresIn !== null && expiresIn <= alertDays;
               const blocked = left < 1;
               const count = inCart(p.id);
+              const offers = offersFor(p);
+              const offer = offers[0];
+              // A plain per-unit offer (no quantity / bill condition) shows its price on the tile
+              const offerPrice =
+                offer && !n(offer.minQty) && !n(offer.minBill)
+                  ? offer.type === "FIXED_PRICE"
+                    ? Math.min(n(p.salePrice), n(offer.price))
+                    : offer.type === "PCT_OFF"
+                      ? n(p.salePrice) * (1 - n(offer.pct) / 100)
+                      : offer.type === "FLAT_OFF"
+                        ? Math.max(0, n(p.salePrice) - n(offer.flat))
+                        : null
+                  : null;
               return (
                 <button
                   key={p.id}
@@ -1025,7 +1078,27 @@ export default function PosPage() {
                   </span>
                   <b className="mt-1 line-clamp-2 text-[15px] font-bold leading-snug text-ink">{p.name}</b>
                   <span className="text-[13px] text-muted">{p.packSize || p.unit}</span>
-                  <span className="num mt-auto pt-2 text-[17px] font-bold text-ink">{inr(p.salePrice)}</span>
+                  {offer && (
+                    <span
+                      className={cx("mt-1.5 inline-flex max-w-full items-center gap-1 self-start truncate rounded px-1.5 py-0.5 text-[11px] font-semibold", PURPOSE_RIBBON[offer.purpose])}
+                      title={offers.map((o) => `${o.name}: ${offerLabel(o)}${offerConditions(o) ? ` (${offerConditions(o)})` : ""}`).join("\n")}
+                    >
+                      <Tag className="size-3 shrink-0" />
+                      <span className="truncate">
+                        {offerLabel(offer)}
+                        {n(offer.minQty) > 0 ? ` on ${qty(n(offer.minQty))}+` : n(offer.minBill) > 0 ? ` above ${inr0(offer.minBill)}` : ""}
+                        {offers.length > 1 ? ` +${offers.length - 1}` : ""}
+                      </span>
+                    </span>
+                  )}
+                  {offerPrice !== null && offerPrice < n(p.salePrice) ? (
+                    <span className="mt-auto flex items-baseline gap-1.5 pt-2">
+                      <span className="num text-[17px] font-bold text-brand-700">{inr(round2(offerPrice))}</span>
+                      <s className="num text-[12.5px] text-muted">{inr(p.salePrice)}</s>
+                    </span>
+                  ) : (
+                    <span className="num mt-auto pt-2 text-[17px] font-bold text-ink">{inr(p.salePrice)}</span>
+                  )}
                   <span className={cx("text-[12.5px]", sellable <= 0 || blocked ? "text-rust-600" : "text-muted")}>
                     {sellable <= 0
                       ? total > 0
@@ -1295,6 +1368,18 @@ export default function PosPage() {
                             className="num h-8 text-right"
                             aria-label={`Rate of ${l.product.name}`}
                           />
+                          {(() => {
+                            const p = pricing.byKey.get(l.key);
+                            const extra = p ? combinePct(p.schemePct, p.typePct) : 0;
+                            if (extra <= 0) return null;
+                            // Price per unit after offers (the cashier's own discount shows in Disc %)
+                            const unit = n(l.rate) * (1 - extra / 100);
+                            return (
+                              <p className="num mt-0.5 text-[11px] font-semibold text-brand-700" title={`${extra}% off by offer / customer type`}>
+                                Offer {inr(round2(unit))}
+                              </p>
+                            );
+                          })()}
                           {n(l.product.mrp) > 0 && n(l.rate) > n(l.product.mrp) && (
                             <p className="mt-0.5 text-[11px] font-medium text-amber-700">Above MRP {inr(l.product.mrp)}</p>
                           )}
@@ -1315,6 +1400,9 @@ export default function PosPage() {
                         </Td>
                         <Td right className="pt-3.5">
                           <b className="num block truncate text-sm text-ink">{inr(lineGross(l, pricing.byKey.get(l.key)))}</b>
+                          {lineBeforeOffers(l) - lineGross(l, pricing.byKey.get(l.key)) > 0.004 && (
+                            <s className="num block truncate text-[11px] text-muted">{inr(lineBeforeOffers(l))}</s>
+                          )}
                         </Td>
                         <Td className="pr-4 pt-2.5 sm:pr-5">
                           <button onClick={() => remove(l.key)} className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Remove ${l.product.name}`} title="Remove">
@@ -1335,6 +1423,15 @@ export default function PosPage() {
             {lines.length > 0 && (
               <section className="border-b border-line p-4">
                 <dl className="space-y-1 text-sm">
+                  {summary.offerSavings > 0 && (
+                    <>
+                      <Row label="Before Offers" value={inr(summary.itemsTotal + summary.offerSavings)} muted />
+                      <div className="flex justify-between font-medium text-brand-700">
+                        <dt>Offer Savings</dt>
+                        <dd className="num">− {inr(summary.offerSavings)}</dd>
+                      </div>
+                    </>
+                  )}
                   <Row label="Items Total" value={inr(summary.itemsTotal)} />
                   <div className="flex items-center justify-between gap-3">
                     <dt className="text-muted">Discount (₹)</dt>
@@ -1795,7 +1892,7 @@ export default function PosPage() {
 
 /** Scheme, free goods and customer-type discount on a cart line */
 function LinePricing({ p, unit }: { p?: PricedLine; unit: string }) {
-  if (!p || (!p.schemeName && !p.typePct)) return null;
+  if (!p || (!p.schemeName && !p.typePct && !p.hint)) return null;
   return (
     <span className="mt-0.5 flex flex-wrap gap-1 text-[11px]">
       {p.schemeName && (
@@ -1805,6 +1902,7 @@ function LinePricing({ p, unit }: { p?: PricedLine; unit: string }) {
         </span>
       )}
       {p.typePct > 0 && <span className="rounded bg-violet-50 px-1.5 py-0.5 font-medium text-violet-800">{p.typePct}% customer type</span>}
+      {p.hint && <span className="rounded bg-amber-50 px-1.5 py-0.5 font-medium text-amber-800">{p.hint}</span>}
     </span>
   );
 }

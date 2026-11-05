@@ -505,7 +505,7 @@ function NoteDoc({ dn, store, onShipTo }: { dn: DebitNote; store: StoreSettings 
           {/* Keyed so the box resets when another note opens or the saved text changes */}
           <ShipTo key={`${dn.id}:${dn.shipTo ?? ""}`} dn={dn} onSave={onShipTo} />
         </div>
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-1 break-words">
           <dt className="text-slate-500">Note no.</dt>
           <dd className="font-medium">{dn.dnNo}</dd>
           <dt className="text-slate-500">Date</dt>

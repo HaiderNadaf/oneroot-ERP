@@ -213,7 +213,7 @@ function PettyCash() {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card bodyClassName="p-0" className="xl:col-span-2">
           <FilterBar>
             <SearchInput value={search} onChange={reset(setSearch)} placeholder="Voucher, paid to, bill no…" className="w-full sm:w-56" />

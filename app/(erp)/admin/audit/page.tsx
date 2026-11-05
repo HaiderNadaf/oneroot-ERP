@@ -134,9 +134,9 @@ function Audit() {
             </Select>
           )}
           {device && (
-            <span className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-brand-300 bg-brand-50 pl-3 pr-1 text-sm text-brand-800">
-              <MonitorSmartphone className="size-4" />
-              Device: {device.name}
+            <span className="inline-flex h-9 max-w-full items-center gap-1.5 rounded-lg border border-brand-300 bg-brand-50 pl-3 pr-1 text-sm text-brand-800">
+              <MonitorSmartphone className="size-4 shrink-0" />
+              <span className="min-w-0 truncate">Device: {device.name}</span>
               <Button variant="ghost" size="sm" aria-label="Show all devices" onClick={() => (setDevice(null), setPage(1))}>
                 <X className="size-4" />
               </Button>

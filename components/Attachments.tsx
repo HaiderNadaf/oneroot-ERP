@@ -43,7 +43,7 @@ function FileIcon({ name, mime, className }: { name: string; mime: string; class
   const c = cx("size-5 shrink-0", className);
   if (mime.startsWith("image/")) return <FileImage className={cx(c, "text-sky-600")} />;
   if (mime === "application/pdf" || /\.pdf$/i.test(name)) return <FileText className={cx(c, "text-red-600")} />;
-  if (/\.(xlsx?|csv|ods)$/i.test(name) || mime.includes("spreadsheet") || mime === "text/csv") return <FileSpreadsheet className={cx(c, "text-emerald-600")} />;
+  if (/\.(xlsx?|csv|ods)$/i.test(name) || mime.includes("spreadsheet") || mime === "text/csv") return <FileSpreadsheet className={cx(c, "text-brand-600")} />;
   if (/\.(docx?|odt|rtf|txt)$/i.test(name) || mime.includes("word")) return <FileText className={cx(c, "text-blue-600")} />;
   if (/\.(zip|rar|7z|gz|tar)$/i.test(name)) return <FileArchive className={cx(c, "text-amber-600")} />;
   return <File className={cx(c, "text-slate-500")} />;
@@ -202,11 +202,11 @@ export function Attachments({
                 <Spinner text={null} />
               ) : (
                 <div className="flex shrink-0 items-center">
-                  <button type="button" onClick={() => void open(a, true)} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={`Download ${a.fileName}`}>
+                  <button type="button" onClick={() => void open(a, true)} className="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 sm:p-1.5" aria-label={`Download ${a.fileName}`}>
                     <Download className="size-4" />
                   </button>
                   {canManage && (
-                    <button type="button" onClick={() => void remove(a)} className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Remove ${a.fileName}`}>
+                    <button type="button" onClick={() => void remove(a)} className="rounded-md p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:p-1.5" aria-label={`Remove ${a.fileName}`}>
                       <Trash2 className="size-4" />
                     </button>
                   )}
@@ -250,7 +250,7 @@ export function PendingFiles({ files, onChange, className }: { files: File[]; on
               <FileIcon name={f.name} mime={f.type} />
               <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{f.name}</span>
               <span className="shrink-0 text-xs text-slate-500">{fileSize(f.size)}</span>
-              <button type="button" onClick={() => onChange(files.filter((_, j) => j !== i))} className="rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Remove ${f.name}`}>
+              <button type="button" onClick={() => onChange(files.filter((_, j) => j !== i))} className="shrink-0 rounded-md p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:p-1" aria-label={`Remove ${f.name}`}>
                 <X className="size-4" />
               </button>
             </li>

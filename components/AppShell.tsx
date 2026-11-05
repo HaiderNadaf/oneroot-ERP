@@ -401,7 +401,7 @@ function Sidebar({ onNavigate, onClose }: { onNavigate?: () => void; onClose?: (
   return (
     <div className="flex h-full flex-col border-r border-brand-100 bg-brand-50">
       <div className="flex items-start gap-2 px-5 pb-4 pt-5">
-        <Link href="/dashboard" onClick={onNavigate} className="block min-w-0 flex-1" aria-label="OneRoot.farm — dashboard">
+        <Link href="/dashboard" onClick={onNavigate} className="block min-w-0 flex-1 items-center" aria-label="OneRoot.farm — dashboard">
           <Logo logo={LOGOS.horizontal} priority className="flex px-4 py-3 shadow-sm ring-1 ring-brand-100" imageClassName="w-[85%]" />
           <p className="mt-1.5 text-[10.5px] font-medium uppercase tracking-[0.12em] text-brand-700">
             Agri Inputs ERP

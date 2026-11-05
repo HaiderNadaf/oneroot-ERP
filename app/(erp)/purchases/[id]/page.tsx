@@ -213,7 +213,7 @@ function PurchaseDetail() {
         </div>
 
         <div className="border-b border-slate-100 p-4">
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 break-words text-sm sm:grid-cols-4">
             <dt className="text-slate-500">Bill no.</dt>
             <dd className="font-medium text-slate-900">{p.purchaseNo}</dd>
             <dt className="text-slate-500">Vendor invoice</dt>

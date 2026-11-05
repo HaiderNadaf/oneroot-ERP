@@ -42,7 +42,7 @@ import { date, dateTime, daysUntil, inr, inr0, n, qty, round2 } from "@/lib/form
 import { placeOfSupply } from "@/lib/gst";
 import { useApi } from "@/lib/hooks";
 import { isNetworkError, newOfflineId, queueAdd, queueList, queueRemove, syncQueue, useOnline, useQueue } from "@/lib/offline";
-import { PURPOSE_LABEL, PURPOSE_RIBBON, offerConditions, offerCoverage } from "@/lib/offers";
+import { isFestival, offerConditions, offerCoverage, purposeName, purposeRibbon } from "@/lib/offers";
 import { combinePct, covers, offerLabel, priceLines, remainingOf, type PricedLine } from "@/lib/pricing";
 import { defaultPrintMode, printReceipt, receiptWidth } from "@/lib/print";
 import { useScanner } from "@/lib/scanner";
@@ -121,7 +121,8 @@ const MODES: { mode: PaymentMode; label: string }[] = [
 const isExpired = (b: Batch) => !!b.expiryDate && (daysUntil(b.expiryDate) ?? 0) < 0;
 /** Line value after the cashier's discount, the scheme and the customer-type discount (free goods are extra, at zero) */
 /** A line after only the cashier's own discount (before offers and customer-type discounts) */
-const lineBeforeOffers = (l: Line) => n(l.quantity) * n(l.rate) * (1 - Math.min(100, Math.max(0, n(l.discountPct))) / 100);
+/** The line after the cashier's own discount only (the part an upto-% offer covers counts as the offer) */
+const lineBeforeOffers = (l: Line, p?: PricedLine) => n(l.quantity) * n(l.rate) * (1 - Math.min(100, Math.max(0, p ? p.manualPct : n(l.discountPct))) / 100);
 const lineGross = (l: Line, p?: PricedLine) => n(l.quantity) * n(l.rate) * (1 - Math.min(100, p ? p.effectivePct : n(l.discountPct)) / 100);
 /** Category-row value that shows only products with a running offer */
 const OFFERS = "__offers";
@@ -407,7 +408,7 @@ export default function PosPage() {
   const summary = useMemo(() => {
     const itemsTotal = lines.reduce((s, l) => s + lineGross(l, pricing.byKey.get(l.key)), 0);
     // What offers and the customer-type discount took off (already inside itemsTotal)
-    const offerSavings = Math.max(0, lines.reduce((s, l) => s + lineBeforeOffers(l), 0) - itemsTotal);
+    const offerSavings = Math.max(0, lines.reduce((s, l) => s + lineBeforeOffers(l, pricing.byKey.get(l.key)), 0) - itemsTotal);
     const discount = Math.min(n(billDiscount), itemsTotal);
     const factor = itemsTotal > 0 ? 1 - discount / itemsTotal : 1;
     let tax = 0;
@@ -417,8 +418,10 @@ export default function PosPage() {
     }
     const net = itemsTotal - discount;
     const total = Math.round(net);
-    // The cashier's own discount (schemes and customer types don't count against the limit)
-    const manualMax = round2(Math.max(0, ...lines.map((l) => Math.min(100, n(l.discountPct))), itemsTotal > 0 ? (discount / itemsTotal) * 100 : 0));
+    // The cashier's own discount (schemes, customer types and what an upto-% offer allows don't count against the limit)
+    const manualMax = round2(
+      Math.max(0, ...lines.map((l) => Math.min(100, pricing.byKey.get(l.key)?.manualPct ?? n(l.discountPct))), itemsTotal > 0 ? (discount / itemsTotal) * 100 : 0),
+    );
     return {
       itemsTotal: round2(itemsTotal),
       offerSavings: round2(offerSavings),
@@ -544,6 +547,8 @@ export default function PosPage() {
       if (n(l.quantity) <= 0) return `Enter a quantity for ${l.product.name}`;
       if (n(l.rate) < 0) return `Rate for ${l.product.name} cannot be negative`;
       if (n(l.discountPct) < 0 || n(l.discountPct) > 100) return `Discount for ${l.product.name} must be 0–100%`;
+      const cap = pricing.byKey.get(l.key)?.uptoPct ?? 0;
+      if (cap > 0 && n(l.discountPct) > cap + 1e-9) return `${l.product.name}: the offer allows at most ${cap}% discount`;
       if (l.product.trackSerial) {
         if (!online) return `${l.product.name} is sold by serial number, which needs internet`;
         if (!Number.isInteger(n(l.quantity))) return `${l.product.name} is sold per unit — use a whole number`;
@@ -987,13 +992,13 @@ export default function PosPage() {
                   className="flex shrink-0 items-center gap-2 rounded-[10px] border border-amber-200 bg-amber-50 px-3 py-1.5 text-[12.5px] text-amber-900"
                   title={`${s.name} — ${offerCoverage(s)}${cond ? ` · ${cond}` : ""}`}
                 >
-                  {s.purpose === "FESTIVAL" ? <PartyPopper className="size-4 shrink-0 text-amber-600" /> : <Tag className="size-4 shrink-0 text-amber-600" />}
+                  {isFestival(s) ? <PartyPopper className="size-4 shrink-0 text-amber-600" /> : <Tag className="size-4 shrink-0 text-amber-600" />}
                   <span className="max-w-[260px] truncate">
                     <b>{s.occasion || s.name}</b> · {offerLabel(s)}
                     {s.scope === "ALL" ? " on everything" : s.scope === "CATEGORIES" ? ` on ${offerCoverage(s)}` : ""}
                     {cond ? ` · ${cond}` : ""}
                   </span>
-                  <span className="rounded bg-white/70 px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-amber-700">{PURPOSE_LABEL[s.purpose]}</span>
+                  <span className="rounded bg-white/70 px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-amber-700">{purposeName(s)}</span>
                 </div>
               );
             })}
@@ -1080,7 +1085,7 @@ export default function PosPage() {
                   <span className="text-[13px] text-muted">{p.packSize || p.unit}</span>
                   {offer && (
                     <span
-                      className={cx("mt-1.5 inline-flex max-w-full items-center gap-1 self-start truncate rounded px-1.5 py-0.5 text-[11px] font-semibold", PURPOSE_RIBBON[offer.purpose])}
+                      className={cx("mt-1.5 inline-flex max-w-full items-center gap-1 self-start truncate rounded px-1.5 py-0.5 text-[11px] font-semibold", purposeRibbon(offer))}
                       title={offers.map((o) => `${o.name}: ${offerLabel(o)}${offerConditions(o) ? ` (${offerConditions(o)})` : ""}`).join("\n")}
                     >
                       <Tag className="size-3 shrink-0" />
@@ -1092,7 +1097,7 @@ export default function PosPage() {
                     </span>
                   )}
                   {offerPrice !== null && offerPrice < n(p.salePrice) ? (
-                    <span className="mt-auto flex items-baseline gap-1.5 pt-2">
+                    <span className="mt-auto flex flex-wrap items-baseline gap-x-1.5 pt-2">
                       <span className="num text-[17px] font-bold text-brand-700">{inr(round2(offerPrice))}</span>
                       <s className="num text-[12.5px] text-muted">{inr(p.salePrice)}</s>
                     </span>
@@ -1203,7 +1208,7 @@ export default function PosPage() {
                 </p>
               )}
               {customer && availableCredit > 0 && (
-                <p className="flex items-center justify-between gap-2 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-800">
+                <p className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-800">
                   <span>
                     Credit note available: <b className="num">{inr(availableCredit)}</b>
                   </span>
@@ -1271,6 +1276,7 @@ export default function PosPage() {
 
           {/* Row 2 · Products: the only part that scrolls, under a sticky header */}
           <div className="flex min-w-0 flex-col border-b border-line lg:min-h-0 lg:border-b-0 lg:border-r">
+            {/* Phones: each line reflows into a card (name, then qty · rate · disc, then amount) instead of a sideways-scrolling table */}
             {lines.length === 0 ? (
               <div className="px-4 py-16 text-center">
                 <ShoppingCart className="mx-auto size-8 text-slate-300" />
@@ -1278,7 +1284,7 @@ export default function PosPage() {
                 <span className="text-[13px] text-muted">Tap a product or scan its barcode.</span>
               </div>
             ) : (
-              <Table className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto [&>table]:min-w-[680px] [&>table]:table-fixed [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10">
+              <Table stack={false} className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto sm:[&>table]:min-w-[680px] [&>table]:table-fixed [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 max-sm:[&>table]:block max-sm:[&_tbody]:block max-sm:[&_thead]:hidden">
                 <thead>
                   <tr>
                     <Th className="w-10 pl-4 sm:pl-5">#</Th>
@@ -1303,9 +1309,9 @@ export default function PosPage() {
                     const sellable = l.batches?.filter((b) => !isExpired(b)) ?? [];
                     const location = sellable.find((b) => b.id === l.batchId)?.location ?? l.product.location;
                     return (
-                      <tr key={l.key} className="align-top hover:bg-paper-2/60">
-                        <Td className="num pl-4 pt-3.5 text-xs text-muted sm:pl-5">{i + 1}</Td>
-                        <Td>
+                      <tr key={l.key} className="align-top hover:bg-paper-2/60 max-sm:relative max-sm:grid max-sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] max-sm:border-b max-sm:border-slate-100 [&>td]:max-sm:border-b-0">
+                        <Td className="num pl-4 pt-3.5 text-xs text-muted max-sm:hidden sm:pl-5">{i + 1}</Td>
+                        <Td className="max-sm:col-span-3 max-sm:pb-1 max-sm:pl-4 max-sm:pr-12">
                           <b className="block truncate text-sm text-ink" title={l.product.name}>
                             {l.product.name}
                           </b>
@@ -1340,7 +1346,8 @@ export default function PosPage() {
                             />
                           )}
                         </Td>
-                        <Td center>
+                        <Td center className="max-sm:py-1 max-sm:pl-4 max-sm:pr-2">
+                          <span className="block text-[11px] text-muted sm:hidden">Qty</span>
                           <div className="inline-flex items-center rounded-lg border border-line bg-surface">
                             <button onClick={() => step(l.key, -1)} className="flex size-8 items-center justify-center text-slate-600 hover:bg-slate-50" aria-label="Less">
                               <Minus className="size-3.5" />
@@ -1357,7 +1364,8 @@ export default function PosPage() {
                             </button>
                           </div>
                         </Td>
-                        <Td right>
+                        <Td right className="max-sm:px-2 max-sm:py-1">
+                          <span className="block text-[11px] text-muted sm:hidden">Rate ₹</span>
                           <Input
                             type="number"
                             step="0.01"
@@ -1384,27 +1392,36 @@ export default function PosPage() {
                             <p className="mt-0.5 text-[11px] font-medium text-amber-700">Above MRP {inr(l.product.mrp)}</p>
                           )}
                         </Td>
-                        <Td right>
+                        <Td right className="max-sm:py-1 max-sm:pl-2 max-sm:pr-4">
+                          <span className="block text-[11px] text-muted sm:hidden">Disc %</span>
                           <Input
                             type="number"
                             step="0.01"
                             min="0"
-                            max="100"
                             value={l.discountPct}
                             placeholder="0"
-                            onChange={(e) => update(l.key, { discountPct: e.target.value })}
+                            onChange={(e) => {
+                              // An upto-% offer is the most this line may be discounted
+                              const cap = pricing.byKey.get(l.key)?.uptoPct ?? 0;
+                              if (cap > 0 && n(e.target.value) > cap) {
+                                toast.error(`The offer allows at most ${cap}% on ${l.product.name}`);
+                                return update(l.key, { discountPct: String(cap) });
+                              }
+                              update(l.key, { discountPct: e.target.value });
+                            }}
                             onFocus={(e) => e.target.select()}
+                            max={pricing.byKey.get(l.key)?.uptoPct || 100}
                             className="num h-8 text-right"
                             aria-label={`Discount % of ${l.product.name}`}
                           />
                         </Td>
-                        <Td right className="pt-3.5">
+                        <Td right className="pt-3.5 max-sm:col-span-3 max-sm:pr-4 max-sm:pt-1">
                           <b className="num block truncate text-sm text-ink">{inr(lineGross(l, pricing.byKey.get(l.key)))}</b>
-                          {lineBeforeOffers(l) - lineGross(l, pricing.byKey.get(l.key)) > 0.004 && (
-                            <s className="num block truncate text-[11px] text-muted">{inr(lineBeforeOffers(l))}</s>
+                          {lineBeforeOffers(l, pricing.byKey.get(l.key)) - lineGross(l, pricing.byKey.get(l.key)) > 0.004 && (
+                            <s className="num block truncate text-[11px] text-muted">{inr(lineBeforeOffers(l, pricing.byKey.get(l.key)))}</s>
                           )}
                         </Td>
-                        <Td className="pr-4 pt-2.5 sm:pr-5">
+                        <Td className="pr-4 pt-2.5 max-sm:absolute max-sm:right-0 max-sm:top-0 max-sm:pr-2 sm:pr-5">
                           <button onClick={() => remove(l.key)} className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Remove ${l.product.name}`} title="Remove">
                             <Trash2 className="size-4" />
                           </button>
@@ -1605,7 +1622,7 @@ export default function PosPage() {
             <p className="text-xs text-muted">Bill Total</p>
             <p className="num font-display text-2xl font-bold leading-tight text-ink">{inr(summary.total)}</p>
           </div>
-          <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
+          <div className="flex items-center justify-end gap-2 border-t border-line px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
             {lines.length > 0 && (
               <Button variant="danger" className="h-11" icon={<Trash2 className="size-4" />} onClick={newSale}>
                 Clear Cart
@@ -1892,13 +1909,18 @@ export default function PosPage() {
 
 /** Scheme, free goods and customer-type discount on a cart line */
 function LinePricing({ p, unit }: { p?: PricedLine; unit: string }) {
-  if (!p || (!p.schemeName && !p.typePct && !p.hint)) return null;
+  if (!p || (!p.schemeName && !p.typePct && !p.hint && !p.uptoPct)) return null;
   return (
     <span className="mt-0.5 flex flex-wrap gap-1 text-[11px]">
       {p.schemeName && (
         <span className="rounded bg-brand-50 px-1.5 py-0.5 font-medium text-brand-800">
           {p.schemeName}
           {p.freeQty > 0 ? ` · +${qty(p.freeQty)} ${unit} free` : p.schemePct > 0 ? ` · ${p.schemePct}% off` : p.toNextFree ? ` · ${p.toNextFree} more for a free one` : ""}
+        </span>
+      )}
+      {p.uptoPct > 0 && !(p.schemeName === p.uptoName && p.schemePct > 0) && (
+        <span className="rounded bg-amber-50 px-1.5 py-0.5 font-medium text-amber-800" title={p.uptoName ?? undefined}>
+          Disc % up to {p.uptoPct}% allowed by offer
         </span>
       )}
       {p.typePct > 0 && <span className="rounded bg-violet-50 px-1.5 py-0.5 font-medium text-violet-800">{p.typePct}% customer type</span>}

@@ -367,7 +367,7 @@ export function QuickDock() {
             aria-label="Quick actions: show all pages (drag to move)"
             aria-expanded={open}
             className={cx(
-              "flex size-13 touch-none select-none items-center justify-center rounded-full border-4 border-leaf-100/70 bg-brand-600/90 text-white shadow-[0_8px_30px_rgba(20,40,25,.28)] backdrop-blur-md transition-[opacity,transform] [-webkit-tap-highlight-color:transparent] active:scale-95",
+              "flex size-13 touch-none select-none items-center justify-center rounded-full border-4 border-leaf-100/70 bg-brand-600/90 text-white shadow-[0_8px_30px_rgba(60,30,10,.28)] backdrop-blur-md transition-[opacity,transform] [-webkit-tap-highlight-color:transparent] active:scale-95",
               drag ? "scale-105 opacity-100" : open ? "opacity-100" : "opacity-80",
             )}
           >
@@ -395,7 +395,7 @@ export function QuickDock() {
         style={style}
         data-dragging={drag ? "" : undefined}
         className={cx(
-          "group/dock no-print fixed z-40 flex flex-col items-stretch gap-1 rounded-2xl border border-line bg-surface/95 p-1.5 shadow-[0_8px_30px_rgba(20,40,25,.18)] backdrop-blur",
+          "group/dock no-print fixed z-40 flex flex-col items-stretch gap-1 rounded-2xl border border-line bg-surface/95 p-1.5 shadow-[0_8px_30px_rgba(60,30,10,.18)] backdrop-blur",
           drag && "cursor-grabbing select-none",
         )}
       >
@@ -581,7 +581,7 @@ function AllPagesPanel({
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <button
               onClick={onReset}
-              className="rounded-md border border-transparent p-1 text-xs font-medium text-muted transition-colors duration-200 hover:border-rust-900 hover:bg-rust-700 hover:text-white"
+              className="rounded-md border border-transparent px-2 py-1.5 text-xs font-medium text-muted transition-colors sm:p-1 duration-200 hover:border-rust-900 hover:bg-rust-700 hover:text-white"
             >
               Reset Shortcuts
             </button>

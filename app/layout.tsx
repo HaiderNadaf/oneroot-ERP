@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import { Suspense } from "react";
 import { ConfirmProvider, ToastProvider } from "@/components/ui";
@@ -26,6 +26,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: { default: "OneRoot ERP", template: "%s · OneRoot ERP" },
   description: "Inventory, billing, purchasing and accounts for agri-input stores",
+};
+
+// Next's default, spelled out so phones always get it; pinch-zoom stays enabled
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

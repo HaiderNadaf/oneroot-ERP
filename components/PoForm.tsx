@@ -490,7 +490,91 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
             </p>
           )}
         </div>
-        <Table>
+        {/* Phones: one card per line so qty / rate / discount and remove are reachable without scrolling sideways */}
+        <ul className="divide-y divide-slate-100 sm:hidden">
+          {!lines.length ? (
+            <li className="px-3 py-10 text-center text-sm text-slate-400">
+              <PackagePlus className="mx-auto mb-2 size-7 text-slate-300" />
+              Search above to add products, or add everything that&apos;s below its reorder level
+            </li>
+          ) : (
+            lines.map((l) => (
+              <li key={l.key} className="space-y-2 px-3 py-3">
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words font-medium text-slate-900">{l.name}</p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono font-medium text-slate-800">{l.sku}</span>
+                      <span className={cx(l.stock !== undefined && l.stock <= 0 && "text-red-600")}>
+                        In stock {l.stock === undefined ? "—" : qty(l.stock)}
+                      </span>
+                      {l.packSize && <span>Pack {l.packSize}</span>}
+                      <span>GST {l.gstRate}%</span>
+                    </p>
+                    {supplied && !supplied.has(l.productId) && (
+                      <p className="text-[11px] font-medium text-red-600">Not supplied by {vendor?.name ?? "this vendor"} — remove it</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}
+                    className="-mr-1 shrink-0 rounded-md p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                    aria-label={`Remove ${l.name}`}
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Field label={`Qty (${l.unit})`}>
+                    <Input
+                      type="number"
+                      step="any"
+                      min="0"
+                      inputMode="decimal"
+                      className="num text-right"
+                      value={l.quantity}
+                      onChange={(e) => update(l.key, { quantity: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Rate (Excl.)">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      inputMode="decimal"
+                      className="num text-right"
+                      value={l.rate}
+                      onChange={(e) => update(l.key, { rate: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Disc. %">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      inputMode="decimal"
+                      placeholder="0"
+                      className={cx("num text-right", Number(l.discountPct) > 100 && "border-red-400")}
+                      value={l.discountPct}
+                      onChange={(e) => update(l.key, { discountPct: e.target.value })}
+                    />
+                  </Field>
+                </div>
+                <p className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="text-xs text-brand-700">
+                    {clampPct(l.discountPct) > 0 && `−${inr(round2(lineGross(l) - lineTaxable(l)))} discount`}
+                  </span>
+                  <span className="whitespace-nowrap">
+                    <span className="text-xs text-slate-500">Incl. GST </span>
+                    <span className="num font-medium text-slate-900">{inr(lineAmount(l))}</span>
+                  </span>
+                </p>
+              </li>
+            ))
+          )}
+        </ul>
+        <Table stack={false} className="hidden sm:block">
           <thead>
             <tr>
               <Th>Product</Th>
@@ -567,7 +651,7 @@ export function PoForm({ po, presetVendorId }: { po?: PurchaseOrder; presetVendo
                       aria-label={`Discount % on ${l.name}`}
                     />
                     {clampPct(l.discountPct) > 0 && (
-                      <span className="mt-0.5 block text-[11px] text-emerald-700">−{inr(round2(lineGross(l) - lineTaxable(l)))}</span>
+                      <span className="mt-0.5 block text-[11px] text-brand-700">−{inr(round2(lineGross(l) - lineTaxable(l)))}</span>
                     )}
                   </Td>
                   <Td right className="text-slate-500">
@@ -800,7 +884,7 @@ function ChargeInput({
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
       <dt className="text-slate-500">{label}</dt>
-      <dd className="ml-auto flex items-center gap-1.5">
+      <dd className="ml-auto flex min-w-0 items-center gap-1.5 max-sm:w-full max-sm:justify-end">
         <Select value={gstRate} onChange={(e) => onGstRate(e.target.value)} className="h-8 w-20 text-xs" aria-label={`GST on ${label}`} title="GST %">
           {GST_RATES.map((r) => (
             <option key={r} value={r}>
@@ -827,7 +911,7 @@ function ChargeInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="0.00"
-          className="num h-8 w-28 text-right"
+          className="num h-8 w-28 min-w-0 text-right max-sm:flex-1"
           aria-label={label}
         />
       </dd>

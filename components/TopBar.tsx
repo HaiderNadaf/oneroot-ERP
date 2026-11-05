@@ -10,11 +10,13 @@ import {
   Layers,
   LogOut,
   Menu,
+  Moon,
   Package,
   Receipt,
   Search,
   ShoppingCart,
   Store,
+  Sun,
   UserRound,
   Users,
   X,
@@ -26,6 +28,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { Permission } from "@/lib/permissions";
 import { useBranch } from "@/lib/branch";
+import { useTheme } from "@/lib/theme";
 import { cartOwner, requestOpenBill, useCartCount } from "@/lib/cart";
 import { date, inr, n, qty } from "@/lib/format";
 import { useDebounced } from "@/lib/hooks";
@@ -524,6 +527,7 @@ function UserMenu() {
   const { current, locked } = useBranch();
   const { open, setOpen, toggle, box } = usePanel();
   const confirm = useConfirm();
+  const { theme, toggle: toggleTheme } = useTheme();
 
   if (!user) return null;
   const roleLabel = user.roleTemplate?.name ?? user.role.charAt(0) + user.role.slice(1).toLowerCase();
@@ -590,6 +594,14 @@ function UserMenu() {
             </div>
           )}
           <button
+            type="button"
+            onClick={toggleTheme}
+            className="flex w-full shrink-0 items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 sm:hidden [&>svg]:size-4 [&>svg]:text-slate-400"
+          >
+            {theme === "dark" ? <Sun /> : <Moon />}
+            {theme === "dark" ? "Light Mode" : "Dark Mode"}
+          </button>
+          <button
             onClick={async () => {
               setOpen(false);
               if (await confirm("Sign out of OneRoot ERP? Anything not saved on this page will be lost.", { danger: true, confirmLabel: "Sign Out" })) logout();
@@ -613,7 +625,7 @@ function BranchPicker() {
   const { open, setOpen, toggle, box } = usePanel();
   const [q, setQ] = useState("");
   const all = currentId === "all";
-  const shell = "flex h-10 min-w-0 items-center gap-2 rounded-[9px] border border-line bg-surface px-2.5";
+  const shell = "flex h-9 min-w-0 items-center gap-1.5 rounded-[9px] border border-line bg-surface px-2 sm:h-10 sm:gap-2 sm:px-2.5";
   const label = <span className="hidden text-[12px] font-medium uppercase tracking-[0.06em] text-muted md:inline">Branch</span>;
   // Phones: the code (MAIN, CHM); wider: the full name
   const name = (
@@ -656,7 +668,7 @@ function BranchPicker() {
         aria-haspopup="dialog"
         aria-expanded={open}
       >
-        <Store className="size-4 shrink-0 text-brand-600 sm:size-5" />
+        <Store className="hidden size-4 shrink-0 text-brand-600 min-[400px]:block sm:size-5" />
         {label}
         {name}
         <ChevronDown className={cx("size-4 shrink-0 text-slate-400 transition-transform", open && "rotate-180")} />
@@ -748,7 +760,13 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
   const openSearch = useCallback(() => setSearchOpen(true), []);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
   return (
-    <header className="no-print relative z-30 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-2 rounded-xl border border-line bg-(--background) px-2.5 py-2 sm:flex-nowrap sm:gap-2.5 sm:px-4 sm:py-2.5 lg:px-5">
+    <header
+      className={cx(
+        "no-print relative z-30 flex shrink-0 items-center gap-x-1 gap-y-2 rounded-xl border border-line bg-(--background) px-2 py-2 sm:flex-nowrap sm:gap-2.5 sm:px-4 sm:py-2.5 lg:px-5",
+        // Phones: one row; the opened search takes a second one
+        searchOpen ? "flex-wrap" : "flex-nowrap",
+      )}
+    >
       <button onClick={onMenu} className="shrink-0 rounded-lg p-2 text-slate-600 hover:bg-surface lg:hidden" aria-label="Open menu">
         <Menu className="size-5" />
       </button>
@@ -788,7 +806,10 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
       */}
       {can("sales.bill") && <CartButton />}
       <NotificationBell />
-      <ThemeToggle />
+      {/* Phones: in the account sheet instead, to keep the bar on one row */}
+      <div className="hidden sm:contents">
+        <ThemeToggle />
+      </div>
       <UserMenu />
     </header>
   );

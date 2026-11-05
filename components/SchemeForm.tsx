@@ -3,20 +3,20 @@
 import { X } from "lucide-react";
 import { useState } from "react";
 import { ProductPicker } from "@/components/pickers";
-import { Button, Checkbox, DateInput, Field, Input, Modal, Select, Textarea, cx, errMsg, useToast } from "@/components/ui";
+import { ManagedSelect } from "@/components/ManagedSelect";
+import { Button, Checkbox, DateInput, Field, Input, Modal, Textarea, cx, errMsg, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { n, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import { OCCASIONS, PURPOSE_LABEL, SCHEME_TYPE_LABEL, SCOPE_LABEL } from "@/lib/offers";
-import type { Campaign, Category, OfferPurpose, Product, Scheme, SchemeScope, SchemeType } from "@/lib/types";
+import { SCHEME_TYPE_LABEL, SCOPE_LABEL } from "@/lib/offers";
+import type { Campaign, Category, OfferPurpose, Product, Scheme, SchemeOptions, SchemeScope, SchemeType } from "@/lib/types";
 
 export { SCHEME_TYPE_LABEL, describeScheme } from "@/lib/offers";
-const TYPE_LABEL = SCHEME_TYPE_LABEL;
 /** Scheme dates are whole local days; the API sends them as ISO timestamps */
 export const dayOf = (iso: string) => today(new Date(iso));
 
-/** What the offer is for, with a starting type and hint */
-const PURPOSE_HINT: Record<OfferPurpose, string> = {
+/** Hints for the built-in purposes (by their code) */
+const PURPOSE_HINT: Record<string, string> = {
   GENERAL: "",
   FESTIVAL: "Festival offers usually cover whole categories or the store, often above a bill value.",
   STOCK_CLEARANCE: "Clear slow-moving or near-expiry stock: set an offer price and a stock limit so it stops when the lot is sold.",
@@ -39,17 +39,25 @@ export function SchemeForm({
 }: {
   scheme: Scheme | null;
   campaign?: Pick<Campaign, "id" | "name" | "from" | "to"> | null;
-  /** Purpose a new offer starts with (from the page's quick-add buttons) */
+  /** Built-in purpose a new offer starts with (from the page's quick-add buttons) */
   purpose?: OfferPurpose;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const toast = useToast();
-  const startPurpose = scheme?.purpose ?? initialPurpose ?? "GENERAL";
+  // Purposes, occasions and offer types are lists kept in the database (added / edited / deleted from their dropdowns)
+  const { data: options, reload: reloadOptions } = useApi<SchemeOptions>("/scheme-options");
+  const startPurpose = scheme?.purposeOption?.code ?? initialPurpose ?? "GENERAL";
+  const startKind: SchemeType = startPurpose === "STOCK_CLEARANCE" ? "FIXED_PRICE" : startPurpose === "FESTIVAL" || startPurpose === "BULK" ? "PCT_OFF" : "BUY_X_GET_Y";
   const [name, setName] = useState(scheme?.name ?? "");
-  const [purpose, setPurpose] = useState<OfferPurpose>(startPurpose);
+  // null = not picked yet: an offer being edited keeps its own, a new one starts from the built-in purpose / usual type
+  const [purposePick, setPurposePick] = useState<string | null>(null);
+  const [typePick, setTypePick] = useState<string | null>(null);
+  const purposeId = purposePick ?? (scheme ? (scheme.purposeId ?? "") : (options?.purposes.find((p) => p.code === startPurpose)?.id ?? ""));
+  const offerTypeId = typePick ?? scheme?.offerTypeId ?? options?.offerTypes.find((t) => t.kind === (scheme?.type ?? startKind))?.id ?? "";
+  const purposeCode = options?.purposes.find((p) => p.id === purposeId)?.code ?? (purposePick === null ? startPurpose : null);
+  const type: SchemeType = options?.offerTypes.find((t) => t.id === offerTypeId)?.kind ?? scheme?.type ?? startKind;
   const [occasion, setOccasion] = useState(scheme?.occasion ?? "");
-  const [type, setType] = useState<SchemeType>(scheme?.type ?? (startPurpose === "STOCK_CLEARANCE" ? "FIXED_PRICE" : startPurpose === "FESTIVAL" || startPurpose === "BULK" ? "PCT_OFF" : "BUY_X_GET_Y"));
   const [scope, setScope] = useState<SchemeScope>(scheme?.scope ?? (startPurpose === "FESTIVAL" ? "ALL" : "PRODUCTS"));
   const [categoryIds, setCategoryIds] = useState<string[]>(scheme?.categories.map((c) => c.categoryId) ?? []);
   const { data: categories } = useApi<Category[]>(scope === "CATEGORIES" ? "/categories" : null);
@@ -77,10 +85,11 @@ export function SchemeForm({
     e.preventDefault();
     if (scope === "PRODUCTS" && !products.length) return toast.error("Add at least one product");
     if (scope === "CATEGORIES" && !categoryIds.length) return toast.error("Choose at least one category");
+    if (!offerTypeId) return toast.error("Choose the offer type");
     const body = {
       name: name.trim(),
-      type,
-      purpose,
+      offerTypeId,
+      purposeId: purposeId || null,
       occasion: occasion.trim() || null,
       scope,
       productIds: scope === "PRODUCTS" ? products.map((p) => p.id) : [],
@@ -133,13 +142,19 @@ export function SchemeForm({
     >
       <form id="scheme-form" onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Field label="Purpose" required>
-          <Select value={purpose} onChange={(e) => setPurpose(e.target.value as OfferPurpose)}>
-            {(Object.keys(PURPOSE_LABEL) as OfferPurpose[]).map((p) => (
-              <option key={p} value={p}>
-                {PURPOSE_LABEL[p]}
-              </option>
-            ))}
-          </Select>
+          <ManagedSelect
+            items={options?.purposes ?? []}
+            value={purposeId}
+            onChange={setPurposePick}
+            noun="purpose"
+            endpoint="/scheme-options/purposes"
+            extra="color"
+            placeholder={options ? "Choose…" : "Loading…"}
+            onListChanged={(picked) => {
+              reloadOptions();
+              if (picked !== undefined) setPurposePick(picked);
+            }}
+          />
         </Field>
         <Field label="Name" required className="sm:col-span-2">
           <Input
@@ -147,26 +162,44 @@ export function SchemeForm({
             onChange={(e) => setName(e.target.value)}
             required
             autoFocus
-            placeholder={purpose === "FESTIVAL" ? "e.g. Diwali Dhamaka 5% off" : purpose === "STOCK_CLEARANCE" ? "e.g. Hybrid maize clearance" : "e.g. Mancozeb 10+1 (Oct)"}
+            placeholder={purposeCode === "FESTIVAL" ? "e.g. Diwali Dhamaka 5% off" : purposeCode === "STOCK_CLEARANCE" ? "e.g. Hybrid maize clearance" : "e.g. Mancozeb 10+1 (Oct)"}
           />
         </Field>
-        {PURPOSE_HINT[purpose] && <p className="-mt-1 text-xs text-slate-500 sm:col-span-3">{PURPOSE_HINT[purpose]}</p>}
-        <Field label={purpose === "FESTIVAL" ? "Festival / Occasion" : "Occasion / Tag"} hint="Shown at the counter">
-          <Input value={occasion} onChange={(e) => setOccasion(e.target.value)} list="offer-occasions" placeholder={purpose === "FESTIVAL" ? "e.g. Pongal 2027" : "Optional"} maxLength={80} />
-          <datalist id="offer-occasions">
-            {OCCASIONS.map((o) => (
-              <option key={o} value={o} />
-            ))}
-          </datalist>
+        {purposeCode && PURPOSE_HINT[purposeCode] && <p className="-mt-1 text-xs text-slate-500 sm:col-span-3">{PURPOSE_HINT[purposeCode]}</p>}
+        <Field label={purposeCode === "FESTIVAL" ? "Festival / Occasion" : "Occasion / Tag"} hint="Shown at the counter">
+          <ManagedSelect
+            items={options?.occasions ?? []}
+            value={occasion}
+            onChange={setOccasion}
+            valueFor={(o) => o.name}
+            noun="occasion"
+            endpoint="/scheme-options/occasions"
+            allowClear
+            placeholder="Optional"
+            onListChanged={(picked) => {
+              reloadOptions();
+              if (picked !== undefined) setOccasion(picked);
+            }}
+          />
         </Field>
         <Field label="Offer Type" required>
-          <Select value={type} onChange={(e) => setType(e.target.value as SchemeType)}>
-            {(Object.keys(TYPE_LABEL) as SchemeType[]).map((t) => (
-              <option key={t} value={t} disabled={t === "BUY_X_GET_Y" && scope !== "PRODUCTS"}>
-                {TYPE_LABEL[t]}
-              </option>
-            ))}
-          </Select>
+          <ManagedSelect
+            items={options?.offerTypes ?? []}
+            value={offerTypeId}
+            onChange={setTypePick}
+            noun="offer type"
+            endpoint="/scheme-options/offer-types"
+            extra="kind"
+            // Custom names show how they calculate
+            hintOf={(t) => (t.kind && t.name !== SCHEME_TYPE_LABEL[t.kind] && !SCHEME_TYPE_LABEL[t.kind].startsWith(t.name) ? SCHEME_TYPE_LABEL[t.kind].replace(/ \(.*\)$/, "") : undefined)}
+            // Buy-X-get-Y works on chosen products only
+            isDisabled={(t) => t.kind === "BUY_X_GET_Y" && scope !== "PRODUCTS"}
+            placeholder={options ? "Choose…" : "Loading…"}
+            onListChanged={(picked) => {
+              reloadOptions();
+              if (picked !== undefined) setTypePick(picked);
+            }}
+          />
         </Field>
         {type === "BUY_X_GET_Y" ? (
           <>
@@ -178,6 +211,10 @@ export function SchemeForm({
             </Field>
             <p className="self-end pb-2 text-xs text-slate-500 sm:col-span-3">Free units go out of stock at zero price on the bill.</p>
           </>
+        ) : type === "UPTO_PCT_OFF" ? (
+          <Field label="Most Discount % Allowed" required hint="The cashier types any % up to this on the bill — no manager PIN needed">
+            <Input type="number" min="0" max="100" step="0.5" value={pct} onChange={(e) => setPct(e.target.value)} className="num" required placeholder="e.g. 20" />
+          </Field>
         ) : type === "PCT_OFF" ? (
           <Field label="Discount %" required>
             <Input type="number" min="0" max="100" step="0.5" value={pct} onChange={(e) => setPct(e.target.value)} className="num" required />
@@ -199,7 +236,7 @@ export function SchemeForm({
                 type="button"
                 onClick={() => {
                   setScope(sc);
-                  if (sc !== "PRODUCTS" && type === "BUY_X_GET_Y") setType("PCT_OFF");
+                  if (sc !== "PRODUCTS" && type === "BUY_X_GET_Y") setTypePick(options?.offerTypes.find((t) => t.kind === "PCT_OFF")?.id ?? "");
                 }}
                 className={cx(
                   "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
@@ -216,9 +253,9 @@ export function SchemeForm({
             <ProductPicker onPick={(p: Product) => setProducts((ps) => (ps.some((x) => x.id === p.id) ? ps : [...ps, { id: p.id, name: p.name }]))} />
             <div className="mt-2 flex flex-wrap gap-1.5">
               {products.map((p) => (
-                <span key={p.id} className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800 ring-1 ring-inset ring-brand-600/20">
+                <span key={p.id} className="inline-flex max-w-full items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800 ring-1 ring-inset ring-brand-600/20">
                   {p.name}
-                  <button type="button" onClick={() => setProducts((ps) => ps.filter((x) => x.id !== p.id))} aria-label={`Remove ${p.name}`}>
+                  <button type="button" onClick={() => setProducts((ps) => ps.filter((x) => x.id !== p.id))} aria-label={`Remove ${p.name}`} className="shrink-0">
                     <X className="size-3" />
                   </button>
                 </span>

@@ -431,7 +431,7 @@ function NoteFormBody({ onClose, onSaved, noteType, preset }: Omit<Props, "open"
       title={isDebit ? "New Debit Note (To Vendor)" : "Record Credit Note (Received From Vendor)"}
       footer={
         <>
-          <span className="mr-auto self-center text-sm text-slate-600">
+          <span className="mr-auto self-center text-sm text-slate-600 max-sm:min-w-full max-sm:empty:hidden">
             {total > 0 && (
               <>
                 Taxable {inr(subtotal)} · GST {inr(round2(total - subtotal))} ·{" "}

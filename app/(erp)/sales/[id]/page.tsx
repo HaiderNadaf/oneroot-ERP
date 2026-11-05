@@ -469,7 +469,7 @@ function ReturnBody({ open, sale, onClose, onSaved }: ReturnProps) {
     >
       <form id="sale-return-form" onSubmit={save} className="space-y-4">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[560px] text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                 <th className="py-2 pr-2">Product</th>

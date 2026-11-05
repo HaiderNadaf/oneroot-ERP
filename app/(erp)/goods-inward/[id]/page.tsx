@@ -7,6 +7,7 @@ import { useState, type ReactNode } from "react";
 import { RequirePerm } from "@/components/AppShell";
 import { PrintPortal } from "@/components/PrintPortal";
 import { Attachments } from "@/components/Attachments";
+import { PaymentPanel } from "@/components/PaymentPanel";
 import { Badge, Button, Card, ErrorBox, PageHeader, PrintHeader, Spinner, SystemGeneratedNote, Table, Td, Th, cx } from "@/components/ui";
 import { vendorAddresses } from "@/lib/address";
 import { branchAddress, branchLabel } from "@/components/VendorBranches";
@@ -134,7 +135,7 @@ function GrnView() {
               </p>
             )}
           </div>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 break-words text-sm">
             <dt className="text-slate-500">GRN no.</dt>
             <dd className="font-medium text-slate-900">{g.grnNo}</dd>
             <dt className="text-slate-500">Purchase order</dt>
@@ -228,6 +229,10 @@ function GrnView() {
           </tfoot>
         </Table>
       </Card>
+
+      {g.payment && (
+        <PaymentPanel payment={g.payment} vendor={g.vendor} grnId={g.id} docNo={g.grnNo} onPaid={() => void reload()} className="no-print mb-4" />
+      )}
 
       {/* Supplier invoice scan, delivery challan, photos of the goods… */}
       <Attachments type="GRN" entityId={g.id} canManage={can("purchases.receive")} className="no-print mb-4" />

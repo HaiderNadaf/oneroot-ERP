@@ -164,7 +164,7 @@ export default function CustomerDetailPage() {
       </div>
 
       <Card className="no-print mb-4">
-        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6 [&_dd]:break-words">
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6 [&>div]:min-w-0 [&_dd]:break-words">
           <Info label="Phone">{c.phone}</Info>
           <Info label="Email">{c.email}</Info>
           <Info label="GSTIN">{c.gstin}</Info>

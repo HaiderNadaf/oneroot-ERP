@@ -58,7 +58,10 @@ export function BatchSelect({
 
   const place = useCallback(() => {
     const r = trigger.current?.getBoundingClientRect();
-    if (r) setPos({ left: r.left, top: r.bottom + 4, width: Math.max(r.width, 280) });
+    if (!r) return;
+    // Kept inside the screen: a trigger near the right edge of a phone opens the list leftwards
+    const width = Math.min(Math.max(r.width, 280), window.innerWidth - 16);
+    setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), top: r.bottom + 4, width });
   }, []);
 
   function toggle() {
@@ -167,7 +170,7 @@ export function BatchSelect({
                       )}
                     >
                       <span className="min-w-0">
-                        <span className="block font-mono font-medium text-slate-900">{b.batchNo}</span>
+                        <span className="block break-all font-mono font-medium text-slate-900">{b.batchNo}</span>
                         <span className="block text-xs text-slate-500">
                           {b.expiryDate ? `${expired ? "Expired" : "Exp"} ${date(b.expiryDate)}` : "No expiry"}
                           {b.mfgDate ? ` · Mfg ${date(b.mfgDate)}` : ""}

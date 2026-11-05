@@ -129,7 +129,7 @@ export function GrnNotesModal({
           <>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <Figure label="Debit notes" value={inr(total("DEBIT"))} tone="text-red-700" />
-              <Figure label="Credit notes" value={inr(total("CREDIT"))} tone="text-emerald-700" />
+              <Figure label="Credit notes" value={inr(total("CREDIT"))} tone="text-brand-700" />
               <Figure label="Notes" value={`${notes.length}${notes.length !== live.length ? ` (${notes.length - live.length} cancelled)` : ""}`} />
             </div>
             {notes.map((d) => (
@@ -153,7 +153,7 @@ export function GrnNotesModal({
                     {d.reason && <p className="mt-0.5 text-sm text-slate-700">{d.reason}</p>}
                   </div>
                   <div className="text-right">
-                    <p className={cx("num text-base font-semibold", d.noteType === "DEBIT" ? "text-red-700" : "text-emerald-700")}>{inr(d.totalAmount)}</p>
+                    <p className={cx("num text-base font-semibold", d.noteType === "DEBIT" ? "text-red-700" : "text-brand-700")}>{inr(d.totalAmount)}</p>
                     <p className="num text-[11px] text-slate-500">
                       {inr(d.subtotal)} + GST {inr(d.taxAmount)}
                     </p>

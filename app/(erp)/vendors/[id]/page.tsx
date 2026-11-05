@@ -469,7 +469,7 @@ function VendorProducts({ vendor, canEdit }: { vendor: Vendor; canEdit: boolean 
                       <button
                         type="button"
                         onClick={() => void unlink(p)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        className="rounded-md p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 sm:p-1.5"
                         aria-label={`Remove ${p.name}`}
                       >
                         <Trash2 className="size-4" />

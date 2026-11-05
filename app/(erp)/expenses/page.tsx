@@ -123,7 +123,7 @@ function Expenses() {
         }
       />
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card bodyClassName="p-0" className="xl:col-span-2">
           <FilterBar>
             <div className="flex w-full items-center gap-2 sm:w-auto">

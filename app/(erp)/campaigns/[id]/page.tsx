@@ -70,10 +70,10 @@ function CampaignView() {
   }
 
   async function removeOffer(s: Scheme) {
-    if (!(await confirm(`Delete offer "${s.name}"? If bills used it, it is switched off instead.`, { danger: true, confirmLabel: "Delete" }))) return;
+    if (!(await confirm(`Delete offer "${s.name}"? Bills that used it still show it.`, { danger: true, confirmLabel: "Delete" }))) return;
     try {
-      const res = await api.del<{ deleted: boolean }>(`/schemes/${s.id}`);
-      toast.success(res.deleted ? "Offer deleted" : "Offer switched off (bills used it)");
+      await api.del(`/schemes/${s.id}`);
+      toast.success("Offer deleted");
       await reload();
     } catch (e) {
       toast.error(errMsg(e));

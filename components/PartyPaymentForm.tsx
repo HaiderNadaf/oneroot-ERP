@@ -84,6 +84,9 @@ function PartyPaymentFormBody({ open, onClose, onSaved, fixed, defaultType = "CU
   const limit = targeted ? fixed?.due : undefined;
   const overBill = limit !== undefined && amt > round2(limit) + 0.004;
   const advance = !targeted && balance !== undefined && amt > balance + 0.004;
+  // Vendors paid by bank / UPI / cheque / card: finance must note the txn details
+  const needsTxn = isVendor && mode !== "CASH";
+  const againstPoGrn = !!(fixed?.poId || fixed?.grnId);
 
   function pickParty(p: Customer | Vendor | null, type: PartyType) {
     if (type === "VENDOR") setVendor(p as Vendor | null);
@@ -97,6 +100,7 @@ function PartyPaymentFormBody({ open, onClose, onSaved, fixed, defaultType = "CU
     if (!party) return toast.error(`Choose a ${isVendor ? "vendor" : "customer"}`);
     if (amt <= 0) return toast.error("Enter an amount greater than zero");
     if (overBill) return toast.error(`Amount is more than the ${inr(limit)} due on ${fixed?.documentLabel ?? "this bill"}`);
+    if (needsTxn && !reference.trim()) return toast.error("Enter the transaction details (UTR / txn id / cheque no.)");
     setSaving(true);
     try {
       const p = await api.post<Payment>("/payments", {
@@ -137,7 +141,7 @@ function PartyPaymentFormBody({ open, onClose, onSaved, fixed, defaultType = "CU
             Cancel
           </Button>
           <Button type="submit" form="party-payment-form" loading={saving} disabled={!party}>
-            {isVendor ? "Record Payment" : "Record Receipt"}
+            {againstPoGrn ? "Payment Done" : isVendor ? "Record Payment" : "Record Receipt"}
           </Button>
         </>
       }
@@ -217,8 +221,13 @@ function PartyPaymentFormBody({ open, onClose, onSaved, fixed, defaultType = "CU
             ))}
           </Select>
         </Field>
-        <Field label="Reference" hint={mode === "CASH" ? undefined : "UTR / cheque no. / txn id"}>
-          <Input value={reference} onChange={(e) => setReference(e.target.value)} />
+        <Field label={isVendor ? "Transaction Details" : "Reference"} required={needsTxn} hint={mode === "CASH" ? undefined : "UTR / cheque no. / txn id"}>
+          <Input
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            required={needsTxn}
+            placeholder={isVendor && mode === "CHEQUE" ? "Cheque no., bank" : isVendor && mode !== "CASH" ? "Txn no. / UTR" : undefined}
+          />
         </Field>
         <Field label="Date" required>
           <DateInput value={paymentDate} max={today()} onChange={(e) => setPaymentDate(e.target.value)} required />

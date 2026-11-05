@@ -346,7 +346,7 @@ function PoMailTemplate({ subject, body, onChange }: { subject: string; body: st
             {Object.entries(data.placeholders).map(([k, label]) => (
               <div key={k} className="flex gap-2">
                 <dt className="shrink-0 font-mono text-slate-700">{`{${k}}`}</dt>
-                <dd className="truncate">{label}</dd>
+                <dd className="min-w-0 sm:truncate">{label}</dd>
               </div>
             ))}
           </dl>

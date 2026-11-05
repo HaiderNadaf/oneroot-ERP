@@ -38,7 +38,7 @@ export const PO_TERMS: { title: string; text: string }[] = [
   },
   {
     title: "Jurisdiction",
-    text: "Any dispute is subject to the jurisdiction of the courts where our ordering branch is located.",
+    text: "Any dispute is subject to the bangalore jurisdiction of the courts where our ordering branch is located.",
   },
 ];
 

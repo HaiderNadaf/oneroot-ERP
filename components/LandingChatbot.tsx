@@ -321,7 +321,7 @@ export function LandingChatbot() {
       : [];
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
+    <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-40 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
       {open && (
         <div
           role="dialog"
@@ -340,10 +340,10 @@ export function LandingChatbot() {
                   <span
                     className={cx(
                       "absolute inset-0 animate-ping rounded-full opacity-60",
-                      busy ? "bg-amber-400" : "bg-emerald-400",
+                      busy ? "bg-amber-400" : "bg-brand-400",
                     )}
                   />
-                  <span className={cx("relative size-2 rounded-full", busy ? "bg-amber-400" : "bg-emerald-400")} />
+                  <span className={cx("relative size-2 rounded-full", busy ? "bg-amber-400" : "bg-brand-400")} />
                 </span>
                 {busy ? "Typing…" : "Available"}
               </p>
@@ -427,13 +427,14 @@ export function LandingChatbot() {
             }}
             className="flex items-center gap-2 border-t border-line-soft bg-surface p-3"
           >
+            {/* 16px text on phones: iOS zooms the page into smaller inputs when they get focus */}
             <input
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask about OneRoot ERP…"
               aria-label="Your question"
-              className="h-10 min-w-0 flex-1 rounded-lg border border-line-2 bg-paper-2 px-3 text-sm text-ink outline-none placeholder:text-muted-2 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+              className="h-10 min-w-0 flex-1 rounded-lg border border-line-2 bg-paper-2 px-3 text-base text-ink sm:text-sm outline-none placeholder:text-muted-2 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
             />
             <button
               type="submit"

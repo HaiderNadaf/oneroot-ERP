@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Let other devices on the LAN load dev JS/HMR (otherwise the page never hydrates)
+  allowedDevOrigins: ["192.168.88.23"],
   experimental: {
     agentFeedback: true,
     // Next.js upgrade agent: security fixes only

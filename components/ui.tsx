@@ -31,9 +31,9 @@ export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Bool
 
 // ───────────────────────── Buttons ─────────────────────────
 
-/** Bordered square icon button of the top bar (notifications, theme); 40px to line up with the POS button */
+/** Bordered square icon button of the top bar (notifications, theme): 40px, 36px on phones so the bar fits on one row */
 export const TOP_ICON_BUTTON =
-  "relative inline-flex size-10 shrink-0 items-center justify-center rounded-[9px] border border-line bg-surface text-slate-600 transition-colors hover:border-line-3 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500";
+  "relative inline-flex size-9 shrink-0 items-center justify-center rounded-[9px] sm:size-10 border border-line bg-surface text-slate-600 transition-colors hover:border-line-3 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500";
 
 /** Action colours used everywhere: add / new = green, edit = yellow, delete / remove = red (danger) */
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "add" | "edit";
@@ -697,6 +697,8 @@ export function Dropdown({
   allowClear = false,
   bare = false,
   anchor,
+  rowActions,
+  footer,
   disabled,
   className,
   title,
@@ -721,6 +723,10 @@ export function Dropdown({
   bare?: boolean;
   /** Element the list lines up with (left edge and width) instead of the button, e.g. the box a bare dropdown sits in */
   anchor?: RefObject<HTMLElement | null>;
+  /** Buttons at the end of an option's row (e.g. edit / delete); clicking one closes the list */
+  rowActions?: (option: DropdownOption) => ReactNode;
+  /** Pinned under the list (e.g. an "Add new" button); clicking it closes the list */
+  footer?: ReactNode;
   disabled?: boolean;
   className?: string;
   title?: string;
@@ -730,7 +736,7 @@ export function Dropdown({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
-  const [pos, setPos] = useState<{ left: number; width: number; top: number; maxHeight: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; width: number; top?: number; bottom?: number; maxHeight: number } | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const popup = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -757,14 +763,21 @@ export function Dropdown({
   // With `multiple`, the button lists what is ticked
   const tickedLabels = multiple ? options.filter((o) => values.includes(o.value)).map((o) => o.label) : [];
 
-  // Keep the list pinned right under the button (or `anchor`), exactly as wide as it
+  // Keep the list pinned right under the button (or `anchor`), exactly as wide as it, and inside the screen; above it
+  // when there's more room there. Phones: at least 14rem wide, so a narrow button still gets a readable list
   useLayoutEffect(() => {
     if (!open) return;
     function place() {
       const r = (anchor?.current ?? trigger.current)?.getBoundingClientRect();
       if (!r) return;
+      const vw = window.innerWidth;
+      const width = Math.min(vw < 640 ? Math.max(r.width, 224) : r.width, vw - 16);
+      const left = Math.max(8, Math.min(r.left, vw - width - 8));
       const below = window.innerHeight - r.bottom - 8;
-      setPos({ left: r.left, width: r.width, top: r.bottom + 4, maxHeight: Math.min(320, Math.max(120, below)) });
+      const above = r.top - 8;
+      if (below < 200 && above > below)
+        setPos({ left, width, bottom: window.innerHeight - r.top + 4, maxHeight: Math.min(320, above) });
+      else setPos({ left, width, top: r.bottom + 4, maxHeight: Math.min(320, Math.max(120, below)) });
     }
     place();
     window.addEventListener("resize", place);
@@ -873,7 +886,7 @@ export function Dropdown({
         createPortal(
           <div
             ref={popup}
-            style={{ left: pos.left, width: pos.width, top: pos.top, maxHeight: pos.maxHeight }}
+            style={{ left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxHeight }}
             className="no-print fixed z-[70] flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-surface shadow-lg"
           >
             {isSearch && (
@@ -900,17 +913,16 @@ export function Dropdown({
                   {o.group && o.group !== rows[i - 1]?.group && (
                     <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{o.group}</p>
                   )}
+                  <div className={cx("flex items-center", i === active ? "bg-brand-50" : "hover:bg-slate-50")} onMouseEnter={() => setActive(i)}>
                   <button
                     type="button"
                     role="option"
                     data-index={i}
                     aria-selected={isOn(o.value)}
-                    onMouseEnter={() => setActive(i)}
                     onClick={() => pick(o)}
                     className={cx(
-                      "flex w-full items-center gap-2 py-2 pr-3 text-left text-sm",
+                      "flex min-w-0 flex-1 items-center gap-2 py-2 pr-3 text-left text-sm",
                       o.group ? "pl-5" : "pl-3",
-                      i === active ? "bg-brand-50" : "hover:bg-slate-50",
                       !o.value && "text-slate-500",
                     )}
                   >
@@ -924,9 +936,20 @@ export function Dropdown({
                     </span>
                     {!multiple && o.value === value && <Check className="size-4 shrink-0 text-brand-600" />}
                   </button>
+                  {rowActions && o.value && (
+                    <div className="flex shrink-0 items-center gap-0.5 pr-1.5" onClick={() => close(false)}>
+                      {rowActions(o)}
+                    </div>
+                  )}
+                  </div>
                 </Fragment>
               ))}
             </div>
+            {footer && (
+              <div className="shrink-0 border-t border-slate-100 p-1" onClick={() => close(false)}>
+                {footer}
+              </div>
+            )}
           </div>,
           document.body,
         )}
@@ -1092,7 +1115,7 @@ export function Card({
   children: ReactNode;
 }) {
   return (
-    <section className={cx("rounded-xl border border-slate-200 bg-surface shadow-sm", className)}>
+    <section className={cx("min-w-0 rounded-xl border border-slate-200 bg-surface shadow-sm", className)}>
       {(title || actions) && (
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 sm:px-4">
           <h2 className="min-w-0 text-sm font-semibold text-slate-800">{title}</h2>
@@ -1198,13 +1221,87 @@ export function StatusBadge({ status }: { status: string }) {
   return <Badge tone={statusTones[status] ?? "slate"}>{label}</Badge>;
 }
 
-/** Wrapper giving tables consistent styling; use <Th>/<Td> inside */
-export function Table({ children, className }: { children: ReactNode; className?: string }) {
+/**
+ * Wrapper giving tables consistent styling; use <Th>/<Td> inside.
+ * Phones: every row is a card (see TableStack). `stack={false}` keeps the plain table, for tables with their own
+ * phone layout.
+ */
+export function Table({ children, className, stack = true }: { children: ReactNode; className?: string; stack?: boolean }) {
   return (
-    <div className={cx("max-w-full overflow-x-auto overscroll-x-contain", className)}>
+    <TableStack stack={stack} className={cx("max-w-full overflow-x-auto overscroll-x-contain", className)}>
       <table className="w-full text-left text-sm">{children}</table>
+    </TableStack>
+  );
+}
+
+/**
+ * The box around a <table> (its direct child) that turns the rows into cards on phones (`.table-stack` in
+ * globals.css): each cell labelled with its column's header, the first named column as the card's title and an
+ * "Actions" column as its footer. <Table> uses it; wrap a hand-built table in it to get the same.
+ */
+export function TableStack({ children, className, stack = true }: { children: ReactNode; className?: string; stack?: boolean }) {
+  const box = useRef<HTMLDivElement>(null);
+
+  // Cells get their labels from the header row, kept up to date as rows load, change or reorder
+  useEffect(() => {
+    const el = box.current;
+    if (!stack || !el) return;
+    let frame = 0;
+    const label = () => {
+      frame = 0;
+      const table = el.querySelector(":scope > table");
+      const head = table?.querySelector(":scope > thead > tr:last-child");
+      if (!table || !head) return;
+      const heads: string[] = [];
+      for (const th of head.children as HTMLCollectionOf<HTMLTableCellElement>) {
+        // A header only screen readers see ("Open" over a button column) isn't shown as a label either
+        const text = th.textContent?.trim() ?? "";
+        const hidden = th.querySelector(".sr-only")?.textContent?.trim() === text;
+        for (let i = 0; i < th.colSpan; i++) heads.push(hidden ? "" : text);
+      }
+      const titleCol = heads.findIndex((h) => h && h !== "#" && h.toLowerCase() !== "actions");
+      for (const tr of table.querySelectorAll<HTMLTableRowElement>(":scope > tbody > tr, :scope > tfoot > tr")) {
+        const cells = [...(tr.children as HTMLCollectionOf<HTMLTableCellElement>)];
+        // Full-width detail row (an expanded line, a note): only spanning cells hold anything; joins the card above
+        setData(tr, "detail", cells.some((td) => td.colSpan > 1) && cells.every((td) => td.colSpan > 1 || !td.hasChildNodes()) ? "" : null);
+        let col = 0;
+        for (const td of cells) {
+          // A cell spanning several columns (empty / loading rows, "Total" labels) has no single header
+          const head = td.colSpan === 1 ? (heads[col] ?? "") : "";
+          const actions = head.toLowerCase() === "actions";
+          setData(td, "label", head && !actions ? head : null);
+          setData(td, "actions", actions ? "" : null);
+          // An input keeps its label, so an editable first column (qty, account) isn't a title
+          setData(td, "title", td.colSpan === 1 && col === titleCol && !td.querySelector(FORM_CONTROL) ? "" : null);
+          col += td.colSpan;
+        }
+      }
+    };
+    const schedule = () => (frame ||= requestAnimationFrame(label));
+    label();
+    // Not watching attributes, so setting the labels doesn't call this again
+    const watch = new MutationObserver(schedule);
+    watch.observe(el, { childList: true, subtree: true, characterData: true });
+    return () => {
+      watch.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [stack]);
+
+  return (
+    <div ref={box} className={cx(stack && "table-stack", className)}>
+      {children}
     </div>
   );
+}
+
+const FORM_CONTROL = "input:not([type=checkbox]), select, textarea, [aria-haspopup]";
+
+/** Sets (or with null removes) a data- attribute, touching the element only when it changes */
+function setData(el: HTMLElement, key: string, value: string | null) {
+  if (value === null) {
+    if (key in el.dataset) delete el.dataset[key];
+  } else if (el.dataset[key] !== value) el.dataset[key] = value;
 }
 
 export function Th({ children, className, right, center }: { children?: ReactNode; className?: string; right?: boolean; center?: boolean }) {
@@ -1445,9 +1542,9 @@ export function Tabs<T extends string>({
 /** Label/value pair for detail pages */
 export function Info({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className="mt-0.5 text-sm font-medium text-slate-800">{children || "—"}</dd>
+      <dd className="mt-0.5 break-words text-sm font-medium text-slate-800">{children || "—"}</dd>
     </div>
   );
 }
@@ -1464,6 +1561,7 @@ export function Modal({
   centered = false,
   className,
   scrollBody = true,
+  sheet = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -1477,6 +1575,8 @@ export function Modal({
   className?: string;
   /** false: a fixed-height dialog whose body doesn't scroll; the content lays out (and scrolls) its own parts, e.g. only a list */
   scrollBody?: boolean;
+  /** Phones: a bottom sheet as tall as its content instead of the whole screen (short dialogs, e.g. a confirm) */
+  sheet?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -1491,17 +1591,19 @@ export function Modal({
   return (
     <div
       className={cx(
-        "no-print fixed inset-0 z-50 flex items-stretch justify-center bg-night-900/40 sm:items-start sm:overflow-y-auto sm:p-4",
+        "no-print fixed inset-0 z-50 flex justify-center bg-night-900/40 sm:items-start sm:overflow-y-auto sm:p-4",
+        sheet ? "items-end" : "items-stretch",
         !centered && "sm:pt-[8vh]",
       )}
     >
       <div className="fixed inset-0" onClick={onClose} />
-      {/* Phones: the whole screen, header and footer pinned, the body scrolls; wider: a centred dialog */}
+      {/* Phones: the whole screen (or a bottom sheet), header and footer pinned, the body scrolls; wider: a centred dialog */}
       <div
         role="dialog"
         aria-modal="true"
         className={cx(
-          "relative flex h-[100dvh] w-full flex-col bg-surface shadow-xl sm:rounded-xl",
+          "relative flex w-full flex-col bg-surface shadow-xl sm:rounded-xl",
+          sheet ? "max-h-[90dvh] rounded-t-2xl" : "h-[100dvh]",
           // Fixed-height layout (scrollBody off): the dialog keeps its height and the content scrolls its own parts
           scrollBody ? "sm:h-auto" : "sm:h-[88vh]",
           // my-auto centres it while it fits and still lets a taller one scroll from its top
@@ -1526,7 +1628,7 @@ export function Modal({
           {children}
         </div>
         {footer && (
-          <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-100 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:pb-3 [&>*]:max-sm:flex-1">
+          <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-100 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:pb-3 max-sm:[&>:is(button,a)]:flex-1 max-sm:[&>:not(button,a)]:basis-full">
             {footer}
           </footer>
         )}
@@ -1566,6 +1668,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         onClose={() => close(false)}
         title="Please Confirm"
         size="sm"
+        sheet
         footer={
           <>
             <Button variant="secondary" onClick={() => close(false)}>
@@ -1595,9 +1698,9 @@ const TOAST_MS = 3000;
 
 const TOAST_STYLE: Record<ToastTone, { box: string; icon: ReactNode; bar: string; title: string }> = {
   success: {
-    box: "border-emerald-200 bg-emerald-50 text-emerald-900",
-    icon: <CheckCircle2 className="size-5 text-emerald-600" />,
-    bar: "bg-emerald-500",
+    box: "border-brand-200 bg-brand-50 text-brand-900",
+    icon: <CheckCircle2 className="size-5 text-brand-600" />,
+    bar: "bg-brand-500",
     title: "Success",
   },
   error: {

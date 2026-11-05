@@ -83,7 +83,10 @@ return (
             </p>
           </div>
 
-          <StatusBadge status={user.role} />
+          {/* Keeps the badge its own width when the row stacks on phones */}
+          <div className="flex self-start sm:self-auto">
+            <StatusBadge status={user.role} />
+          </div>
         </div>
       </div>
 

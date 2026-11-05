@@ -69,7 +69,7 @@ export function ProductScan() {
 
       {/* A hardware scan shows progress here, since there is no camera button to spin */}
       {looking && (
-        <div role="status" className="no-print fixed bottom-4 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-sm text-slate-600 shadow-lg">
+        <div role="status" className="no-print fixed bottom-4 left-1/2 z-[60] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 break-all rounded-full border border-line bg-surface px-4 py-2 text-sm text-slate-600 shadow-lg">
           <InfinityLoader className="size-5" /> Looking up {looking}…
         </div>
       )}

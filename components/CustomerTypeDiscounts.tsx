@@ -163,7 +163,7 @@ export function CustomerTypeDiscounts() {
       )}
       {can("schemes.create") && (
       <form onSubmit={add} className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-3">
-        <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New customer type, e.g. Institution" className="h-9 w-72" />
+        <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New customer type, e.g. Institution" className="h-9 w-full sm:w-72" />
         <Button type="submit" size="sm" variant="add" icon={<Plus className="size-4" />} loading={adding}>
           Add Type
         </Button>

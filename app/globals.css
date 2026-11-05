@@ -39,10 +39,10 @@
   --color-ink: #2b201a;
   --color-muted: #6f625a;
   --color-muted-2: #9b8e85;
-  --color-leaf-50: #f3faf3;
-  --color-leaf-100: #e3f1e3;
-  --color-leaf-150: #dcefe3;
-  --color-leaf-600: #2e8b46;
+  --color-leaf-50: #fff7f1;
+  --color-leaf-100: #ffebdc;
+  --color-leaf-150: #ffe1c7;
+  --color-leaf-600: #c25000;
   --color-rust-50: #fff5f2;
   --color-rust-100: #fbe4df;
   --color-rust-200: #f3c9c1;
@@ -114,10 +114,10 @@
     --color-ink: #f1e9e3;
     --color-muted: #ab9c92;
     --color-muted-2: #8b7e75;
-    --color-leaf-50: #13241a;
-    --color-leaf-100: #183020;
-    --color-leaf-150: #1c3826;
-    --color-leaf-600: #5cc27d;
+    --color-leaf-50: #2a1609;
+    --color-leaf-100: #361b0b;
+    --color-leaf-150: #42200c;
+    --color-leaf-600: #ff9a5c;
     --color-rust-50: #2a1714;
     --color-rust-100: #3a1d18;
     --color-rust-200: #5a2a22;
@@ -219,10 +219,10 @@
     --color-ink: #2b201a;
     --color-muted: #6f625a;
     --color-muted-2: #9b8e85;
-    --color-leaf-50: #f3faf3;
-    --color-leaf-100: #e3f1e3;
-    --color-leaf-150: #dcefe3;
-    --color-leaf-600: #2e8b46;
+    --color-leaf-50: #fff7f1;
+    --color-leaf-100: #ffebdc;
+    --color-leaf-150: #ffe1c7;
+    --color-leaf-600: #c25000;
     --color-rust-50: #fff5f2;
     --color-rust-100: #fbe4df;
     --color-rust-200: #f3c9c1;
@@ -399,6 +399,138 @@ input[type="number"] {
   body[data-print="sheet"] .po-print,
   body[data-print="sheet"] .grn-print {
     display: block !important;
+  }
+}
+
+/*
+ * Phones: text fields at 16px. iOS Safari zooms the whole page into any field smaller than that when it is tapped,
+ * and leaves it zoomed. Outside the layers on purpose, so it wins over the text-sm / text-xs on the fields.
+ */
+@media (max-width: 639.98px) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/*
+ * Phones: <Table> rows as cards (labels come from components/ui.tsx Table). Each cell is "LABEL ...... value" with
+ * the label floated left, so cells holding several bits (badges, links, inputs) keep their normal flow. The title
+ * column heads the card, an Actions column closes it. Cells hidden on phones (hidden md:table-cell) stay hidden.
+ * Outside the layers, so it wins over the cells' own padding, borders, widths and alignment.
+ */
+@media (max-width: 639.98px) {
+  .table-stack > table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  .table-stack > table > thead {
+    display: none;
+  }
+  .table-stack > table > :is(tbody, tfoot) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+  .table-stack > table > tfoot {
+    padding-top: 0;
+  }
+  .table-stack > table > :is(tbody, tfoot) > tr:not(.hidden) {
+    display: block;
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    padding: 0.375rem 0.75rem;
+  }
+  .table-stack > table > tfoot > tr {
+    background: var(--color-paper-2);
+  }
+  .table-stack > table > :is(tbody, tfoot) > tr > td:not(.hidden, .max-sm\:hidden) {
+    display: flow-root;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    border: 0;
+    padding: 0.3125rem 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .table-stack > table > :is(tbody, tfoot) > tr > td:empty,
+  .table-stack > table > :is(tbody, tfoot) > tr > td[data-label="#"] {
+    display: none;
+  }
+  .table-stack > table > :is(tbody, tfoot) > tr > td[data-label] {
+    text-align: right;
+  }
+  .table-stack > table > :is(tbody, tfoot) > tr > td[data-label]::before {
+    content: attr(data-label);
+    float: left;
+    max-width: 45%;
+    margin-right: 0.75rem;
+    text-align: left;
+    font-size: 0.6875rem;
+    line-height: 1.25rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-slate-500);
+  }
+  .table-stack > table > :is(tbody, tfoot) > tr > td[data-label] > .flex {
+    justify-content: flex-end;
+  }
+  .table-stack > table > :is(tbody, tfoot) > tr > td[data-title] {
+    margin-bottom: 0.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-line-soft);
+    text-align: left;
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+  .table-stack > table > :is(tbody, tfoot) > tr > td[data-title]::before {
+    content: none;
+  }
+  /* Lines under the title (date, SKU) stay light */
+  .table-stack > table > :is(tbody, tfoot) > tr > td[data-title] > * + p {
+    font-weight: 400;
+  }
+  /* A row-selection checkbox sits in the card's top-right corner */
+  .table-stack > table > tbody > tr > td:not([data-label], [data-actions]):has(> :is(input[type="checkbox"], label):only-child) {
+    float: right;
+    margin-left: 0.5rem;
+  }
+  .table-stack > table > :is(tbody, tfoot) > tr > td[data-title] > .flex {
+    justify-content: flex-start;
+  }
+  .table-stack > table > :is(tbody, tfoot) > tr > td[data-actions] {
+    margin-top: 0.25rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--color-line-soft);
+  }
+  .table-stack > table > :is(tbody, tfoot) > tr > td[data-actions] > div {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .table-stack > table > :is(tbody, tfoot) > tr > td[data-actions]:has(> div:empty) {
+    display: none;
+  }
+  /* A full-width detail row (expanded batches, a line's note) joins the card above it */
+  .table-stack > table > tbody > tr:has(+ tr[data-detail]) {
+    border-bottom-width: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .table-stack > table > tbody > tr + tr[data-detail] {
+    margin-top: -0.5rem;
+    border-top-width: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+  /* "Total" and similar labels spanning several columns */
+  .table-stack > table > tfoot > tr > td:not([colspan="1"])[colspan] {
+    text-align: left;
+    font-weight: 600;
   }
 }
 

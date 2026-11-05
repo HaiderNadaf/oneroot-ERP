@@ -2,75 +2,53 @@
 
 import { round2 } from "./format";
 import { offerLabel, remainingOf } from "./pricing";
-import type { OfferPurpose, Scheme, SchemeScope, SchemeType } from "./types";
+import type { PurposeColor, Scheme, SchemeScope, SchemeType } from "./types";
 
+/** What each calculation does, for picking it when adding an offer type */
 export const SCHEME_TYPE_LABEL: Record<SchemeType, string> = {
   BUY_X_GET_Y: "Buy X Get Y Free",
   PCT_OFF: "% Off",
+  UPTO_PCT_OFF: "Upto % Off (cashier gives up to the limit)",
   FLAT_OFF: "Flat ₹ Off per Unit",
   FIXED_PRICE: "Offer Price per Unit",
 };
 
-export const PURPOSE_LABEL: Record<OfferPurpose, string> = {
-  GENERAL: "General",
-  FESTIVAL: "Festival",
-  STOCK_CLEARANCE: "Stock Clearance",
-  SEASONAL: "Seasonal",
-  COMPANY: "Company Scheme",
-  NEW_LAUNCH: "New Launch",
-  BULK: "Bulk Buy",
-};
-
-/** Badge tone per purpose (matches the Badge component's tones) */
-export const PURPOSE_TONE: Record<OfferPurpose, "slate" | "green" | "amber" | "red" | "blue" | "violet"> = {
-  GENERAL: "slate",
-  FESTIVAL: "amber",
-  STOCK_CLEARANCE: "red",
-  SEASONAL: "green",
-  COMPANY: "blue",
-  NEW_LAUNCH: "violet",
-  BULK: "blue",
-};
+/** Badge colours a purpose can take */
+export const PURPOSE_COLORS: { value: PurposeColor; label: string }[] = [
+  { value: "slate", label: "Grey" },
+  { value: "green", label: "Green" },
+  { value: "amber", label: "Amber" },
+  { value: "red", label: "Red" },
+  { value: "blue", label: "Blue" },
+  { value: "violet", label: "Violet" },
+];
 
 /** Ribbon colours for the POS product tiles */
-export const PURPOSE_RIBBON: Record<OfferPurpose, string> = {
-  GENERAL: "bg-brand-600 text-white",
-  FESTIVAL: "bg-amber-500 text-white",
-  STOCK_CLEARANCE: "bg-rust-600 text-white",
-  SEASONAL: "bg-brand-600 text-white",
-  COMPANY: "bg-sky-600 text-white",
-  NEW_LAUNCH: "bg-violet-600 text-white",
-  BULK: "bg-sky-600 text-white",
+const RIBBON: Record<PurposeColor, string> = {
+  slate: "bg-brand-600 text-white",
+  green: "bg-brand-600 text-white",
+  amber: "bg-amber-500 text-white",
+  red: "bg-rust-600 text-white",
+  blue: "bg-sky-600 text-white",
+  violet: "bg-violet-600 text-white",
 };
+
+/** The offer's purpose name ("General" when none is set) */
+export const purposeName = (s: Pick<Scheme, "purposeOption">) => s.purposeOption?.name ?? "General";
+/** Badge tone of the offer's purpose */
+export const purposeTone = (s: Pick<Scheme, "purposeOption">): PurposeColor => s.purposeOption?.color ?? "slate";
+/** Ribbon classes of the offer's purpose on a POS tile */
+export const purposeRibbon = (s: Pick<Scheme, "purposeOption">) => RIBBON[purposeTone(s)];
+/** Whether the offer is for a festival (built-in Festival purpose) */
+export const isFestival = (s: Pick<Scheme, "purposeOption">) => s.purposeOption?.code === "FESTIVAL";
+/** The offer type's name ("% Off", "Diwali Combo", …), falling back to its calculation */
+export const offerTypeName = (s: Pick<Scheme, "offerType" | "type">) => s.offerType?.name ?? SCHEME_TYPE_LABEL[s.type];
 
 export const SCOPE_LABEL: Record<SchemeScope, string> = {
   PRODUCTS: "Chosen Products",
   CATEGORIES: "Whole Categories",
   ALL: "All Products",
 };
-
-/** Festivals and seasons offered as suggestions for the occasion */
-export const OCCASIONS = [
-  "Pongal",
-  "Makar Sankranti",
-  "Ugadi",
-  "Tamil New Year",
-  "Vishu",
-  "Akshaya Tritiya",
-  "Onam",
-  "Ganesh Chaturthi",
-  "Navratri",
-  "Dussehra",
-  "Diwali",
-  "Christmas",
-  "New Year",
-  "Holi",
-  "Eid",
-  "Independence Day",
-  "Kharif Season",
-  "Rabi Season",
-  "Year-End Clearance",
-];
 
 const n = (v: unknown) => (v === null || v === undefined || v === "" ? 0 : Number(v));
 

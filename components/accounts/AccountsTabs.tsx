@@ -25,6 +25,7 @@ import {
   Select,
   Spinner,
   Table,
+  TableStack,
   Td,
   // Textarea, // not used in any tab
   Th,
@@ -469,37 +470,39 @@ function EntryModalBody({ id, onClose, onChanged }: { id: string; onClose: () =>
           {e.reversedBy && (
             <p className="text-xs font-medium text-red-700">Reversed by {e.reversedBy.entryNo}</p>
           )}
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                <th className="py-1.5 text-left">Account</th>
-                <th className="py-1.5 text-left">Particulars</th>
-                <th className="py-1.5 text-right">Debit</th>
-                <th className="py-1.5 text-right">Credit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {e.lines.map((l) => (
-                <tr key={l.id} className="border-b border-slate-100">
-                  <td className="py-1.5 pr-2">
-                    <span className="font-mono text-xs text-slate-400">{l.account.code}</span> <span className="font-medium text-slate-800">{l.account.name}</span>
-                  </td>
-                  <td className="py-1.5 pr-2 text-xs text-slate-600">{[l.party, l.description].filter(Boolean).join(" · ") || "—"}</td>
-                  <td className="num py-1.5 text-right">{l.debit ? inr(l.debit) : ""}</td>
-                  <td className="num py-1.5 text-right">{l.credit ? inr(l.credit) : ""}</td>
+          <div className="max-w-full overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                  <th className="py-1.5 text-left">Account</th>
+                  <th className="py-1.5 text-left">Particulars</th>
+                  <th className="py-1.5 text-right">Debit</th>
+                  <th className="py-1.5 text-right">Credit</th>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="font-semibold">
-                <td className="py-1.5" colSpan={2}>
-                  Total
-                </td>
-                <td className="num py-1.5 text-right">{inr(e.lines.reduce((s, l) => s + l.debit, 0))}</td>
-                <td className="num py-1.5 text-right">{inr(e.lines.reduce((s, l) => s + l.credit, 0))}</td>
-              </tr>
-            </tfoot>
-          </table>
+              </thead>
+              <tbody>
+                {e.lines.map((l) => (
+                  <tr key={l.id} className="border-b border-slate-100">
+                    <td className="py-1.5 pr-2">
+                      <span className="font-mono text-xs text-slate-400">{l.account.code}</span> <span className="font-medium text-slate-800">{l.account.name}</span>
+                    </td>
+                    <td className="py-1.5 pr-2 text-xs text-slate-600">{[l.party, l.description].filter(Boolean).join(" · ") || "—"}</td>
+                    <td className="num py-1.5 text-right">{l.debit ? inr(l.debit) : ""}</td>
+                    <td className="num py-1.5 text-right">{l.credit ? inr(l.credit) : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="font-semibold">
+                  <td className="py-1.5" colSpan={2}>
+                    Total
+                  </td>
+                  <td className="num py-1.5 text-right">{inr(e.lines.reduce((s, l) => s + l.debit, 0))}</td>
+                  <td className="num py-1.5 text-right">{inr(e.lines.reduce((s, l) => s + l.credit, 0))}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </div>
       ) : null}
     </Modal>
@@ -576,7 +579,7 @@ function ManualVoucherBody({ onClose, onSaved }: { onClose: () => void; onSaved:
       size="xl"
       footer={
         <>
-          <span className={cx("mr-auto text-sm", diff === 0 ? "text-slate-500" : "font-medium text-red-600")}>
+          <span className={cx("mr-auto text-sm max-sm:min-w-full", diff === 0 ? "text-slate-500" : "font-medium text-red-600")}>
             Dr {inr(dr)} · Cr {inr(cr)}
             {diff !== 0 && ` · difference ${inr(Math.abs(diff))}`}
           </span>
@@ -598,9 +601,9 @@ function ManualVoucherBody({ onClose, onSaved }: { onClose: () => void; onSaved:
             <Input value={narration} onChange={(e) => setNarration(e.target.value)} placeholder="e.g. Owner's capital deposited in bank" autoFocus />
           </Field>
         </div>
-        {/* Phones: the voucher lines scroll sideways instead of squashing four inputs into one row */}
-        <div className="max-sm:-mx-1 max-sm:overflow-x-auto max-sm:px-1">
-          <table className="w-full text-sm max-sm:min-w-[36rem]">
+        {/* Phones: each voucher line is a card instead of four inputs squashed into one row */}
+        <TableStack>
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                 <th className="py-1.5 text-left">Account</th>
@@ -656,7 +659,7 @@ function ManualVoucherBody({ onClose, onSaved }: { onClose: () => void; onSaved:
               })}
             </tbody>
           </table>
-        </div>
+        </TableStack>
         <Button
           type="button"
           variant="add"

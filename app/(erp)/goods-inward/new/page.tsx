@@ -24,6 +24,7 @@ import {
   Select,
   Spinner,
   Table,
+  TableStack,
   Td,
   Th,
   cx,
@@ -937,7 +938,7 @@ function BatchesModal({
       }
       footer={
         <>
-          <div className="mr-auto text-sm">
+          <div className="mr-auto text-sm max-sm:min-w-full">
             <span className="text-slate-500">Received Qty </span>
             <b className="num text-brand-700">
               {qty(received)} {p.unit}
@@ -1047,7 +1048,7 @@ function BatchesModal({
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <TableStack className="overflow-x-auto rounded-lg border border-slate-200 max-sm:border-0">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
@@ -1136,7 +1137,7 @@ function BatchesModal({
                 })}
               </tbody>
             </table>
-          </div>
+          </TableStack>
           <button
             type="button"
             onClick={add}

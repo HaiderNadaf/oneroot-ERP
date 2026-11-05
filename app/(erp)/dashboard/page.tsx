@@ -8,7 +8,7 @@ import { BatchDetailModal } from "@/components/BatchDetails";
 import { CashReconciliationCard } from "@/components/CashReconciliationCard";
 import { ExpiryBadge as StockExpiryBadge, useSeeCostPrice } from "@/components/StockBits";
 import { LazySalesPurchaseChart } from "@/components/lazy";
-import { ErrorBox, Pagination, SearchInput, Spinner, StatusBadge, cx } from "@/components/ui";
+import { ErrorBox, Pagination, SearchInput, Spinner, StatusBadge, TableStack, cx } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useBranch } from "@/lib/branch";
 import { date, daysUntil, inr, inr0, inrCompact, qty } from "@/lib/format";
@@ -164,7 +164,7 @@ interface Dashboard {
 }
 
 // Sales green / purchase gold, shared with the chart (lib/chart-colors.ts)
-const GREEN = SALES_COLOR;
+const SALES = SALES_COLOR;
 const GOLD = PURCHASE_COLOR;
 
 function greeting() {
@@ -390,7 +390,7 @@ function BranchPerformance({
           : undefined
       }
     >
-      <div className="overflow-x-auto">
+      <TableStack className="overflow-x-auto">
         <table className={cx("w-full", finance ? "min-w-[860px]" : "min-w-[560px]")}>
           <thead>
             <tr>
@@ -427,7 +427,7 @@ function BranchPerformance({
                         className="block h-2 rounded-full"
                         style={{
                           width: `${(b.sales / top) * 100}%`,
-                          background: GREEN,
+                          background: SALES,
                         }}
                       />
                     </span>
@@ -483,7 +483,7 @@ function BranchPerformance({
             </tr>
           </tfoot>
         </table>
-      </div>
+      </TableStack>
     </Panel>
   );
 }
@@ -621,7 +621,7 @@ export default function DashboardPage() {
               value={k.sales.value}
               growth={k.sales.growth}
               spark={sparkOf("sales")}
-              color={GREEN}
+              color={SALES}
               href={linkIf("/sales") ?? linkIf("/reports?tab=sales")}
               periodWord={periodWord}
               sub={
@@ -637,7 +637,7 @@ export default function DashboardPage() {
               value={k.collected.value}
               growth={k.collected.growth}
               spark={sparkOf("collected")}
-              color={GREEN}
+              color={SALES}
               href={linkIf("/payments")}
               periodWord={periodWord}
               sub={k.collected.pctOfSales === null ? "Payments received" : `${k.collected.pctOfSales}% of billed value`}
@@ -679,7 +679,7 @@ export default function DashboardPage() {
                 label="Customers"
                 value={data.counts.customers}
                 count
-                color={GREEN}
+                color={SALES}
                 href={linkIf("/customers")}
                 periodWord={periodWord}
                 sub="Active farmers & dealers"
@@ -728,7 +728,7 @@ export default function DashboardPage() {
             action={
               <div className="flex gap-3 text-xs text-muted">
                 <span className="flex items-center gap-1.5">
-                  <i className="size-2.5 rounded-sm" style={{ background: GREEN }} />
+                  <i className="size-2.5 rounded-sm" style={{ background: SALES }} />
                   Sales
                 </span>
                 {finance && (
@@ -762,7 +762,7 @@ export default function DashboardPage() {
                         className="block h-2 rounded-full"
                         style={{
                           width: `${(c.amount / catMax) * 100}%`,
-                          background: GREEN,
+                          background: SALES,
                         }}
                       />
                     </span>
@@ -994,17 +994,17 @@ export default function DashboardPage() {
             bodyClassName="p-4"
           >
             <div className="grid grid-cols-3 gap-2 rounded-lg bg-paper-2 p-3 text-center">
-              <div>
+              <div className="min-w-0">
                 <p className="text-[11px] text-muted">Output GST</p>
-                <p className="num font-display text-sm font-bold sm:text-base">{inr0(data.gst.output)}</p>
+                <p className="num break-words font-display text-sm font-bold sm:text-base">{inr0(data.gst.output)}</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-[11px] text-muted">Input credit</p>
-                <p className="num font-display text-sm font-bold sm:text-base">{inr0(data.gst.input)}</p>
+                <p className="num break-words font-display text-sm font-bold sm:text-base">{inr0(data.gst.input)}</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-[11px] text-muted">{data.gst.net >= 0 ? "Net payable" : "Credit carried"}</p>
-                <p className={cx("num font-display text-sm font-bold sm:text-base", data.gst.net >= 0 ? "text-ochre-600" : "text-leaf-600")}>
+                <p className={cx("num break-words font-display text-sm font-bold sm:text-base", data.gst.net >= 0 ? "text-ochre-600" : "text-leaf-600")}>
                   {inr0(Math.abs(data.gst.net))}
                 </p>
               </div>
@@ -1245,7 +1245,7 @@ function GrnProgressPanel() {
         link: "Goods Inward",
       }}
     >
-      <div className="overflow-x-auto">
+      <TableStack className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr>
@@ -1330,7 +1330,7 @@ function GrnProgressPanel() {
             )}
           </tbody>
         </table>
-      </div>
+      </TableStack>
     </Panel>
   );
 }
@@ -1396,7 +1396,7 @@ function BatchesPanel({ productLink }: { productLink: (id: string) => string | u
       }
       footer={{ text: "Earliest expiry first", href: "/inventory", link: "Open Stock & Batches" }}
     >
-      <div className="overflow-x-auto">
+      <TableStack className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr>
@@ -1464,7 +1464,7 @@ function BatchesPanel({ productLink }: { productLink: (id: string) => string | u
             )}
           </tbody>
         </table>
-      </div>
+      </TableStack>
       {data && <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />}
       <BatchDetailModal batchId={open} onClose={() => setOpen(null)} showCost={showCost} canMoves allBranches={showBranch} productHref={productLink} />
     </Panel>
@@ -1504,7 +1504,7 @@ function SplitPanel({ split, label }: { split: NonNullable<Dashboard["split"]>; 
                     className="block h-2 rounded-full"
                     style={{
                       width: `${(c.total / totalSales) * 100}%`,
-                      background: c.channel === "VAN" ? "#3b82c4" : GREEN,
+                      background: c.channel === "VAN" ? "#3b82c4" : SALES,
                     }}
                   />
                 </span>

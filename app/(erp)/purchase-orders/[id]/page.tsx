@@ -21,6 +21,7 @@ import { Fragment, useState, type ReactNode } from "react";
 import { ApprovalChain } from "@/components/ApprovalChain";
 import { Attachments } from "@/components/Attachments";
 import { NotesPanel } from "@/components/NotesPanel";
+import { PaymentPanel } from "@/components/PaymentPanel";
 import { PrintPortal } from "@/components/PrintPortal";
 import { useCounts } from "@/components/Notifications";
 import { isInterState } from "@/components/PoForm";
@@ -259,7 +260,7 @@ export default function PurchaseOrderDetailPage() {
                           {!vb.isActive && <span className="ml-1.5 text-xs font-normal text-slate-500">(inactive)</span>}
                         </p>
                         <p className="break-words text-sm text-slate-600">{branchAddress(vb) || "—"}</p>
-                        <p className="text-sm text-slate-600">{[vb.contactPerson, vb.phone, vb.gstin && `GSTIN ${vb.gstin}`].filter(Boolean).join(" · ")}</p>
+                        <p className="break-words text-sm text-slate-600">{[vb.contactPerson, vb.phone, vb.gstin && `GSTIN ${vb.gstin}`].filter(Boolean).join(" · ")}</p>
                       </div>
                     )}
                   </>
@@ -367,7 +368,7 @@ export default function PurchaseOrderDetailPage() {
                     {qty(it.quantity)} <span className="text-xs text-slate-500">{it.product.unit}</span>
                   </Td>
                   <Td right>{inr(it.rate)}</Td>
-                  <Td right className={n(it.discountPct) ? "text-emerald-700" : "text-slate-400"}>
+                  <Td right className={n(it.discountPct) ? "text-brand-700" : "text-slate-400"}>
                     {n(it.discountPct) ? `${n(it.discountPct)}%` : "—"}
                   </Td>
                   <Td right className="text-slate-500">
@@ -519,6 +520,10 @@ export default function PurchaseOrderDetailPage() {
         />
       )}
 
+      {po.payment && v && (
+        <PaymentPanel payment={po.payment} vendor={v} poId={po.id} docNo={po.poNo} onPaid={() => void reload()} className="no-print mb-4" />
+      )}
+
       {/* Quotes, vendor invoices, spec sheets… attached to this PO */}
       <Attachments type="PO" entityId={po.id} canManage={can("po.create") || can("po.edit")} className="no-print mb-4" />
 
@@ -544,7 +549,7 @@ export default function PurchaseOrderDetailPage() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between">
+    <div className="flex justify-between max-sm:gap-3">
       <dt className="text-slate-500">{label}</dt>
       <dd className="num text-slate-800">{value}</dd>
     </div>

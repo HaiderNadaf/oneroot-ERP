@@ -203,17 +203,54 @@ export interface ApprovalRequest {
 
 // ───────────────────────── Schemes & customer types ─────────────────────────
 
-export type SchemeType = "BUY_X_GET_Y" | "PCT_OFF" | "FLAT_OFF" | "FIXED_PRICE";
-/** Why an offer runs */
+/** How an offer calculates (each offer type in the managed list uses one) */
+export type SchemeType = "BUY_X_GET_Y" | "PCT_OFF" | "UPTO_PCT_OFF" | "FLAT_OFF" | "FIXED_PRICE";
+/** Built-in purposes (`SchemePurpose.code`) the app treats specially */
 export type OfferPurpose = "GENERAL" | "FESTIVAL" | "STOCK_CLEARANCE" | "SEASONAL" | "COMPANY" | "NEW_LAUNCH" | "BULK";
+/** Badge / ribbon colour of a purpose */
+export type PurposeColor = "slate" | "green" | "amber" | "red" | "blue" | "violet";
+
+/** Why an offer runs (managed list) */
+export interface SchemePurpose {
+  id: string;
+  name: string;
+  /** Set on the built-in ones, e.g. FESTIVAL */
+  code?: string | null;
+  color: PurposeColor;
+  _count?: { schemes: number };
+}
+
+/** A festival / season offered for an offer's occasion (managed list) */
+export interface SchemeOccasion {
+  id: string;
+  name: string;
+}
+
+/** A named offer type (managed list) and how it calculates */
+export interface SchemeOfferType {
+  id: string;
+  name: string;
+  kind: SchemeType;
+  _count?: { schemes: number };
+}
+
+export interface SchemeOptions {
+  purposes: SchemePurpose[];
+  occasions: SchemeOccasion[];
+  offerTypes: SchemeOfferType[];
+}
 /** What an offer covers */
 export type SchemeScope = "PRODUCTS" | "CATEGORIES" | "ALL";
 
 export interface Scheme {
   id: string;
   name: string;
+  /** How it calculates (from its offer type) */
   type: SchemeType;
-  purpose: OfferPurpose;
+  offerTypeId?: string | null;
+  offerType?: Pick<SchemeOfferType, "id" | "name" | "kind"> | null;
+  purposeId?: string | null;
+  purposeOption?: Pick<SchemePurpose, "id" | "name" | "code" | "color"> | null;
   /** Festival / occasion, e.g. "Pongal 2027" */
   occasion?: string | null;
   scope: SchemeScope;
@@ -946,6 +983,40 @@ export interface PurchaseOrder {
   }[];
   purchases?: { id: string; purchaseNo: string; status: DocStatus }[];
   debitNotes?: NoteSummary[];
+  /** detail only: what has been paid to the vendor against this PO */
+  payment?: PoPayment;
+}
+
+/** A vendor payment shown on a PO / GRN, with the transaction details finance noted */
+export interface PaymentTxn {
+  id: string;
+  paymentNo: string;
+  amount: Dec;
+  mode: PaymentMode;
+  /** UTR / txn id / cheque no. */
+  reference?: string | null;
+  paymentDate: string;
+  notes?: string | null;
+  user?: { name: string } | null;
+  grn?: { id: string; grnNo: string } | null;
+}
+
+/** Payment status of a GRN, through the invoice booked from it */
+export interface GrnPayment {
+  status: PaymentStatus | "NOT_INVOICED";
+  total: number;
+  paid: number;
+  due: number;
+  transactions: PaymentTxn[];
+}
+
+/** Payment status of a PO: invoices paid plus advance not yet set against one, against the PO total */
+export interface PoPayment extends Omit<GrnPayment, "status"> {
+  status: PaymentStatus;
+  /** Advance still to pay (advance terms only) */
+  advanceDue: number;
+  /** GRNs whose invoice still has a balance to pay */
+  grns: { id: string; grnNo: string; due: number }[];
 }
 
 export interface ApprovalQueue {
@@ -1075,6 +1146,7 @@ export interface Grn {
   // detail only
   items?: GrnItem[];
   debitNotes?: { id: string; dnNo: string; status: DebitNoteStatus }[];
+  payment?: GrnPayment;
 }
 
 export type NoteType = "DEBIT" | "CREDIT";

@@ -138,14 +138,14 @@ function ProductCategories() {
             </button>
           </div>
           <p className="mb-2 text-xs text-slate-500">Select a category to see its sub-categories and add new ones to it.</p>
-          <form onSubmit={addCategory} className="mb-2 flex gap-2">
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New category" className="min-w-0 flex-1" />
+          <form onSubmit={addCategory} className="mb-2 flex flex-wrap gap-2 sm:flex-nowrap">
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New category" className="w-full min-w-0 sm:w-auto sm:flex-1" />
             <Dropdown
               options={TYPE_OPTIONS}
               value={type}
               onChange={(v) => (v === NEW_TAX_TYPE ? setNewTaxFor({ categoryId: null }) : setType(v))}
               placeholder="Tax type"
-              className="w-40 shrink-0"
+              className="min-w-0 flex-1 sm:w-40 sm:flex-none sm:shrink-0"
               aria-label="Tax type"
             />
             <Button variant="add" type="submit" loading={busy === "cat"}>

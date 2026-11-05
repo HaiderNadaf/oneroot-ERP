@@ -422,7 +422,7 @@ function HeroPreview() {
           <div className="flex min-w-0 items-center gap-1.5">
             <span className="size-2.5 rounded-full bg-red-400" />
             <span className="size-2.5 rounded-full bg-amber-400" />
-            <span className="size-2.5 rounded-full bg-emerald-500" />
+            <span className="size-2.5 rounded-full bg-brand-500" />
             <p className="ml-2 truncate text-sm font-semibold text-slate-800">
               Today at the counter
             </p>
@@ -442,7 +442,7 @@ function HeroPreview() {
               <p className="mt-0.5 truncate font-display text-base font-semibold text-slate-900 sm:text-lg">
                 {value}
               </p>
-              <p className="text-[11px] font-semibold text-emerald-600">
+              <p className="text-[11px] font-semibold text-brand-600">
                 {delta}
               </p>
             </div>
@@ -493,7 +493,7 @@ function HeroPreview() {
       {/* Floating cards */}
       <div className="absolute -left-4 top-44 hidden w-56 -rotate-3 rounded-xl bg-surface p-3 text-ink shadow-xl shadow-black/30 ring-1 ring-line lg:block lg:-left-10">
         <div className="flex items-center gap-2">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+          <span className="flex size-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
             <ReceiptText className="size-4" />
           </span>
           <div className="min-w-0">

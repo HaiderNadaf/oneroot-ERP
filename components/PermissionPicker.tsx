@@ -121,7 +121,7 @@ export function PermissionPicker({
 
   return (
     <div className="sm:col-span-2">
-      <div className="mb-1 flex items-center justify-between">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <span className="text-xs font-medium text-slate-600">
           Access{" "}
           {!admin && (

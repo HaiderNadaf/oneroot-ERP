@@ -24,7 +24,10 @@ import {
   Td,
   Th,
   cx,
+  errMsg,
   FilterBar,
+  useConfirm,
+  useToast,
 } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -64,6 +67,8 @@ const categoryPath = (p: Product) => [p.category?.name, p.subCategory?.name].fil
 
 export default function ProductsPage() {
   const { can } = useAuth();
+  const toast = useToast();
+  const confirm = useConfirm();
   const showCost = useSeeCostPrice();
   const { current, branches, locked } = useBranch();
   // Stock figures are for the selected branch; name it when the store has several
@@ -81,6 +86,7 @@ export default function ProductsPage() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [catsOpen, setCatsOpen] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const q = useDebounced(search);
 
   const { data: categories, reload: reloadCats } = useApi<Category[]>("/categories", { withSubs: "true" });
@@ -216,6 +222,25 @@ export default function ProductsPage() {
     setEditing(null);
     setFormOpen(true);
   };
+
+  /** Deletes the product; one that has been bought, sold or quoted is deactivated instead (the server decides) */
+  async function remove(p: Product) {
+    const ok = await confirm(
+      `Delete "${p.name}"? If it has been bought or sold it will be deactivated instead, keeping its history.`,
+      { danger: true, confirmLabel: "Delete" },
+    );
+    if (!ok) return;
+    setDeleting(p.id);
+    try {
+      const res = await api.del<{ deleted: boolean; deactivated?: boolean }>(`/products/${p.id}`);
+      toast.success(res.deleted ? `${p.name} deleted` : `${p.name} has transactions, so it was deactivated`);
+      void reload();
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   function clearFilters() {
     setType("");
@@ -404,6 +429,9 @@ export default function ProductsPage() {
                             setFormOpen(true);
                           }}
                         />
+                      )}
+                      {can("products.delete") && p.isActive && (
+                        <RowAction kind="delete" title={`Delete ${p.name}`} loading={deleting === p.id} onClick={() => remove(p)} />
                       )}
                     </ActionsTd>
                   </tr>

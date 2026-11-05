@@ -10,9 +10,9 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { date, inr, n, today } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import { PURPOSE_LABEL, PURPOSE_TONE, describeScheme, offerConditions, offerCoverage } from "@/lib/offers";
+import { describeScheme, offerConditions, offerCoverage, offerTypeName, purposeName, purposeTone } from "@/lib/offers";
 import { remainingOf } from "@/lib/pricing";
-import type { CustomerType, OfferPurpose, Scheme } from "@/lib/types";
+import type { CustomerType, OfferPurpose, Scheme, SchemeOptions } from "@/lib/types";
 
 type Tab = "schemes" | "types";
 
@@ -59,26 +59,27 @@ function SchemesTab() {
   const toast = useToast();
   const confirm = useConfirm();
   const [status, setStatus] = useState("all");
-  const [purpose, setPurpose] = useState<OfferPurpose | "">("");
+  const [purpose, setPurpose] = useState("");
+  const { data: options } = useApi<SchemeOptions>("/scheme-options");
   const [editing, setEditing] = useState<{ scheme: Scheme | null; purpose?: OfferPurpose } | null>(null);
   const { data: all, error, loading, reload } = useApi<Scheme[]>("/schemes", { status });
   const now = today();
-  const data = purpose ? all?.filter((s) => s.purpose === purpose) : all;
+  const data = purpose ? all?.filter((s) => s.purposeId === purpose) : all;
 
   const isRunning = (s: Scheme) => s.isActive && dayOf(s.from) <= now && (!s.to || dayOf(s.to) >= now);
   const running = (all ?? []).filter(isRunning);
   const stats = {
     running: running.length,
-    festival: running.filter((s) => s.purpose === "FESTIVAL").length,
-    clearance: running.filter((s) => s.purpose === "STOCK_CLEARANCE").length,
+    festival: running.filter((s) => s.purposeOption?.code === "FESTIVAL").length,
+    clearance: running.filter((s) => s.purposeOption?.code === "STOCK_CLEARANCE").length,
     scheduled: (all ?? []).filter((s) => s.isActive && dayOf(s.from) > now).length,
   };
 
   async function remove(s: Scheme) {
-    if (!(await confirm(`Delete offer "${s.name}"? If bills used it, it is switched off instead.`, { danger: true, confirmLabel: "Delete" }))) return;
+    if (!(await confirm(`Delete offer "${s.name}"? Bills that used it still show it.`, { danger: true, confirmLabel: "Delete" }))) return;
     try {
-      const r = await api.del<{ deleted: boolean }>(`/schemes/${s.id}`);
-      toast.success(r.deleted ? "Offer deleted" : "Offer switched off (bills used it)");
+      await api.del(`/schemes/${s.id}`);
+      toast.success("Offer deleted");
       void reload();
     } catch (e) {
       toast.error(errMsg(e));
@@ -95,16 +96,16 @@ function SchemesTab() {
         <StatCard label="Scheduled" value={stats.scheduled} icon={<Tag />} tone="blue" sub="Start on a later date" />
       </div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-40" aria-label="Filter by status">
+        <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-[calc(50%-0.25rem)] sm:w-40" aria-label="Filter by status">
           <option value="all">All Offers</option>
           <option value="active">Running Today</option>
           <option value="">Switched On</option>
         </Select>
-        <Select value={purpose} onChange={(e) => setPurpose(e.target.value as OfferPurpose | "")} className="w-44" aria-label="Filter by purpose">
+        <Select value={purpose} onChange={(e) => setPurpose(e.target.value)} className="w-[calc(50%-0.25rem)] sm:w-44" aria-label="Filter by purpose">
           <option value="">Every Purpose</option>
-          {(Object.keys(PURPOSE_LABEL) as OfferPurpose[]).map((p) => (
-            <option key={p} value={p}>
-              {PURPOSE_LABEL[p]}
+          {options?.purposes.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
             </option>
           ))}
         </Select>
@@ -151,12 +152,15 @@ function SchemesTab() {
                     <Td className="font-medium text-slate-900">
                       <span className="flex flex-wrap items-center gap-1.5">
                         {s.name}
-                        <Badge tone={PURPOSE_TONE[s.purpose]}>{PURPOSE_LABEL[s.purpose]}</Badge>
+                        <Badge tone={purposeTone(s)}>{purposeName(s)}</Badge>
                       </span>
                       {(s.occasion || s.campaign) && <p className="text-xs font-normal text-amber-700">{[s.occasion, s.campaign?.name].filter(Boolean).join(" · ")}</p>}
                       {s.notes && <p className="text-xs font-normal text-slate-500">{s.notes}</p>}
                     </Td>
-                    <Td className="whitespace-nowrap font-medium">{describeScheme(s)}</Td>
+                    <Td className="whitespace-nowrap font-medium">
+                      {describeScheme(s)}
+                      {s.offerType && s.offerType.name !== describeScheme(s) && <p className="text-xs font-normal text-slate-500">{offerTypeName(s)}</p>}
+                    </Td>
                     <Td className="max-w-xs text-xs text-slate-600">
                       {s.scope !== "PRODUCTS" && <span className="mr-1 font-semibold text-slate-700">{s.scope === "ALL" ? "Store-wide:" : "Categories:"}</span>}
                       {offerCoverage(s)}

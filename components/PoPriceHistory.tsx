@@ -115,7 +115,7 @@ export function PoPriceHistory({
             </span>
           )}
           {diff !== null && Math.abs(diff) >= 0.005 && (
-            <span className={diff > 0 ? "text-red-700" : "text-emerald-700"}>
+            <span className={diff > 0 ? "text-red-700" : "text-brand-700"}>
               This PO: {inr(current)} · {diff > 0 ? "▲" : "▼"} {inr(Math.abs(diff))} vs last
             </span>
           )}

@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
       "*.css": {
         loaders: ["@tailwindcss/turbopack"],
         as: "*.css",
+        // Not next/font's generated CSS: on Vercel its font URLs carry a query the Tailwind loader breaks
+        condition: { not: { path: /internal\/font\// } },
       },
     },
   },

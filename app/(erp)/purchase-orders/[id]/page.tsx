@@ -164,10 +164,7 @@ export default function PurchaseOrderDetailPage() {
         actions={
           <>
             {/* data-print-po: the server presses this to make the PDF emailed to the vendor */}
-            <Button data-print-po variant="secondary" icon={<Printer className="size-4" />} onClick={() => {
-                fitPoPrintToPages();
-                printAs("sheet", "size: A4; margin: 0 !important;", `Purchase Order - ${po.poNo}`);
-              }}>
+            <Button data-print-po variant="secondary" icon={<Printer className="size-4" />} onClick={() => printAs("sheet", "size: A4; margin: 0 !important;", `Purchase Order - ${po.poNo}`)}>
               Print
             </Button>
             <Button variant="secondary" icon={<FileDown className="size-4" />} onClick={downloadPdf}>
@@ -1010,32 +1007,8 @@ function DecisionModal({ po, action, onClose, onDone }: { po: PurchaseOrder; act
   );
 }
 
-/** A4 page and the margin kept on every printed page (mm) */
-const PAGE_MM = 297;
+/** Margin kept on every printed page (mm) */
 const MARGIN_MM = 12;
-const PX_PER_MM = 96 / 25.4;
-
-/**
- * Stretches the PO print body to fill whole pages, so the terms and the signature note sit at the bottom
- * of the last page however many pages the items take. Measured off-screen at the printed width, just before printing.
- */
-function fitPoPrintToPages() {
-  const body = document.getElementById("po-print-body");
-  const sheet = body?.closest<HTMLElement>(".po-print");
-  if (!body || !sheet) return;
-  body.style.minHeight = "";
-  // Lay the (screen-hidden) sheet out at A4 width, out of view, to measure it
-  const prev = sheet.getAttribute("style");
-  sheet.setAttribute("style", "display:block;position:absolute;left:-10000px;top:0;width:210mm;visibility:hidden");
-  const usableMm = PAGE_MM - 2 * MARGIN_MM;
-  // A few mm of slack for print font rounding, so a sheet that only just fits is treated as the next page count
-  const contentMm = body.scrollHeight / PX_PER_MM + 4;
-  if (prev === null) sheet.removeAttribute("style");
-  else sheet.setAttribute("style", prev);
-  const pages = Math.max(1, Math.ceil(contentMm / usableMm));
-  // A little short of the full height, so rounding never spills onto an empty extra page
-  body.style.minHeight = `${pages * usableMm - 3}mm`;
-}
 
 /** GST % on a charge; older POs without one were saved before the 18% default */
 const chargeRate = (rate: PurchaseOrder["transportGstRate"]) => (rate != null ? n(rate) : CHARGES_GST_RATE);
@@ -1295,19 +1268,21 @@ function PoPrint({ po, store, notApproved }: { po: PurchaseOrder; store: StoreSe
                   </dl>
                 </section>
 
-                {/* ── Terms and the signature note: pushed to the bottom of the last page ── */}
-                <div className="mt-auto break-inside-avoid pt-5">
-                  <section className="rounded-md border border-slate-300 px-3.5 py-3">
-                    <h2 className="border-b border-slate-200 pb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-900">
+                {/* ── Terms and the signature note: right under the totals; the list runs on to the next page when it doesn't fit ── */}
+                <div className="pt-4">
+                  <section className="rounded-md border border-slate-300 px-3.5 py-3 [box-decoration-break:clone]">
+                    <h2 className="break-after-avoid border-b border-slate-200 pb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-900">
                       Terms &amp; Conditions
                     </h2>
                     <ol className="mt-2 grid list-decimal grid-cols-2 gap-x-6 gap-y-1 pl-4 text-[9.5px] leading-[1.4] text-slate-600 marker:font-semibold marker:text-slate-500">
                       {PO_TERMS_SHORT.map((t) => (
-                        <li key={t}>{t}</li>
+                        <li key={t} className="break-inside-avoid">
+                          {t}
+                        </li>
                       ))}
                     </ol>
                   </section>
-                  <p className="mt-2.5 text-left text-[10px] italic text-slate-500">
+                  <p className="mt-2.5 break-before-avoid text-left text-[10px] italic text-slate-500">
                     <span className="font-semibold not-italic text-red-600">*</span> This is a system-generated purchase order and does not require a
                     signature.
                   </p>

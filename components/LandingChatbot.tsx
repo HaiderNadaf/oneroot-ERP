@@ -196,8 +196,8 @@ const FAQS: Faq[] = [
     id: "brochure",
     q: "Is there a brochure?",
     followUps: ["demo", "overview"],
-    keywords: ["brochure", "pdf", "download"],
-    answer: "The one-page brochure lists everything in the ERP — you can download it from the Brochure section.",
+    keywords: ["brochure", "catalogue", "catalog", "pdf", "download", "balwaan", "lemken"],
+    answer: "The Brochure section has the Balwaan and LEMKEN India catalogues — press Download on either to print it or save it as a PDF.",
     link: { href: "#brochure", label: "Open brochure" },
   },
 ];

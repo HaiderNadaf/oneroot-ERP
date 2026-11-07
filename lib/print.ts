@@ -38,3 +38,36 @@ export function printAs(mode: PrintMode, pageCss?: string, fileName?: string) {
 }
 
 export const printReceipt = (widthMm: number) => printAs("thermal", `size: ${widthMm}mm auto; margin: 0;`);
+
+/**
+ * Opens the browser's print dialog for a PDF in /public (e.g. a brand brochure) by loading it in an off-screen iframe.
+ * Phones and tablets can't print a PDF from an iframe, so there it opens in a new tab and the viewer's own print / share
+ * is used. `onReady` runs once the file has loaded (big catalogues take a few seconds).
+ */
+export function printPdf(url: string, onReady?: () => void) {
+  if (window.matchMedia("(pointer: coarse)").matches) {
+    window.open(url, "_blank", "noopener");
+    onReady?.();
+    return;
+  }
+  // The previous frame is kept until now: removing it while its print dialog is open would cancel the print
+  document.getElementById("pdf-print-frame")?.remove();
+  const frame = document.createElement("iframe");
+  frame.id = "pdf-print-frame";
+  frame.src = url;
+  // Not display: none: Chrome doesn't load the PDF viewer in a hidden frame
+  frame.style.cssText = "position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;";
+  frame.onload = () => {
+    onReady?.();
+    // A short wait lets the PDF viewer finish laying out pages, or the first print can come out blank
+    setTimeout(() => {
+      try {
+        frame.contentWindow?.focus();
+        frame.contentWindow?.print();
+      } catch {
+        window.open(url, "_blank", "noopener");
+      }
+    }, 300);
+  };
+  document.body.appendChild(frame);
+}

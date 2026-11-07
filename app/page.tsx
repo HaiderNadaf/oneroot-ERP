@@ -968,21 +968,14 @@ function Catalogue() {
 function Brochure() {
   return (
     <section id="brochure" className={cx(ANCHOR, "py-12 sm:py-16 lg:py-24")}>
-      <div className="mx-auto max-w-5xl px-4 sm:px-6">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionTitle
-          eyebrow="Brochure"
-          title="OneRoot ERP at a glance"
-          text="Everything in the ERP on one page — download it to share with your team or partners."
+          eyebrow="Brochures"
+          title="Brochures from our brands"
+          text="Pick a brand and press Download to print it or save it as a PDF to share with your team or customers."
         />
-        <div className="relative mt-8 sm:mt-12">
-          {/* A second sheet peeking out behind the brochure */}
-          <div
-            aria-hidden
-            className="absolute inset-x-3 -top-3 bottom-3 -rotate-1 rounded-2xl bg-brand-100/70 ring-1 ring-brand-200 sm:inset-x-6"
-          />
-          <div className="relative">
-            <LandingBrochure />
-          </div>
+        <div className="mt-8 sm:mt-12">
+          <LandingBrochure />
         </div>
       </div>
     </section>
